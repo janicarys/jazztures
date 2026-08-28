@@ -7,15 +7,16 @@
 /[U|u]ser[S|s]ettings/
 /[M|m]emoryCaptures/
 /[A|a]ssets/Plugins/Android/
+/[B|b]ackup/
 
 # VS/IDE temp files
 .vs/
 .idea/
 *.csproj
 *.sln
+*.slnx
 *.blob
 *.apk
 .utmp/
 *_BurstDebugInformation_DoNotShip/
 *_BackUpThisFolder_ButDontShipItWithYourGame/
-
