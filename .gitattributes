@@ -8,3 +8,11 @@
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.psd filter=lfs diff=lfs merge=lfs -text
+
+# Project is set to Force Text serialization (ProjectSettings/EditorSettings.asset,
+# m_SerializationMode: 2), so ScriptableObject .asset files are YAML. Jazztures'
+# own assets (event channels, tuning config, lesson data) must stay diffable and
+# mergeable for review — keep them out of LFS. Third-party/boilerplate .asset files
+# elsewhere still match the rule above.
+Assets/Jazztures/**/*.asset text !filter !diff !merge
+Assets/Tests/**/*.asset text !filter !diff !merge

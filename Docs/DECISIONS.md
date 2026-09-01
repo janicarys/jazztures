@@ -8,6 +8,44 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0009 — Jazztures `.asset` files kept out of Git LFS
+
+**Date:** 2026-09-01 · **Status:** Accepted · **Milestone:** M2
+
+`.gitattributes` (inherited from the Unity Gitignore template) routes `*.asset`
+through Git LFS. The project serialises assets as **Force Text**
+(`ProjectSettings/EditorSettings.asset`, `m_SerializationMode: 2`), so `.asset` files
+are YAML, and Jazztures leans hard on reviewable ScriptableObjects — event channels
+(§2.3), tuning config (§0, `[TUNABLE]`), lesson data (§3.9, "data, not code"). LFS
+pointers would make those undiffable and unmergeable.
+
+**Decision:** add an override so `Assets/Jazztures/**/*.asset` and
+`Assets/Tests/**/*.asset` are plain text, out of LFS. Third-party/boilerplate `.asset`
+files elsewhere keep the LFS rule. Verified with `git check-attr`. No history rewrite —
+the three pre-existing LFS `.asset` blobs (Unity/Meta boilerplate) are left as-is.
+
+---
+
+## ADR-0008 — Piano samples: Salamander Grand V3 (CC-BY 3.0)
+
+**Date:** 2026-09-01 · **Status:** Accepted · **Milestone:** M2
+
+`SamplerNoteSink` (§4.2) needs a pitched acoustic-piano sample set. Chosen: **Salamander
+Grand Piano V3** (Yamaha C5, recorded by Alexander Holm), **CC-BY 3.0**. Pre-cut for
+samplers, multiple velocity layers, sample points roughly every third semitone.
+
+Obligations: CC-BY needs attribution — a `NOTICE` / credits entry naming the work,
+author and licence. To be added when the samples land.
+
+Placement: `Assets/Jazztures/Audio/piano/` (WAV, tracked via Git LFS — `*.wav` already
+in `.gitattributes`). The student downloads the set; the loader (`SampleMap` +
+`SamplerNoteSink`) maps a MIDI note to the nearest recorded sample and pitch-shifts by
+the residual cents.
+
+**Thesis impact:** Chapter 6 should name the sample source and licence.
+
+---
+
 ## ADR-0007 — Domain value types are `readonly struct : IEquatable<T>`, not `record struct`
 
 **Date:** 2026-09-01 · **Status:** Accepted · **Milestone:** M1
