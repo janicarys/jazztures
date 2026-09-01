@@ -17,18 +17,23 @@ never as literals in a `MonoBehaviour` (§2.4). This file mirrors them for the w
 
 ---
 
-## Gesture recognition — `Config/GestureThresholds.asset` (§3.4)
+## Gesture recognition — `GestureThresholdsConfig` asset (§3.4)
 
-| Parameter | Default | Measured | Status | Notes |
+Asset: `Assets/Jazztures/Config/` (`Jazztures/Config/Gesture Thresholds`). Temporal values
+feed `Core.Gesture.GestureInterpreter` via `ToThresholds()`; SDK values configure the
+`ShapeRecognizer` / `TransformRecognizer` assets.
+
+| Parameter | Default | Measured | Status | Consumed by |
 |---|---|---|---|---|
-| Finger "extended" curl | < 0.25 | — | default | ShapeRecognizer normalised curl |
-| Finger "curled" curl | > 0.75 | — | default | |
-| Palm orientation cone — enter | 35° | — | default | angle(palm normal, target axis) |
-| Palm orientation cone — exit | 50° | — | default | must stay wider than enter (Schmitt) |
-| Pose hold to confirm | 120 ms | — | default | also the latency-budget lever (§4.3) |
-| Minimum inter-chord interval | 100 ms | — | default | debounce |
-| Consecutive confirming frames | 3 | — | default | at ~60 Hz hand update |
-| High-confidence frames to accept after tracking loss | 3 | — | default | §3.5 policy |
+| Finger "extended" curl | < 0.25 | — | default | SDK ShapeRecognizer |
+| Finger "curled" curl | > 0.75 | — | default | SDK ShapeRecognizer |
+| Palm orientation cone — enter | 35° | — | default | SDK TransformRecognizer |
+| Palm orientation cone — exit | 50° | — | default | SDK TransformRecognizer (must stay wider — Schmitt) |
+| Pose hold to confirm | 120 ms | — | default | `GestureInterpreter` (also the latency-budget lever, §4.3) |
+| Minimum inter-chord interval | 100 ms | — | default | `GestureInterpreter` (debounce) |
+| Consecutive confirming frames | 3 | — | default | `GestureInterpreter` (~60 Hz hand update) |
+| High-confidence frames to accept after tracking loss | 3 | — | default | `GestureInterpreter` (§3.5) |
+| Tracking-loss cue delay | 200 ms | — | default | `GestureInterpreter` → presentation (§3.5.2) |
 
 ## Melody / touch targets — `Config/MelodyConfig.asset` (§3.3)
 
