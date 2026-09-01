@@ -8,6 +8,40 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0011 — Lesson content pipeline: Standard MIDI File → baked ScriptableObject
+
+**Date:** 2026-09-01 · **Status:** Proposed (needs the student's sign-off — it changes
+Chapter 6) · **Milestone:** blocks M5, resolve before then
+
+The proposal states lesson material loads from Sibelius `.sib` files. `.sib` is a
+proprietary binary format with no Unity reader — not implementable as written (`CLAUDE.md`
+§3.9, §7).
+
+**Proposed resolution** (adopts the §3.9 recommendation):
+
+1. **Offline authoring.** Lesson phrases are engraved in Sibelius (or any notation tool)
+   and exported to **Standard MIDI File** (`.mid`). SMF over MusicXML because Jazztures
+   lessons are *performance data* — a target phrase (note on/off + timing), a tempo, a
+   swing ratio, success criteria — not engraved notation to be displayed. An SMF parser
+   is ~100 lines; a MusicXML parser is a project. Pitch spelling is irrelevant here
+   (single key, C major).
+2. **Edit-time bake.** A small Unity editor importer reads the `.mid`, extracts the note
+   sequence + tempo, and writes it into a `LessonDefinition` ScriptableObject. The
+   novice-facing concept text, permitted modes, active hands and success criteria are
+   authored by hand on the same asset (co-design asked for plain-language theory
+   alongside the exercise).
+3. **Runtime loads baked assets only.** No notation or MIDI parsing on-device.
+
+**Thesis impact (Chapter 6):** replace the Sibelius/`.sib` runtime-pipeline description
+with "phrases authored offline, exported as SMF, baked into lesson assets at edit time;
+runtime consumes only the baked `ScriptableObject`s." Same as the RtMidi wording change —
+cheap now, expensive in April.
+
+**Open sub-question for the student:** does any lesson need MusicXML-only information
+(rich articulation, multiple voices per hand, displayed notation)? If yes, revisit.
+
+---
+
 ## ADR-0010 — Gesture recognition: SDK recognisers + Core temporal state machine
 
 **Date:** 2026-09-01 · **Status:** Accepted · **Milestone:** M3

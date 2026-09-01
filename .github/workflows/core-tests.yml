@@ -1,0 +1,36 @@
+name: core-tests
+
+# Runs the headless musical-domain tests (CLAUDE.md §2.1) on every push and PR.
+# Unity is not involved — DotNet/ compiles the same Jazztures.Core sources and the
+# same EditMode test sources on the desktop CLR.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  dotnet-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false # the domain tests never touch the piano WAVs
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore DotNet/Jazztures.sln
+
+      - name: Test
+        run: dotnet test DotNet/Jazztures.sln --configuration Release --no-restore --logger "trx;LogFileName=results.trx"
+
+      - name: Publish results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: "**/results.trx"
+          if-no-files-found: ignore
