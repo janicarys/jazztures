@@ -20,3 +20,8 @@
 .utmp/
 *_BurstDebugInformation_DoNotShip/
 *_BackUpThisFolder_ButDontShipItWithYourGame/
+
+# Headless domain build (see DotNet/README.md) — tracked despite the *.csproj / *.sln rules above.
+# Unity's own generated *.csproj / *.sln at the repo root stay ignored.
+!/DotNet/**/*.csproj
+!/DotNet/Jazztures.sln
