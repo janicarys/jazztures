@@ -1,4 +1,4 @@
-# Third-party notices — Jazztures
+# Third-party notices | Jazztures
 
 This project bundles or depends on the following third-party works. Nothing here is
 original to the thesis; the terms below are the authors'.
