@@ -89,6 +89,61 @@ namespace Jazztures.Core.Music
             return new Pitch(midi);
         }
 
+        /// <summary>
+        /// Parses scientific pitch notation — a letter A–G, optional accidentals
+        /// (<c>#</c>/<c>b</c>, repeatable), then an octave integer that may be negative,
+        /// e.g. <c>"C4"</c>, <c>"D#4"</c>, <c>"A0"</c>, <c>"C-1"</c>. Sharps and flats
+        /// are accepted on input though <see cref="ToString"/> only emits sharps.
+        /// Returns false (and <c>default</c>) on anything malformed or out of MIDI range.
+        /// </summary>
+        public static bool TryParse(string? text, out Pitch pitch)
+        {
+            pitch = default;
+            if (string.IsNullOrEmpty(text))
+            {
+                return false;
+            }
+
+            int index = 0;
+            int semitone = char.ToUpperInvariant(text![index]) switch
+            {
+                'C' => 0,
+                'D' => 2,
+                'E' => 4,
+                'F' => 5,
+                'G' => 7,
+                'A' => 9,
+                'B' => 11,
+                _ => -1,
+            };
+            if (semitone < 0)
+            {
+                return false;
+            }
+
+            index++;
+            while (index < text.Length && (text[index] == '#' || text[index] == 'b'
+                || text[index] == '♯' || text[index] == '♭'))
+            {
+                semitone += text[index] == '#' || text[index] == '♯' ? 1 : -1;
+                index++;
+            }
+
+            if (index >= text.Length || !int.TryParse(text.Substring(index), out int octave))
+            {
+                return false;
+            }
+
+            int midi = 12 * (octave + 1) + semitone;
+            if (midi is < MinMidi or > MaxMidi)
+            {
+                return false;
+            }
+
+            pitch = new Pitch(midi);
+            return true;
+        }
+
         public int CompareTo(Pitch other) => Midi.CompareTo(other.Midi);
 
         public bool Equals(Pitch other) => Midi == other.Midi;

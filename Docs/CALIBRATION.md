@@ -74,8 +74,13 @@ constants become fallback defaults only.
 |---|---|---|---|---|
 | Sample rate | 48 kHz | — | default | |
 | DSP buffer | "Best Latency" | — | default | |
-| Voice pool size | ≥ 32 | — | default | |
-| Sample load | preloaded + decompressed on load | — | default | never DecompressOnPlay in trigger path |
+| Voice pool size | ≥ 32 | — | default | never DecompressOnPlay in trigger path. `SamplerNoteSink._voiceCount` |
+| Sample load | preloaded + decompressed on load | — | default | set on import; not yet enforced |
+| Sampler velocity-layer split | MIDI velocity 64 | — | default | ≥ → Hard layer, < → Soft. `SampleLibrary.DefaultLayerSplitVelocity` |
+| Note-off release fade | 80 ms | — | default | avoids a click on the sample tail. `SamplerNoteSink._releaseSeconds` |
+| Velocity → gain trim | lerp 0.35→1.0 over vel 0→127, × master | — | default | layers carry the big dynamics; this is a trim. `SamplerNoteSink` |
+| Master gain | 0.5 | — | default | `SamplerNoteSink._masterGain` |
+| Keyboard debug entry speed | 0.8 m/s | — | debug-only | `KeyboardPerformanceDriver.KeyedEntrySpeed` — not a study parameter |
 
 ## Feedback — `Config/TensionColorConfig.asset` (§3.10)
 
