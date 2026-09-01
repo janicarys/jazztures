@@ -3,7 +3,8 @@
     "rootNamespace": "Jazztures.Input",
     "references": [
         "Jazztures.Core",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Oculus.Interaction"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
