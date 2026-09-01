@@ -1,0 +1,19 @@
+{
+    "name": "Jazztures.Audio.Editor",
+    "rootNamespace": "Jazztures.Audio.Editor",
+    "references": [
+        "Jazztures.Core",
+        "Jazztures.Audio"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

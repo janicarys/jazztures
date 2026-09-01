@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Headless test runner for the musical domain (CLAUDE.md §2.1, §2.6; ADR-0002).
+    Compiles THE SAME test .cs files as the Unity EditMode asmdef
+    (Assets/Tests/EditMode), so one test source runs both in Unity's Test Runner
+    and via `dotnet test`. Consequence: EditMode tests that cover Core must not
+    reference UnityEngine — anything needing Unity belongs in a PlayMode test or
+    a separate Unity-only EditMode asmdef.
+
+    NUnit is pinned to 3.x to match the version Unity's Test Framework ships,
+    so the assertion API is identical on both sides.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>Jazztures.Tests.EditMode</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Assets\Tests\EditMode\**\*.cs">
+      <Link>EditMode\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Jazztures.Core\Jazztures.Core.csproj" />
+  </ItemGroup>
+
+</Project>

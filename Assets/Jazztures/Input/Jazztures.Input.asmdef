@@ -1,0 +1,18 @@
+{
+    "name": "Jazztures.Input",
+    "rootNamespace": "Jazztures.Input",
+    "references": [
+        "Jazztures.Core",
+        "Unity.InputSystem",
+        "Oculus.Interaction"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
