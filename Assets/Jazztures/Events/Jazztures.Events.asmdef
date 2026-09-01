@@ -1,12 +1,8 @@
 {
-    "name": "Jazztures.App",
-    "rootNamespace": "Jazztures.App",
+    "name": "Jazztures.Events",
+    "rootNamespace": "Jazztures.Events",
     "references": [
-        "Jazztures.Core",
-        "Jazztures.Audio",
-        "Jazztures.Input",
-        "Jazztures.Config",
-        "Jazztures.Events"
+        "Jazztures.Core"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

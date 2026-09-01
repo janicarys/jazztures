@@ -4,6 +4,7 @@ using Jazztures.Core.Gesture;
 using Jazztures.Core.Harmony;
 using Jazztures.Core.Melody;
 using Jazztures.Core.Ports;
+using Jazztures.Events;
 using Jazztures.Input;
 using UnityEngine;
 
@@ -37,6 +38,9 @@ namespace Jazztures.App
         [Tooltip("Fixed note length for melody notes, seconds. [OPEN] — pilot-calibrated at M8.")]
         [SerializeField] private double _melodySustainSeconds = MelodyEngine.DefaultSustainSeconds;
 
+        [Tooltip("Optional: every note is also raised on this channel for presentation.")]
+        [SerializeField] private NoteTriggeredChannel _noteChannel;
+
         private IHandPoseSource _poseSource;
         private GestureInterpreter _interpreter;
         private HarmonyEngine _harmony;
@@ -58,7 +62,9 @@ namespace Jazztures.App
             }
 
             var clock = new DspMusicalClock();
-            INoteSink sink = new CompositeNoteSink(_sampler);
+            INoteSink sink = _noteChannel != null
+                ? new CompositeNoteSink(_sampler, new ChannelNoteSink(_noteChannel))
+                : new CompositeNoteSink(_sampler);
 
             _harmony = new HarmonyEngine(clock, sink);
             _melody = new MelodyEngine(clock, sink, _melodySustainSeconds);
@@ -72,6 +78,8 @@ namespace Jazztures.App
 
             _poseSource = ResolvePoseSource(clock);
             _melodyKeys = new KeyboardMelodyInput();
+
+            GetComponent<DomainEventBridge>()?.Bind(_harmony, _interpreter, _poseSource);
         }
 
         private IHandPoseSource ResolvePoseSource(IMusicalClock clock)
