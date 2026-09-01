@@ -1,3 +1,4 @@
+using Jazztures.Core.Diagnostics;
 using Jazztures.Core.Ports;
 using Jazztures.Core.Sampling;
 using UnityEngine;
@@ -35,6 +36,10 @@ namespace Jazztures.Audio
         private AudioSource[] _sources = System.Array.Empty<AudioSource>();
         private Voice[] _voices = System.Array.Empty<Voice>();
         private bool _ready;
+        private LatencyRecorder _latency;
+
+        /// <summary>Optional: record the note-event → scheduled latency (§4.3).</summary>
+        public void SetLatencyRecorder(LatencyRecorder recorder) => _latency = recorder;
 
         private void Awake()
         {
@@ -99,8 +104,11 @@ namespace Jazztures.Audio
             src.pitch = (float)selection.PlaybackRate;
             src.volume = gain;
 
-            double when = System.Math.Max(note.DspTime, AudioSettings.dspTime);
+            double now = AudioSettings.dspTime;
+            double when = System.Math.Max(note.DspTime, now);
             src.PlayScheduled(when);
+
+            _latency?.Record(LatencyStage.NoteEventToScheduled, (now - note.DspTime) * 1000.0);
 
             _voices[slot] = new Voice
             {

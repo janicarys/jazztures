@@ -6,7 +6,8 @@
         "Jazztures.Audio",
         "Jazztures.Input",
         "Jazztures.Config",
-        "Jazztures.Events"
+        "Jazztures.Events",
+        "Jazztures.Diagnostics"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

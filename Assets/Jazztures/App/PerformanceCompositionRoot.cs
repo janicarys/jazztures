@@ -80,6 +80,13 @@ namespace Jazztures.App
             _melodyKeys = new KeyboardMelodyInput();
 
             GetComponent<DomainEventBridge>()?.Bind(_harmony, _interpreter, _poseSource);
+
+            var probe = GetComponent<Jazztures.Diagnostics.LatencyProbe>();
+            if (probe != null)
+            {
+                probe.Bind(_interpreter);
+                _sampler.SetLatencyRecorder(probe.Recorder);
+            }
         }
 
         private IHandPoseSource ResolvePoseSource(IMusicalClock clock)
