@@ -28,6 +28,9 @@ namespace Jazztures.App
         [Tooltip("A MetaXRHandPoseSource, or leave empty to use the desktop keyboard (Z/X/C).")]
         [SerializeField] private MonoBehaviour _handPoseSource;
 
+        [Tooltip("A recorded .jsonl fixture. If set, it is replayed instead of the live source.")]
+        [SerializeField] private TextAsset _replayFixture;
+
         [Tooltip("Gesture tuning. Leave empty for the built-in defaults.")]
         [SerializeField] private GestureThresholdsConfig _gestureThresholds;
 
@@ -54,7 +57,7 @@ namespace Jazztures.App
                 return;
             }
 
-            IMusicalClock clock = new DspMusicalClock();
+            var clock = new DspMusicalClock();
             INoteSink sink = new CompositeNoteSink(_sampler);
 
             _harmony = new HarmonyEngine(clock, sink);
@@ -67,16 +70,39 @@ namespace Jazztures.App
             _interpreter = new GestureInterpreter(clock, thresholds);
             _interpreter.ConfirmedFunctionChanged += function => _harmony.SetHeldFunction(function);
 
-            _poseSource = _handPoseSource as IHandPoseSource ?? new KeyboardHandPoseSource();
-            if (_handPoseSource != null && _poseSource == null)
+            _poseSource = ResolvePoseSource(clock);
+            _melodyKeys = new KeyboardMelodyInput();
+        }
+
+        private IHandPoseSource ResolvePoseSource(IMusicalClock clock)
+        {
+            if (_replayFixture != null)
+            {
+                if (HandPoseRecording.TryParseJsonl(_replayFixture.text, out HandPoseRecording recording))
+                {
+                    Debug.Log(
+                        $"{nameof(PerformanceCompositionRoot)}: replaying '{_replayFixture.name}' " +
+                        $"({recording.Count} frames, {recording.DurationSeconds:0.0}s).", this);
+                    return new ReplayHandPoseSource(recording, clock);
+                }
+
+                Debug.LogError(
+                    $"{nameof(PerformanceCompositionRoot)}: '{_replayFixture.name}' is not a valid recording.", this);
+            }
+
+            if (_handPoseSource is IHandPoseSource live)
+            {
+                return live;
+            }
+
+            if (_handPoseSource != null)
             {
                 Debug.LogWarning(
                     $"{nameof(PerformanceCompositionRoot)}: '{_handPoseSource.GetType().Name}' is not an " +
                     $"{nameof(IHandPoseSource)}; falling back to the keyboard.", this);
-                _poseSource = new KeyboardHandPoseSource();
             }
 
-            _melodyKeys = new KeyboardMelodyInput();
+            return new KeyboardHandPoseSource();
         }
 
         private void Update()
