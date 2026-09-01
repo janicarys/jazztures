@@ -209,6 +209,22 @@ namespace Jazztures.Tests.EditMode.Gesture
         }
 
         [Test]
+        public void PhaseChanged_FiresOnEachTransition_NotOnNoOps()
+        {
+            var phases = new List<GesturePhase>();
+            _interpreter.PhaseChanged += phases.Add;
+
+            Feed(3, HandPoseCandidate.None);            // Suppressed -> Idle
+            Feed(10, HandPoseCandidate.Ii, dt: 0.05);   // Idle -> Detecting -> Confirmed
+            Feed(5, HandPoseCandidate.Ii, dt: 0.05);    // no change while held
+
+            Assert.That(phases, Is.EqualTo(new[]
+            {
+                GesturePhase.Idle, GesturePhase.Detecting, GesturePhase.Confirmed,
+            }));
+        }
+
+        [Test]
         public void ConfirmedFunctionChanged_FiresOncePerActualChange()
         {
             Feed(3, HandPoseCandidate.None);

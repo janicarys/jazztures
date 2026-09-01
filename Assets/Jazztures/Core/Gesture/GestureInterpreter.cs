@@ -57,6 +57,17 @@ namespace Jazztures.Core.Gesture
         /// <summary>What the interpreter is doing, for the gesture-state channel.</summary>
         public GesturePhase Phase { get; private set; }
 
+        private void SetPhase(GesturePhase phase)
+        {
+            if (Phase == phase)
+            {
+                return;
+            }
+
+            Phase = phase;
+            PhaseChanged?.Invoke(phase);
+        }
+
         /// <summary>
         /// True once tracking has been lost for at least
         /// <see cref="GestureThresholds.TrackingLossCueSeconds"/> — the trigger for the
@@ -66,6 +77,9 @@ namespace Jazztures.Core.Gesture
 
         /// <summary>Raised only when <see cref="ConfirmedFunction"/> actually changes.</summary>
         public event Action<ChordFunction?>? ConfirmedFunctionChanged;
+
+        /// <summary>Raised only when <see cref="Phase"/> actually changes.</summary>
+        public event Action<GesturePhase>? PhaseChanged;
 
         public void Feed(HandPoseFrame frame)
         {
@@ -98,7 +112,7 @@ namespace Jazztures.Core.Gesture
                 if (!_trackingUsable)
                 {
                     ResetPending();
-                    Phase = GesturePhase.Suppressed;
+                    SetPhase(GesturePhase.Suppressed);
                     UpdateTrackingCue(now);
                     return;
                 }
@@ -118,7 +132,7 @@ namespace Jazztures.Core.Gesture
             _trackingUsable = false;
             _highFrames = 0;
             ResetPending();
-            Phase = GesturePhase.Suppressed;
+            SetPhase(GesturePhase.Suppressed);
             // _confirmed is deliberately left untouched — sustain, do not release (§3.5.1).
         }
 
@@ -127,7 +141,7 @@ namespace Jazztures.Core.Gesture
             if (candidate == HandPoseCandidate.Ambiguous)
             {
                 ResetPending();
-                Phase = _confirmed.HasValue ? GesturePhase.Confirmed : GesturePhase.Idle;
+                SetPhase(_confirmed.HasValue ? GesturePhase.Confirmed : GesturePhase.Idle);
                 return;
             }
 
@@ -136,7 +150,7 @@ namespace Jazztures.Core.Gesture
             if (target == _confirmed)
             {
                 ResetPending();
-                Phase = _confirmed.HasValue ? GesturePhase.Confirmed : GesturePhase.Idle;
+                SetPhase(_confirmed.HasValue ? GesturePhase.Confirmed : GesturePhase.Idle);
                 return;
             }
 
@@ -146,12 +160,12 @@ namespace Jazztures.Core.Gesture
                 _pendingCandidate = candidate;
                 _pendingFrameCount = 1;
                 _pendingSince = now;
-                Phase = GesturePhase.Detecting;
+                SetPhase(GesturePhase.Detecting);
                 return;
             }
 
             _pendingFrameCount++;
-            Phase = GesturePhase.Detecting;
+            SetPhase(GesturePhase.Detecting);
 
             bool heldLongEnough = now - _pendingSince >= _thresholds.PoseHoldSeconds;
             bool enoughFrames = _pendingFrameCount >= _thresholds.ConfirmingFrames;
@@ -162,7 +176,7 @@ namespace Jazztures.Core.Gesture
                 _confirmed = target;
                 _lastConfirmChangeTime = now;
                 ResetPending();
-                Phase = _confirmed.HasValue ? GesturePhase.Confirmed : GesturePhase.Idle;
+                SetPhase(_confirmed.HasValue ? GesturePhase.Confirmed : GesturePhase.Idle);
                 ConfirmedFunctionChanged?.Invoke(_confirmed);
             }
         }
