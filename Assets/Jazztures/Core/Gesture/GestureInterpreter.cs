@@ -75,6 +75,13 @@ namespace Jazztures.Core.Gesture
         /// </summary>
         public bool TrackingCueActive { get; private set; }
 
+        /// <summary>
+        /// Seconds the just-confirmed pose was held (candidate first seen → confirmed) —
+        /// the latency segment §4.3 says is the only one we control. Updated on each
+        /// <see cref="ConfirmedFunctionChanged"/>; NaN before the first confirmation.
+        /// </summary>
+        public double LastConfirmationHoldSeconds { get; private set; } = double.NaN;
+
         /// <summary>Raised only when <see cref="ConfirmedFunction"/> actually changes.</summary>
         public event Action<ChordFunction?>? ConfirmedFunctionChanged;
 
@@ -175,6 +182,7 @@ namespace Jazztures.Core.Gesture
             {
                 _confirmed = target;
                 _lastConfirmChangeTime = now;
+                LastConfirmationHoldSeconds = now - _pendingSince;
                 ResetPending();
                 SetPhase(_confirmed.HasValue ? GesturePhase.Confirmed : GesturePhase.Idle);
                 ConfirmedFunctionChanged?.Invoke(_confirmed);
