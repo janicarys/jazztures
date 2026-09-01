@@ -8,6 +8,29 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0007 — Domain value types are `readonly struct : IEquatable<T>`, not `record struct`
+
+**Date:** 2026-09-01 · **Status:** Accepted · **Milestone:** M1
+
+`CLAUDE.md` §2.4 says "domain values are `readonly record struct` where possible".
+Unity `6000.5.0f1` compiles C# at **`-langversion:9.0`** (verified in
+`Library/Bee/artifacts/*/Assembly-CSharp.rsp`). `record struct` is a **C# 10** feature,
+so it does not compile in this project. Overriding the language level per-assembly via
+`csc.rsp` was rejected: it fights the pinned toolchain and is a defensibility risk at the
+viva for zero functional gain.
+
+**Decision:** the "where possible" clause resolves to **`readonly struct` implementing
+`IEquatable<T>`** with explicit `==` / `!=` / `Equals` / `GetHashCode` / `ToString` for
+the small immutable value types (`Pitch`, `Chord`, `ChordVoicing`, `ChordToneSet`,
+`NoteEvent`, `Beat`). Same semantics the spec intends (immutable, value equality,
+allocation-free); more boilerplate. Larger, non-hot domain objects may use `record`
+(reference type, C# 9) where an allocation is acceptable.
+
+**Thesis impact:** none. If Chapter 6 names `record struct` specifically, soften to
+"immutable value types".
+
+---
+
 ## ADR-0006 — Left-hand pose assets rebuilt, not salvaged
 
 **Date:** 2026-09-01 · **Status:** Accepted · **Milestone:** M0 → M3

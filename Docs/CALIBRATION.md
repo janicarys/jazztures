@@ -45,8 +45,13 @@ never as literals in a `MonoBehaviour` (§2.4). This file mirrors them for the w
 
 | Parameter | Default | Measured | Status | Notes |
 |---|---|---|---|---|
-| Left-hand voicing lowest note | MIDI 48–60, close voicing | — | default | needs a pianist's ear (§7 open item) |
-| Right-hand lower octave — lowest target | ≥ MIDI 72 | — | default | keeps melody above harmony in spectrum |
+| Left-hand voicing lowest note | MIDI 48–60, close voicing | — | default | needs a pianist's ear (§7 open item). Code: `Voicing.DefaultRootFloorMidi` / `DefaultRootCeilingMidi` |
+| Right-hand lower octave — lowest target | ≥ MIDI 72 | — | default | keeps melody above harmony in spectrum. Code: `ChordToneSet.DefaultLowestTargetFloorMidi` |
+
+Until the Config asset exists (M8, Phase 8), these live as named `const` in
+`Assets/Jazztures/Core/Music/`. Phase 8 wires the asset to the parameterised overloads
+(`Voicing.Close(chord, floor, ceiling)`, `ChordToneSet.For(chord, floor)`) and these
+constants become fallback defaults only.
 
 ## Timing — `Config/TimingConfig.asset` / per-lesson (§3.6)
 
