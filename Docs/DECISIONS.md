@@ -8,6 +8,38 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0010 — Gesture recognition: SDK recognisers + Core temporal state machine
+
+**Date:** 2026-09-01 · **Status:** Accepted · **Milestone:** M3
+
+`CLAUDE.md` §3.4 says to build on the Meta XR Interaction SDK's pose detection
+(`ShapeRecognizer` + `TransformRecognizer` + `ActiveStateGroup`) and warns that "a custom
+classifier ... cannot be defended in a viva". §2.6 is equally firm that gesture logic
+must be testable without repeatedly donning the headset.
+
+**Decision (confirmed by the student):**
+
+- **Per-frame pose match** stays in the SDK. Three composed recognisers (one per pose:
+  palm-right / fist / palm-down) each expose an `IActiveState`. `MetaXRHandPoseSource`
+  reads them and the left/right `IHand`, and reports a `HandPoseCandidate` +
+  `TrackingQuality` per frame. More than one match → `Ambiguous`; it never guesses.
+- **All temporal logic** — pose-hold time, consecutive confirming frames, inter-chord
+  debounce, the ii/I ambiguity rule, and the §3.5 tracking-loss policy — lives in a pure
+  `Jazztures.Core.Gesture.GestureInterpreter`, unit-tested headless and replayable against
+  recorded `IHandPoseSource` fixtures.
+- The SDK curl/cone values and the interpreter's temporal values both live on one
+  `GestureThresholdsConfig` asset (§3.4). The interpreter reads the temporal group; the
+  recogniser assets must be kept configured to match the SDK group.
+
+This is not a custom classifier — the SDK still classifies the pose. Only the timing
+and safety rules are ours, and those are exactly what needs headless tests.
+
+**Thesis impact:** none to the methodology. If §3.4's prose is quoted verbatim in the
+paper, note that classification is SDK-side and only the confirmation state machine is
+bespoke.
+
+---
+
 ## ADR-0009 — Jazztures `.asset` files kept out of Git LFS
 
 **Date:** 2026-09-01 · **Status:** Accepted · **Milestone:** M2
