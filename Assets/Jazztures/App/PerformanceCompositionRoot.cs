@@ -65,7 +65,7 @@ namespace Jazztures.App
                 ? _gestureThresholds.ToThresholds()
                 : GestureThresholds.Default;
             _interpreter = new GestureInterpreter(clock, thresholds);
-            _interpreter.ConfirmedFunctionChanged += _harmony.SetHeldFunction;
+            _interpreter.ConfirmedFunctionChanged += function => _harmony.SetHeldFunction(function);
 
             _poseSource = _handPoseSource as IHandPoseSource ?? new KeyboardHandPoseSource();
             if (_handPoseSource != null && _poseSource == null)
