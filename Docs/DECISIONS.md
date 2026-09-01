@@ -8,37 +8,47 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
-## ADR-0011 — Lesson content pipeline: Standard MIDI File → baked ScriptableObject
+## ADR-0011 — Lesson content: SMF musical timeline + separate authored LessonScript
 
-**Date:** 2026-09-01 · **Status:** Proposed (needs the student's sign-off — it changes
-Chapter 6) · **Milestone:** blocks M5, resolve before then
+**Date:** 2026-09-01 · **Status:** Accepted (student signed off; changes Chapter 6) ·
+**Milestone:** shapes the M5 `LessonDefinition` schema
 
 The proposal states lesson material loads from Sibelius `.sib` files. `.sib` is a
 proprietary binary format with no Unity reader — not implementable as written (`CLAUDE.md`
 §3.9, §7).
 
-**Proposed resolution** (adopts the §3.9 recommendation):
+**Decision:**
 
-1. **Offline authoring.** Lesson phrases are engraved in Sibelius (or any notation tool)
-   and exported to **Standard MIDI File** (`.mid`). SMF over MusicXML because Jazztures
-   lessons are *performance data* — a target phrase (note on/off + timing), a tempo, a
-   swing ratio, success criteria — not engraved notation to be displayed. An SMF parser
-   is ~100 lines; a MusicXML parser is a project. Pitch spelling is irrelevant here
-   (single key, C major).
-2. **Edit-time bake.** A small Unity editor importer reads the `.mid`, extracts the note
-   sequence + tempo, and writes it into a `LessonDefinition` ScriptableObject. The
-   novice-facing concept text, permitted modes, active hands and success criteria are
-   authored by hand on the same asset (co-design asked for plain-language theory
-   alongside the exercise).
-3. **Runtime loads baked assets only.** No notation or MIDI parsing on-device.
+1. **Musical timeline from a Standard MIDI File.** Lesson phrases are engraved in a
+   notation tool (Sibelius, MuseScore) and exported as `.mid`. An edit-time Unity
+   importer reads it and produces a `LessonTimeline`:
+   - left-hand staff / channel → `(beat, ChordFunction)` events (chord detected from the
+     sounding notes, or a one-note-per-chord encoding on a dedicated channel);
+   - melody staff / channel → `(beat, pitch, velocity)`, mapped at import to
+     `(beat, targetIndex, velocity)` using the chord active at that beat;
+   - tempo / time-signature meta events → the beat grid.
+   This is what the ghost hands replay. SMF is sufficient — Jazztures needs a fingertip
+   target and a hand pose per beat, not engraved-notation fidelity or per-finger detail.
+   MusicXML was considered and rejected: a much larger parser for information this
+   system does not use.
+
+2. **Presentation cues from a separate `LessonScript`**, authored by hand on the
+   `LessonDefinition` ScriptableObject — a list of `trigger → action`:
+   - **trigger:** a beat, a named timeline event, or a learner action (e.g. "after the
+     learner plays the tonic");
+   - **action:** show/hide text, highlight a target, set the tension colour, wait for
+     input, advance the lesson phase, gate scoring, …
+   The music format carries none of this. Decoupling means a caption can be retimed
+   without re-engraving the score, and cues can react to the learner, not just the clock.
+   This is the ImproVisAR / Synthesia / Melodics pattern (note chart + cue track).
+
+3. **Runtime loads baked assets only.** No `.mid` or notation parsing on-device.
 
 **Thesis impact (Chapter 6):** replace the Sibelius/`.sib` runtime-pipeline description
-with "phrases authored offline, exported as SMF, baked into lesson assets at edit time;
-runtime consumes only the baked `ScriptableObject`s." Same as the RtMidi wording change —
-cheap now, expensive in April.
-
-**Open sub-question for the student:** does any lesson need MusicXML-only information
-(rich articulation, multiple voices per hand, displayed notation)? If yes, revisit.
+with: "phrases engraved offline and exported as SMF; an edit-time importer bakes the
+musical timeline into a lesson `ScriptableObject`; text and visual cues are authored
+separately as a beat/event-keyed script on the same asset; runtime consumes only the
+baked assets." Cheap to fix now, expensive in April.
 
 ---
 
