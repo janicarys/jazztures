@@ -429,7 +429,7 @@ Run 1–2 pilot users. Replace `[TUNABLE]` defaults with measured values in `Doc
 | Sibelius → Unity content pipeline | `[OPEN]` — see §3.9. Blocks M6. Resolve before M5. |
 | RtMidi on ARM64 | Resolved in §4.2. Requires a Chapter 6 wording update. |
 | Target Quest model | `[OPEN]` — confirm lab hardware; affects tracking-quality expectations. |
-| Ghost hand visual design | `[OPEN]` — co-design informed the visualisation but specifics are not fixed. |
+| Ghost hand visual design | Resolved in ADR-0012 — translucent articulated mesh, superimposed on the learner's hands, target spheres light in sequence (no ghost fingertip), continuous pose morphing. |
 | Backing track for Compose-on-the-Fly | `[OPEN]` — L7/L8 need accompaniment; source and generation method undefined. |
 | Q&A phrase generation (L8) | `[OPEN]` — pre-authored bank vs. generated. Prefer pre-authored; generation is a second thesis. |
 | Chord voicing register | `[TUNABLE]` — needs a pianist's ear, not a developer's. |

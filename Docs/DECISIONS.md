@@ -8,6 +8,37 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0012 — Ghost hand visualisation
+
+**Date:** 2026-09-02 · **Status:** Accepted (student design call) ·
+**Milestone:** M5 (ghost-hand data stream) / M6 (full renderer) · Resolves the `CLAUDE.md` §7 `[OPEN]` item
+
+The thesis says co-design informed the ghost-hand visualisation but did not fix the
+specifics. Decision, made by the student:
+
+| Aspect | Choice |
+|---|---|
+| **Representation** | Translucent hand mesh, full articulated fingers. |
+| **Anchoring** | Superimposed on the learner's own tracked hands — the ghost shows the delta between where the hand is and where it should be. **Not** flying toward the user: a rhythm-game reading was considered and rejected as too high a mental load (consistent with §1.3, where the three-lane design was cut for feeling like a rhythm game). |
+| **Left-hand pose** | The full articulated hand forms the pose (open-palm-right / fist / open-palm-down). |
+| **Right-hand melody** | **No ghost fingertip.** The target spheres light in sequence; the learner chooses the reach. Keeps the melodic choice with the learner (§1.3) and spends less visual budget (§3.10). |
+| **Motion model** | Continuous animation through the phrase — the ghost morphs between poses rather than snapping. Conveys the *movement*, which is the point of Gesture-Learning mode given the absence of haptics (§3.8). |
+| **Ghost vs. real hand** | Distinguished by translucency and a colour tint. |
+
+**Architecture consequence:** the ghost visual is a pure subscriber. `LessonRunner`
+publishes a ghost-hand *data stream* from the `LessonTimeline` — the demonstrated left-hand
+`ChordFunction` (with the beat it changed, for morph timing) and the demonstrated melody
+target lights (`targetIndex`, dsp time) — during ghost-hand modes only (§3.8 table). The
+renderer consumes that and owns all mesh, translucency and tint values. M5 ships the data
+stream and a placeholder renderer; the articulated translucent mesh with pose morphing is
+M6 polish.
+
+**Thesis impact:** none for Chapter 6 (methodology). The design chapter should describe
+the ghost hands as above; note the rhythm-game option was considered and rejected on
+cognitive-load grounds.
+
+---
+
 ## ADR-0011 — Lesson content: SMF musical timeline + separate authored LessonScript
 
 **Date:** 2026-09-01 · **Status:** Accepted (student signed off; changes Chapter 6) ·
