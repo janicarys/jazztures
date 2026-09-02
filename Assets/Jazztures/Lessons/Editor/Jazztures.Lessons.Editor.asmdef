@@ -1,16 +1,13 @@
 {
-    "name": "Jazztures.App",
-    "rootNamespace": "Jazztures.App",
+    "name": "Jazztures.Lessons.Editor",
+    "rootNamespace": "Jazztures.Lessons.Editor",
     "references": [
         "Jazztures.Core",
-        "Jazztures.Audio",
-        "Jazztures.Input",
-        "Jazztures.Config",
-        "Jazztures.Events",
-        "Jazztures.Diagnostics",
         "Jazztures.Lessons"
     ],
-    "includePlatforms": [],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,

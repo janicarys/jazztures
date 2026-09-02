@@ -2,10 +2,12 @@ using Jazztures.Audio;
 using Jazztures.Config;
 using Jazztures.Core.Gesture;
 using Jazztures.Core.Harmony;
+using Jazztures.Core.Lessons;
 using Jazztures.Core.Melody;
 using Jazztures.Core.Ports;
 using Jazztures.Events;
 using Jazztures.Input;
+using Jazztures.Lessons;
 using UnityEngine;
 
 namespace Jazztures.App
@@ -43,6 +45,7 @@ namespace Jazztures.App
 
         private IHandPoseSource _poseSource;
         private GestureInterpreter _interpreter;
+        private ModeGatedNoteSink _gate;
         private HarmonyEngine _harmony;
         private MelodyEngine _melody;
         private KeyboardMelodyInput _melodyKeys;
@@ -62,12 +65,18 @@ namespace Jazztures.App
             }
 
             var clock = new DspMusicalClock();
-            INoteSink sink = _noteChannel != null
-                ? new CompositeNoteSink(_sampler, new ChannelNoteSink(_noteChannel))
-                : new CompositeNoteSink(_sampler);
 
-            _harmony = new HarmonyEngine(clock, sink);
-            _melody = new MelodyEngine(clock, sink, _melodySustainSeconds);
+            // §3.8: the learning mode gates only what the learner hears. Everything —
+            // sounded or not — reaches the unconditional sink (presentation, and OSC /
+            // telemetry in later milestones). Default mode is Compose-on-the-Fly, so with
+            // no LessonRunner present the keyboard debug path sounds everything as before.
+            INoteSink unconditional = _noteChannel != null
+                ? new ChannelNoteSink(_noteChannel)
+                : (INoteSink)new NullNoteSink();
+            _gate = new ModeGatedNoteSink(_sampler, unconditional);
+
+            _harmony = new HarmonyEngine(clock, _gate);
+            _melody = new MelodyEngine(clock, _gate, _melodySustainSeconds);
             _harmony.ChordChanged += _melody.OnChordChanged;
 
             GestureThresholds thresholds = _gestureThresholds != null
@@ -80,6 +89,7 @@ namespace Jazztures.App
             _melodyKeys = new KeyboardMelodyInput();
 
             GetComponent<DomainEventBridge>()?.Bind(_harmony, _interpreter, _poseSource);
+            GetComponent<LessonRunner>()?.Bind(clock, _gate, _interpreter);
 
             var probe = GetComponent<Jazztures.Diagnostics.LatencyProbe>();
             if (probe != null)
