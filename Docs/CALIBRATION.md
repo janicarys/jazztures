@@ -62,16 +62,21 @@ constants become fallback defaults only.
 
 | Parameter | Default | Measured | Status | Notes |
 |---|---|---|---|---|
-| Default tempo | 80 BPM | — | default | >100 BPM gated behind a config flag (unvalidated) |
-| Swing ratio | 0.66 | — | default | per-lesson; L4 introduces swing, L1–3 straight |
+| Default tempo | 80 BPM | — | default | >100 BPM gated behind a config flag (unvalidated). Code: `Tempo.Default` |
+| Swing ratio | 0.66 | — | default | per-lesson; L4 introduces swing, L1–3 straight. Code: `SwingRatio.Default` (straight = `SwingRatio.Straight`); warp in `SwingQuantizer` |
+| Metronome bar length | 4 beats | — | default | click grid only, not swung. Code: `Metronome.DefaultBeatsPerBar` |
 
 ## Onset scoring — `Config/OnsetScoringConfig.asset` (§3.7)
+
+Code: `Core.Evaluation.OnsetWindows` (`DefaultOnTimeSeconds` / `DefaultCloseSeconds` /
+`DefaultMatchSeconds`); scoring in `OnsetScorer.Evaluate` → `AttemptResult`.
 
 | Window | Default | Measured | Status |
 |---|---|---|---|
 | "on time" | ≤ 80 ms | — | default |
 | "close" | ≤ 160 ms | — | default |
 | "off" | > 160 ms | — | default |
+| match gate (beyond → missed + extra, not "off") | 300 ms | — | default |
 
 ## Audio — `Config/AudioConfig.asset` (§4.2)
 
