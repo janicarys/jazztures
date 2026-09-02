@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a012f129b373e64a9eda0554e10d291, type: 3}
+  m_Name: Lesson_L2_Timing
+  m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.LessonDefinition
+  _id: L2
+  _title: Timing
+  _conceptExplanation: Keep a steady pulse with the metronome. The harmony stays
+    frozen so you can put all your attention on the beat.
+  _tempoBpm: 80
+  _swingRatio: 0.5
+  _beatsPerBar: 4
+  _hands: 1
+  _useMetronome: 1
+  _modes: 010000000200000003000000
+  _chords:
+  - beat: 0
+    function: 0
+  - beat: 4
+    function: 0
+  _notes: []
+  _markers: []
+  _cues: []
