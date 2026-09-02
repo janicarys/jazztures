@@ -6,7 +6,12 @@
 /[L|l]ogs/
 /[U|u]ser[S|s]ettings/
 /[M|m]emoryCaptures/
-/[A|a]ssets/Plugins/Android/
+# Unity stages generated Gradle output here during an Android build. The
+# hand-authored AndroidManifest.xml is a source file (hand-tracking permission,
+# VR intent filter — CLAUDE.md §4.1) and must stay tracked.
+/[A|a]ssets/Plugins/Android/*
+!/[A|a]ssets/Plugins/Android/AndroidManifest.xml
+!/[A|a]ssets/Plugins/Android/AndroidManifest.xml.meta
 /[B|b]ackup/
 
 # VS/IDE temp files
