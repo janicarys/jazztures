@@ -20,9 +20,13 @@ namespace Jazztures.Diagnostics
         [Tooltip("The hand-pose source to watch (a component implementing IHandPoseSource).")]
         [SerializeField] private MonoBehaviour _source;
 
+        [Tooltip("Re-log the unchanged frame this often, so a silent Console is never ambiguous. 0 disables.")]
+        [SerializeField] private float _heartbeatSeconds = 2f;
+
         private IHandPoseSource _poseSource;
         private HandPoseFrame _last;
         private bool _hasLast;
+        private float _nextHeartbeat;
 
         private void Awake()
         {
@@ -39,13 +43,18 @@ namespace Jazztures.Diagnostics
         private void Update()
         {
             HandPoseFrame frame = _poseSource.CurrentFrame;
-            if (_hasLast && frame == _last)
+
+            // Time.time, not the DSP clock: this is a wall-clock diagnostic heartbeat, not
+            // musical timing (§2.4 governs the latter).
+            bool heartbeat = _heartbeatSeconds > 0f && Time.time >= _nextHeartbeat;
+            if (_hasLast && frame == _last && !heartbeat)
             {
                 return;
             }
 
             _last = frame;
             _hasLast = true;
+            _nextHeartbeat = Time.time + _heartbeatSeconds;
             Debug.Log($"[HandPose] {frame}", this);
         }
     }

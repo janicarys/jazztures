@@ -51,10 +51,24 @@ namespace Jazztures.Input
             _right = Resolve<IHand>(_rightHand, nameof(_rightHand));
         }
 
-        public HandPoseFrame CurrentFrame => new HandPoseFrame(
-            ReadCandidate(),
-            ReadTracking(_left),
-            ReadTracking(_right));
+        public HandPoseFrame CurrentFrame
+        {
+            get
+            {
+                TrackingQuality left = ReadTracking(_left);
+                TrackingQuality right = ReadTracking(_right);
+
+                // The SDK's recognisers dereference per-finger state that only exists once
+                // hand data has arrived, so querying them on an untracked hand throws rather
+                // than reporting "no match". Nothing is lost by skipping them: the
+                // interpreter discards the candidate whenever tracking is unusable (§3.5).
+                HandPoseCandidate candidate = left == TrackingQuality.NotTracked
+                    ? HandPoseCandidate.None
+                    : ReadCandidate();
+
+                return new HandPoseFrame(candidate, left, right);
+            }
+        }
 
         private HandPoseCandidate ReadCandidate()
         {
