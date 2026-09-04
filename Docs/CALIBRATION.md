@@ -23,12 +23,22 @@ Asset: `Assets/Jazztures/Config/` (`Jazztures/Config/Gesture Thresholds`). Tempo
 feed `Core.Gesture.GestureInterpreter` via `ToThresholds()`; SDK values configure the
 `ShapeRecognizer` / `TransformRecognizer` assets.
 
+The palm cone is enforced by `Assets/Jazztures/Config/GesturePalmConeThresholds.asset`
+(a `TransformFeatureStateThresholds`), pointed at from each ii / I
+`TransformRecognizerActiveState.TransformConfig.FeatureThresholds`, `UpVectorType = Head`.
+`PalmDown` is set to midpoint 42.5° / width 15° → enter 35°, exit 50°.
+**ii = `OpenPalm` + `FingersUp`; I = `OpenPalm` + `PalmDown`** (ADR-0014 — the SDK has no
+lateral axis, so ii is recognised by hand verticality, not palm azimuth). `FingersUp` is
+at the SDK default (30°/50°); widen it if ii is hard to trigger with fingers angled
+forward.
+
 | Parameter | Default | Measured | Status | Consumed by |
 |---|---|---|---|---|
-| Finger "extended" curl | < 0.25 | — | default | SDK ShapeRecognizer |
-| Finger "curled" curl | > 0.75 | — | default | SDK ShapeRecognizer |
-| Palm orientation cone — enter | 35° | — | default | SDK TransformRecognizer |
-| Palm orientation cone — exit | 50° | — | default | SDK TransformRecognizer (must stay wider — Schmitt) |
+| Finger "extended" curl | < 0.25 | — | default | SDK ShapeRecognizer (`Poses/OpenPalm.asset`, `Poses/Fist.asset`) |
+| Finger "curled" curl | > 0.75 | — | default | SDK ShapeRecognizer (`Poses/Fist.asset`) |
+| Palm-down cone — enter (I pose) | 35° | — | default | `GesturePalmConeThresholds.asset` → SDK TransformRecognizer (midpoint 42.5 − width/2) |
+| Palm-down cone — exit (I pose) | 50° | — | default | `GesturePalmConeThresholds.asset` → SDK TransformRecognizer (midpoint 42.5 + width/2; wider — Schmitt) |
+| Fingers-up cone — enter/exit (ii pose) | 30° / 50° | — | default | `GesturePalmConeThresholds.asset` feature `FingersUp` (SDK default; ADR-0014) |
 | Pose hold to confirm | 120 ms | — | default | `GestureInterpreter` (also the latency-budget lever, §4.3) |
 | Minimum inter-chord interval | 100 ms | — | default | `GestureInterpreter` (debounce) |
 | Consecutive confirming frames | 3 | — | default | `GestureInterpreter` (~60 Hz hand update) |

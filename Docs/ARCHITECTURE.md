@@ -181,7 +181,7 @@ presentation; captions and the ghost-hand mesh are wired but not yet rendered.
 | Onset scoring (Test Yourself) | `Core/Evaluation` | done · tested |
 | Latency percentiles, hand-pose recorder | `Core/Diagnostics` | done · tested |
 | Sampler, voice pool, DSP clock, piano bank | `Audio/` | verified in editor |
-| Hand-pose sources, keyboard input | `Input/` | keyboard ok · Quest adapters unverified on device |
+| Hand-pose sources, keyboard input | `Input/` | keyboard ok · Quest fist→V verified on device (ADR-0013); ii / I recognisers not built |
 | ScriptableObject event channels | `Events/` | done |
 | Lesson assets, `LessonRunner` | `Lessons/` | verified in editor |
 | Right-hand touch-target GameObjects (PokeInteractor) | — | not built · domain ready |
@@ -214,6 +214,8 @@ Full text in `Docs/DECISIONS.md`.
 
 | ADR | Decision |
 |---|---|
+| 0014 | The SDK has no lateral orientation feature, so ii is recognised by hand verticality: **ii = `OpenPalm` + `FingersUp`**, **I = `OpenPalm` + `PalmDown`**. Cone thresholds in `GesturePalmConeThresholds.asset`. |
+| 0013 | Hand-tracking scene topology: the Building Block hand objects are a data source with their renderers disabled (but the GameObjects stay active); the Interaction SDK `HandVisual` is the only hand renderer. |
 | 0012 | Ghost hands: translucent articulated mesh over the learner's own hands; target spheres light in sequence (no ghost fingertip); continuous pose morphing. Rhythm-game "fly at you" rejected on cognitive-load grounds. |
 | 0011 | Lesson content: a Standard MIDI File bakes the musical timeline; text/visual cues are a separate authored script. Sibelius `.sib` (proprietary, no reader) dropped. |
 | 0010 | Gesture recognition: the Meta SDK does per-frame pose matching; a pure-`Core` `GestureInterpreter` does all the timing. A custom classifier can't be defended in a viva. |

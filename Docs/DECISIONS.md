@@ -8,6 +8,141 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0014 — ii / I orientation: the SDK has no lateral axis; ii keys on `FingersUp`, I on `PalmDown`
+
+**Date:** 2026-09-04 · **Status:** Accepted (supersedes the first cut, tested on device) ·
+**Milestone:** M3
+
+§1.3 `[THESIS]` fixes the three left-hand poses: **ii** = open palm facing the user's
+right (preparation), **V** = fist (done, ADR-0006 / M3), **I** = open palm facing down
+(release). ii and I share one hand shape (`Assets/Jazztures/Input/Poses/OpenPalm.asset`,
+all four fingers `Curl = Open`) and differ only in wrist orientation, detected by the
+Interaction SDK `TransformRecognizerActiveState` per §3.4 ("`TransformRecognizer` for palm
+orientation … do not hand-roll joint-angle math").
+
+**The problem — and why the first attempt failed on device.** Every SDK `TransformFeature`
+is `Vector3.Angle(handVector, targetVector)` where `targetVector` is either the vertical
+(head/gravity up) or `CenterEyePose.forward`. There is **no "user's right" axis.** For a
+left hand held in front of the body with the palm facing the user's right, the back of the
+hand points to the user's *left* — ~90° from *both* "up" and "face-forward", so
+`PalmDown`, `PalmUp`, `PalmTowardsFace` and `PalmAwayFromFace` all read ~90° and none fire.
+The first cut (ii = `PalmTowardsFace` + `FingersUp`) only triggered when the arm was
+extended far to the left so the dorsal vector swung toward face-forward — which is why ii
+was "inconsistent and very hard to trigger" in the first on-device test. **"Palm faces the
+user's right" is not observable with this SDK's feature set.**
+
+**Decision — key on the reliable correlate instead:**
+
+| Pose | Shape | Orientation (`TransformRecognizerActiveState`, AND with the shape) |
+|---|---|---|
+| **I**  | `OpenPalm` | `PalmDown = True` |
+| **ii** | `OpenPalm` | `FingersUp = True` |
+
+ii as performed is a **vertical** open hand (fingers up); I is a **flat** open hand
+(fingers forward). `FingersUp` separates them cleanly and widely — ii sits near 0–30°, I
+near 90°, with no overlap — and it degrades gracefully: a slightly rolled palm still reads
+as ii. The gesture the learner is *taught* and the ghost hand *shows* is unchanged
+("open palm, facing right"); only the machine's discriminator changes, because verticality
+is the part of that pose the tracker can see reliably.
+
+**Alternatives considered and rejected:**
+- *`PalmTowardsFace` (+ `FingersUp`)* — the first cut. Geometrically only valid at extreme
+  arm extension; failed on device.
+- *Rotating the reference frame (`TransformConfig.RotationOffset`) so `PalmDown` maths
+  measure a rightward palm* — works, but "the palm-down detector fires on a sideways palm"
+  is indefensible under questioning.
+- *`JointRotationActiveState` on the wrist, checking the palm normal against
+  tracking-space right* — this **is** an SDK recogniser (not a hand-rolled classifier, so
+  not barred by §3.4 / ADR-0010) and would restore a true palm-orientation check. Deferred:
+  its reference direction is world/hand-local, not head-relative, so keeping ii stable as
+  the user turns (§3.4) needs extra rig work. Revisit at M8 if pilot data shows learners
+  confusing ii with a generic "hand up".
+
+**Threshold asset.** §3.4 specifies the palm cone at **enter 35° / exit 50°** `[TUNABLE]`.
+`Assets/Jazztures/Config/GesturePalmConeThresholds.asset` (a full copy of
+`DefaultTransformFeatureStateThresholds`) sets **`PalmDown` to midpoint 42.5° / width 15°**
+(→ False→True at 35°, True→False at 50°). `FingersUp` is left at the SDK default (midpoint
+40° / width 20° → 30°/50°); widen it here if ii proves finicky when the hand is held with
+fingers angled forward. Both ii / I `TransformRecognizerActiveState`s point
+`TransformConfig.FeatureThresholds` at this asset; `UpVectorType = Head`. Mirrored in
+`Docs/CALIBRATION.md`; pilot-calibrated at M8. The `_palmConeEnterDegrees` /
+`_palmConeExitDegrees` fields on `GestureThresholdsConfig` stay the human-readable record
+of intent; the SDK reads the asset, so the two are kept in sync by hand.
+
+**Ambiguity (§3.4 "never guess").** `FingersUp = True` and `PalmDown = True` are
+physically exclusive (a hand cannot be both vertical and flat), so ii and I rarely race.
+When they do — mid-rotation — `MetaXRHandPoseSource.ReadCandidate()` returns `Ambiguous`
+and `GestureInterpreter` holds the previous function and emits nothing.
+
+**Thesis impact:** the design chapter must state plainly that the ii gesture ("open palm
+facing the user's right") is **recognised by hand verticality (`FingersUp`), not by palm
+azimuth**, because the Interaction SDK exposes no lateral orientation feature and a
+head/gravity-relative cone cannot capture "palm right" for a hand held in front of the
+body. Note `JointRotationActiveState` as the path to a true palm-orientation check if a
+reviewer presses on fidelity. No Chapter 6 (methodology) impact.
+
+---
+
+## ADR-0013 — Hand-tracking scene topology: one data path, one renderer
+
+**Date:** 2026-09-04 · **Status:** Accepted · **Milestone:** M3
+
+`Assets/main.unity` ends up with two overlapping hand systems, because the Meta XR
+Building Blocks hand-tracking block and the Interaction SDK rig both ship a full hand
+stack. Left as installed they z-fight, and it is not obvious which one the pose
+recognisers actually read. Fixed topology:
+
+```
+[BuildingBlock] Camera Rig
+└── TrackingSpace
+    ├── LeftHandAnchor  → [BuildingBlock] Hand Tracking left    ← OVRHand: DATA ONLY
+    └── RightHandAnchor → [BuildingBlock] Hand Tracking right   ← OVRHand: DATA ONLY
+└── OVRInteraction            (OVRCameraRigRef + OVRTrackingToWorldTransformer)
+    └── OVRHands
+        ├── OVRLeftHand  → OVRHandDataSource, Hand, OVRLeftHandVisual   ← THE renderer
+        └── OVRRightHand → OVRHandDataSource, Hand, OVRRightHandVisual
+```
+
+**Decision — the Building Block hand objects are a data source, not a visual.** Their
+`OVRMeshRenderer` **and** `SkinnedMeshRenderer` are disabled (both: `OVRMeshRenderer`
+carries `_confidenceBehavior = ToggleRenderer`, so disabling only the renderer lets it
+switch itself back on). `OVRSkeletonRenderer` ships disabled already.
+
+**They must stay active.** `OVRCameraRigRef.LeftHand` resolves via
+`handAnchor.GetComponentInChildren<OVRHand>(true)`, and `FromOVRHandDataSource` reads that
+`OVRHand` every frame. Deactivating the GameObjects — the tempting way to kill the second
+mesh — silently returns the whole pipeline to `TrackingQuality.NotTracked`.
+
+**The Interaction SDK `HandVisual` is the single hand renderer.** It reads the same
+`IHand` that `ShapeRecognizerActiveState` reads, so what the learner sees is what the
+recogniser sees. That equivalence matters because tracking dropout is a reported result,
+not just a rendering concern (§1.4, §3.5.4) — a visual that could diverge from the
+recognised pose would make the telemetry harder to defend.
+
+**Wiring that is easy to lose.** Both `FromOVRHandDataSource` components need
+`_cameraRigRef` and `_trackingToWorldTransformer` pointing at `OVRInteraction`, and
+`OVRCameraRigRef._ovrCameraRig` must point at the Camera Rig. All three are null in the
+shipped prefabs and are asserted in `Start()`; unset, hand data never arrives and the only
+symptom is a permanently untracked hand. Separately, `FingerFeatureStateProvider` needs
+all five `_fingerStateThresholds` entries populated from
+`Packages/Meta XR Interaction SDK/Runtime/DefaultSettings/PoseDetection/`
+(`DefaultThumbFeatureStateThresholds` for the thumb, `DefaultFingerFeatureStateThresholds`
+for the other four) — an empty or null-valued list throws inside the SDK on every frame.
+
+**Related code change:** `MetaXRHandPoseSource.CurrentFrame` now reads tracking quality
+first and skips the recognisers entirely when the left hand is `NotTracked`. The SDK's
+`IsStateActive` omits the `IsDataValid()` guard its sibling `GetCurrentState` has, so
+querying a pose on an untracked hand throws instead of reporting no match. Nothing is
+lost: `GestureInterpreter` discards the candidate whenever tracking is unusable (§3.5).
+
+**Thesis impact:** none. Scene configuration only.
+
+**Follows on:** ADR-0012 adds a *deliberate* second hand mesh (the translucent ghost).
+That one is additive and must not be confused with this duplicate — it is tinted,
+translucent, and driven by `GhostFrameChannel`, not by `IHand`.
+
+---
+
 ## ADR-0012 — Ghost hand visualisation
 
 **Date:** 2026-09-02 · **Status:** Accepted (student design call) ·
