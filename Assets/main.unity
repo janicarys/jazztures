@@ -841,6 +841,53 @@ Transform:
   m_Children: []
   m_Father: {fileID: 279371513}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &839083461
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 839083463}
+  - component: {fileID: 839083462}
+  m_Layer: 0
+  m_Name: HandPoseRecorderComponent
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &839083462
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 839083461}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a1a6d35160532d4d87aae0f1b65a18b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Diagnostics::Jazztures.Diagnostics.HandPoseRecorderComponent
+  _source: {fileID: 990448916}
+  _toggleKey: 103
+  _recordFromStart: 0
+--- !u!4 &839083463
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 839083461}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.83772, y: 0, z: 2.12287}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &887053640
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2361,3 +2408,4 @@ SceneRoots:
   - {fileID: 990448917}
   - {fileID: 406873689}
   - {fileID: 2109847785}
+  - {fileID: 839083463}

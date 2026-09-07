@@ -181,7 +181,7 @@ presentation; captions and the ghost-hand mesh are wired but not yet rendered.
 | Onset scoring (Test Yourself) | `Core/Evaluation` | done · tested |
 | Latency percentiles, hand-pose recorder | `Core/Diagnostics` | done · tested |
 | Sampler, voice pool, DSP clock, piano bank | `Audio/` | verified in editor |
-| Hand-pose sources, keyboard input | `Input/` | keyboard ok · Quest fist→V verified on device (ADR-0013); ii / I recognisers not built |
+| Hand-pose sources, keyboard input | `Input/` | keyboard ok · all three left-hand recognisers verified on device (ADR-0013/0014); `HandPoseFixture_M3.txt` recorded, replay verified at desk |
 | ScriptableObject event channels | `Events/` | done |
 | Lesson assets, `LessonRunner` | `Lessons/` | verified in editor |
 | Right-hand touch-target GameObjects (PokeInteractor) | — | not built · domain ready |
