@@ -4,7 +4,8 @@ A map of how the codebase is built — not what it does. For *what* and *why*, r
 `CLAUDE.md` (the spec) and `Docs/DECISIONS.md` (the ADR log). This file is a derived
 overview; regenerate it when the assembly graph or the port set changes.
 
-**As of:** branch `feat/m3-finish` — M0–M5 complete, 282 headless tests green.
+**As of:** branch `feat/m3-finish` — M0–M5 complete, M4 (right hand) in progress, 294
+headless tests green.
 
 ---
 
@@ -28,7 +29,7 @@ that can only be tested by donning a headset does not get tested.
 
 ## 2. The assemblies
 
-Ten assembly definitions. Dependencies point one direction — inward, toward `Core`. A
+Eleven assembly definitions. Dependencies point one direction — inward, toward `Core`. A
 circular reference fails the build by design. `Jazztures.App` is the only assembly that
 knows about all the others; it exists to wire them together.
 
@@ -44,15 +45,18 @@ flowchart TD
         Events
         Diagnostics
         Lessons
+        Presentation
     end
 
-    Core["Jazztures.Core — no UnityEngine reference<br/>Music · Harmony · Melody · Gesture · Timing · Lessons · Evaluation · Diagnostics · Ports<br/>(282 tests run here)"]
+    Core["Jazztures.Core — no UnityEngine reference<br/>Music · Harmony · Melody · Gesture · Timing · Lessons · Evaluation · Diagnostics · Ports<br/>(294 tests run here)"]
 
     DotNet["DotNet/Jazztures.sln<br/>compiles the same .cs, headless"]
 
     App -->|constructs| adapters
     adapters -->|reference — downward only| Core
     Lessons -->|references| Events
+    Presentation -->|references| Events
+    Presentation -->|references| Config
     DotNet -.->|"netstandard2.1"| Core
 ```
 
@@ -100,7 +104,7 @@ flowchart LR
     HE -->|ChordChanged| ME
     HE -->|NoteEvent| MG
     ME -->|NoteEvent| MG
-    HPS -.->|"fingertip enters target → TriggerTarget() — touch-target objects not built yet"| ME
+    HPS -.->|"right index tip enters a target sphere → MelodyEngine.TriggerTarget(index, speed)<br/>(TouchTargetBinder, Presentation — ADR-0016)"| ME
     MG -->|audible, mode-gated| S
     MG -->|unconditional, always logged| NC
 ```
@@ -174,7 +178,7 @@ presentation; captions and the ghost-hand mesh are wired but not yet rendered.
 |---|---|---|
 | Pitch, chords, voicings, chord-tone targets | `Core/Music` | done · tested |
 | Progression state & harmony engine | `Core/Harmony` | done · tested |
-| Melody engine & velocity mapping | `Core/Melody` | done · tested |
+| Melody engine, velocity mapping, touch-target recenter policy | `Core/Melody` | done · tested |
 | Clock, tempo, swing, metronome | `Core/Timing` | done · tested |
 | Gesture temporal state machine, record/replay | `Core/Gesture` | done · tested |
 | Learning modes, lesson timeline & cue track, state machine | `Core/Lessons` | done · tested |
@@ -184,7 +188,7 @@ presentation; captions and the ghost-hand mesh are wired but not yet rendered.
 | Hand-pose sources, keyboard input | `Input/` | keyboard ok · all three left-hand recognisers verified on device (ADR-0013/0014); `HandPoseFixture_M3.txt` recorded, replay verified at desk |
 | ScriptableObject event channels | `Events/` | done |
 | Lesson assets, `LessonRunner` | `Lessons/` | verified in editor |
-| Right-hand touch-target GameObjects (PokeInteractor) | — | not built · domain ready |
+| Right-hand touch targets — rig, body anchor, re-pitch, fingertip trigger | `Presentation/` | built (ADR-0015/0016) · verify on device |
 | Ghost-hand renderer | — | not built · ADR-0012 spec'd |
 | SMF lesson importer | — | M6 |
 | OSC + JSONL telemetry sinks | — | M7 |
@@ -214,6 +218,8 @@ Full text in `Docs/DECISIONS.md`.
 
 | ADR | Decision |
 |---|---|
+| 0016 | Touch targets are **volumetric spheres over the tracked fingertip** (`IHand.GetJointPose(HandIndexTip)` + a distance test), not ISDK `PokeInteractor` — Poke is a surface interaction and carries no entry speed. §3.3's gate + cooldown + velocity curve stay in `MelodyEngine`. §4.1 wording change. |
+| 0015 | Right-hand touch targets are a **body-anchored rig with a lazy recenter** (head position + flattened yaw, chest-height offset, eases to a new facing only after the yaw diverges past a threshold for a dwell). World-locked and head-locked rejected. `LazyRecenter` (pure, tested) in `Core/Melody`; params in `MelodyConfig.asset`. |
 | 0014 | The SDK has no lateral orientation feature, so ii is recognised by hand verticality: **ii = `OpenPalm` + `FingersUp`**, **I = `OpenPalm` + `PalmDown`**. Cone thresholds in `GesturePalmConeThresholds.asset`. |
 | 0013 | Hand-tracking scene topology: the Building Block hand objects are a data source with their renderers disabled (but the GameObjects stay active); the Interaction SDK `HandVisual` is the only hand renderer. |
 | 0012 | Ghost hands: translucent articulated mesh over the learner's own hands; target spheres light in sequence (no ghost fingertip); continuous pose morphing. Rhythm-game "fly at you" rejected on cognitive-load grounds. |

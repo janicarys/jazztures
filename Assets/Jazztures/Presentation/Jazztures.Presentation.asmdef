@@ -1,15 +1,11 @@
 {
-    "name": "Jazztures.App",
-    "rootNamespace": "Jazztures.App",
+    "name": "Jazztures.Presentation",
+    "rootNamespace": "Jazztures.Presentation",
     "references": [
         "Jazztures.Core",
-        "Jazztures.Audio",
-        "Jazztures.Input",
         "Jazztures.Config",
         "Jazztures.Events",
-        "Jazztures.Diagnostics",
-        "Jazztures.Lessons",
-        "Jazztures.Presentation"
+        "Oculus.Interaction"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

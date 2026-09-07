@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b7c3e9d21f4a05684d9c2a1e6f8b3e57, type: 3}
+  m_Name: MelodyConfig
+  m_EditorClassIdentifier: Jazztures.Config::Jazztures.Config.MelodyConfig
+  _targetRadiusMetres: 0.035
+  _interTargetSpacingMetres: 0.08
+  _reachDistanceMetres: 0.45
+  _anchorHeightOffsetMetres: -0.25
+  _recenterAngleDegrees: 35
+  _recenterDwellSeconds: 0.6
+  _recenterEaseSeconds: 0.5
+  _entryVelocityGateMetresPerSecond: 0.15
+  _velocityCurveMaxSpeedMetresPerSecond: 1.5
+  _retriggerCooldownSeconds: 0.08
+  _midiVelocityMin: 40
+  _midiVelocityMax: 110
+  _midiVelocityFloor: 30
+  _noteSustainSeconds: 0.5

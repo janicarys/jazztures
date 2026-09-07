@@ -45,16 +45,35 @@ forward.
 | High-confidence frames to accept after tracking loss | 3 | — | default | `GestureInterpreter` (§3.5) |
 | Tracking-loss cue delay | 200 ms | — | default | `GestureInterpreter` → presentation (§3.5.2) |
 
-## Melody / touch targets — `Config/MelodyConfig.asset` (§3.3)
+## Melody / touch targets — `Config/MelodyConfig.asset` (§3.3, §3.1, ADR-0015)
+
+Asset: `Assets/Jazztures/Config/MelodyConfig.asset` (`Jazztures/Config/Melody`). The
+geometry + body-anchor group is read live by the touch-target rig. The melody-engine
+group **mirrors** the `[TUNABLE]` constants still in `Jazztures.Core.Melody`
+(`MelodyEngine`, `VelocityCurve`); Core consumes its own constants until Phase 8 (M8)
+wires this asset to the parameterised overloads — keep the two in sync by hand.
+
+The targets are a **body-anchored rig with a lazy recenter** (ADR-0015): anchored to head
+position + head yaw flattened to horizontal, offset to chest height, pushed forward a
+reach; ignores head pitch/roll; recenters toward the current facing only after the yaw
+diverges past `_recenterAngleDegrees` for `_recenterDwellSeconds`, easing over
+`_recenterEaseSeconds`. World-locked and head-locked were rejected (spatial-map
+stability, §3.1; comfort).
 
 | Parameter | Default | Measured | Status | Notes |
 |---|---|---|---|---|
 | Target radius | 3.5 cm sphere | — | default | |
-| Inter-target spacing | 8 cm centre-to-centre | — | default | > 2×radius + tracking jitter |
-| Entry velocity gate | 0.15 m/s | — | default | prevents resting-hand triggers |
-| Per-target retrigger cooldown | 80 ms | — | default | |
-| Fixed note sustain | `[OPEN]` | — | default | struck-piano model, no stuck notes |
-| MIDI velocity range (from fingertip speed) | 40–110, clamp; floor 30 | — | default | never emit < 30 (§3.3) |
+| Inter-target spacing | 8 cm centre-to-centre | — | default | > 2×radius + tracking jitter; 2×5 degree/octave grid |
+| Anchor reach distance | 0.45 m | — | default | forward from the body anchor to the grid |
+| Anchor height offset | −0.25 m from head | — | default | negative = toward chest height |
+| Recenter divergence angle | 35° | — | default | head-yaw offset before a recenter begins |
+| Recenter dwell | 0.6 s | — | default | divergence must hold this long first |
+| Recenter ease | 0.5 s | — | default | time to ease to the new facing |
+| Entry velocity gate | 0.15 m/s | — | default | prevents resting-hand triggers; mirrors `VelocityCurve.MinSpeed` |
+| Velocity-curve max speed | 1.5 m/s | — | default | fingertip speed mapped to max MIDI velocity; mirrors `VelocityCurve.MaxSpeed` |
+| Per-target retrigger cooldown | 80 ms | — | default | mirrors `MelodyEngine.RetriggerCooldownSeconds` |
+| Fixed note sustain | 0.5 s `[OPEN]` | — | default | struck-piano model, no stuck notes; mirrors `MelodyEngine.DefaultSustainSeconds` |
+| MIDI velocity range (from fingertip speed) | 40–110, clamp; floor 30 | — | default | never emit < 30 (§3.3); mirrors `VelocityCurve` bounds |
 
 ## Register assignment — `Config/RegisterConfig.asset` (§3.1)
 

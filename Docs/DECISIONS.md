@@ -8,6 +8,93 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0016 — Touch targets are volumetric spheres over the tracked fingertip, not ISDK `PokeInteractor`
+
+**Date:** 2026-09-07 · **Status:** Accepted · **Milestone:** M4 ·
+**Changes the thesis:** §4.1 wording (not Chapter 6)
+
+`CLAUDE.md` §4.1's stack table says "Interaction SDK pose detection + `PokeInteractor`
+for touch targets". §3.3 says the note-on "fires when a right-hand fingertip enters a
+target **volume**", gated by a minimum **entry velocity** (0.15 m/s `[TUNABLE]`), with the
+MIDI velocity **mapped from fingertip speed**.
+
+**The problem.** ISDK's Poke is a *surface* interaction — `PokeInteractable` wraps a
+planar (or curved) surface with a front face, a normal, and hover/press distances; it is
+built for buttons and panels. A mid-air sphere the learner may enter from any direction
+is not a poke surface. And `PokeInteractor`'s select event carries neither the entry
+speed the §3.3 gate needs nor the speed the velocity curve maps from — both would have to
+be reconstructed alongside it.
+
+**Decision.** Each `TouchTarget` is a sphere of `MelodyConfig.TargetRadiusMetres`. Each
+frame (`LateUpdate`, after the rig has moved) `TouchTargetBinder` reads the right index
+fingertip from the SDK — `IHand.GetJointPose(HandJointId.HandIndexTip, …)` — measures its
+speed from the previous frame, and on the frame the fingertip crosses **into** a target
+calls `MelodyEngine.TriggerTarget(index, speed)`. The engine — pure `Core`, already
+tested — owns the entry-velocity gate, the 80 ms retrigger cooldown and the speed→velocity
+curve. The binder only detects the volume-entry edge and supplies the speed.
+
+This is **not** a hand-rolled classifier (ADR-0010): the SDK still does all the hand
+tracking and provides the joint pose; this is a distance test against it.
+
+**Alternatives rejected:**
+- *Full Poke stack* (`PokeInteractable` + surface patch per target + one `PokeInteractor`
+  on the fingertip) — the sphere-as-button mismatch, and a velocity gate bolted onto
+  Select events.
+- *Trigger colliders + `OnTriggerEnter`* — works, but couples note onset to the physics
+  tick and needs a `Rigidbody` on the hand; a per-frame distance test after the rig moves
+  is simpler and frame-deterministic.
+
+**Thesis impact:** change §4.1's "`PokeInteractor` for touch targets" to
+"tracked-fingertip volumetric targets". No Chapter 6 (methodology) impact — the §3.3
+interaction model (volume entry, entry-velocity gate, speed→velocity) is exactly what is
+implemented.
+
+---
+
+## ADR-0015 — Right-hand touch targets are body-anchored with a lazy recenter, not world- or head-locked
+
+**Date:** 2026-09-07 · **Status:** Accepted (student design call) ·
+**Milestone:** M4 · Resolves a gap `CLAUDE.md` §3 leaves unstated
+
+§3.4 `[THESIS]` fixes the *gesture axes* (left-hand palm orientation) as relative to the
+head/body-forward vector — "the user turns; the gestures must not break". It says nothing
+about the reference frame of the **right-hand touch targets**. §1.4 has the learner
+**standing**, with interaction "directly in front of them, inside the Quest's ~140°
+tracking FOV". §3.1 has the learner building "a stable spatial map of scale degree" —
+targets are re-pitched, never re-arranged.
+
+**The problem.** Three candidate frames, and two of them break a thesis constraint:
+
+| Frame | Failure |
+|---|---|
+| **World-locked** (targets fixed in the room) | The learner shifts weight, steps, or turns and the targets are off to one side or behind them. Breaks §1.4 ("directly in front"). |
+| **Head-locked** (targets parented to the camera) | Targets swing with every glance — look at the left hand and the melody map lurches. The learner can never build the stable spatial map §3.1 is designed around. Rigidly head-locked geometry at arm's length is also a well-documented nausea source. |
+| **Body-anchored** | — |
+
+**Decision — body-anchored with a lazy recenter.** The target rig's anchor is the head
+*position* plus the head yaw *flattened to horizontal*, dropped to roughly chest height
+and pushed forward to a comfortable reach. It ignores head pitch and roll entirely. It
+does **not** track yaw instantly: the rig recenters toward the current facing only after
+the head has diverged past an angle threshold and held there for a short dwell, then eases
+over. Net effect: glance around, lean, check your left hand — the targets stay put; turn
+your body to face a new direction — the targets follow you there.
+
+This also unifies the interaction. The left-hand gesture axes are already
+head/body-forward relative (§3.4); the ghost hands superimpose on the learner's own
+tracked hands (ADR-0012). Body-anchoring the right-hand targets puts every part of the
+interface in one reference frame.
+
+**Parameters** — all `[TUNABLE]`, on `Assets/Jazztures/Config/MelodyConfig.asset`,
+pilot-calibrated at M8: reach distance, chest-height offset, recenter divergence angle,
+recenter dwell time, recenter ease speed — plus the target geometry (radius, inter-target
+spacing, the 2×5 degree/octave grid). Mirrored in `Docs/CALIBRATION.md`.
+
+**Thesis impact:** none to Chapter 6 (methodology). The design chapter should describe the
+targets as a body-anchored rig with a lazy recenter, and note that world-locked and
+head-locked were considered and rejected (spatial-map stability and comfort).
+
+---
+
 ## ADR-0014 — ii / I orientation: the SDK has no lateral axis; ii keys on `FingersUp`, I on `PalmDown`
 
 **Date:** 2026-09-04 · **Status:** Accepted (supersedes the first cut, tested on device) ·
@@ -444,3 +531,6 @@ Working rule #8 requires these to be surfaced. They are **not** to be edited by 
 - **Sibelius `.sib` pipeline (Chapter 6, §3.9):** proprietary binary, no Unity reader.
   Pending `[OPEN]` resolution — likely MusicXML/SMF offline bake. Blocks M6.
 - **Unity "LTS" wording:** see ADR-0004.
+- **`PokeInteractor` for touch targets (§4.1):** targets are volumetric spheres tested
+  against the tracked fingertip; Poke is a surface interaction and does not fit. See
+  ADR-0016. §4.1 table wording only — no Chapter 6 impact.

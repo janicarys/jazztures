@@ -130,6 +130,7 @@ GameObject:
   - component: {fileID: 119089428}
   - component: {fileID: 119089427}
   - component: {fileID: 119089426}
+  - component: {fileID: 119089429}
   m_Layer: 0
   m_Name: Jazztures Performance Harness
   m_TagString: Untagged
@@ -151,8 +152,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Jazztures.App::Jazztures.App.PerformanceCompositionRoot
   _sampler: {fileID: 119089427}
   _handPoseSource: {fileID: 990448916}
-  _replayFixture: {fileID: 0}
-  _gestureThresholds: {fileID: 0}
+  _replayFixture: {fileID: 4900000, guid: 0f1e2d3c4b5a697887960a5b4c3d2e1f, type: 3}
+  _gestureThresholds: {fileID: 11400000, guid: 8094b9744c1fb4a3eb8c0d5df669b17d, type: 2}
   _melodySustainSeconds: 0.5
   _noteChannel: {fileID: 11400000, guid: 43f958cab8fb0b246b9829f3181537d2, type: 2}
 --- !u!114 &119089427
@@ -183,9 +184,25 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1001962248}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &119089429
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 119089425}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d56a21dd98553743961595433fdef38, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.App::Jazztures.App.DomainEventBridge
+  _chordChanged: {fileID: 11400000, guid: 5ae3de7f447f0864aa9394c89016b234, type: 2}
+  _gestureState: {fileID: 0}
+  _trackingQuality: {fileID: 0}
 --- !u!1 &125284773
 GameObject:
   m_ObjectHideFlags: 0
@@ -635,6 +652,53 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &498091627
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 498091628}
+  - component: {fileID: 498091629}
+  m_Layer: 0
+  m_Name: TouchTargetRig
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &498091628
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 498091627}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -1.41443, y: 0, z: 1.54616}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1160479348}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &498091629
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 498091627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b9f2a7d5e0c41839d4f6b8a1c2e7f40, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.TouchTargetRig
+  _config: {fileID: 11400000, guid: 253f90023ed61b241865e2b5f3639010, type: 2}
+  _head: {fileID: 368964558}
+  _targetPrefab: {fileID: 0}
 --- !u!1 &573008090
 GameObject:
   m_ObjectHideFlags: 0
@@ -1210,6 +1274,54 @@ MonoBehaviour:
   m_EditorClassIdentifier: Jazztures.Diagnostics::Jazztures.Diagnostics.HandPoseFrameLogger
   _source: {fileID: 990448916}
   _heartbeatSeconds: 2
+--- !u!1 &1001962247
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1001962248}
+  - component: {fileID: 1001962249}
+  m_Layer: 0
+  m_Name: TouchTargetBinder
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1001962248
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1001962247}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -1.41443, y: 0, z: 1.54616}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 119089428}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1001962249
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1001962247}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c0a3b8e6f1d52940e5a7c9b2d3f8051, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.TouchTargetBinder
+  _rig: {fileID: 498091629}
+  _chordChanged: {fileID: 11400000, guid: 5ae3de7f447f0864aa9394c89016b234, type: 2}
+  _rightHand: {fileID: 1265530301}
+  _highlightSeconds: 0.6
 --- !u!1001 &1054031026
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1570,6 +1682,7 @@ Transform:
   m_Children:
   - {fileID: 887053641}
   - {fileID: 1912120936}
+  - {fileID: 498091628}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1192966267

@@ -90,6 +90,7 @@ namespace Jazztures.App
 
             GetComponent<DomainEventBridge>()?.Bind(_harmony, _interpreter, _poseSource);
             GetComponent<LessonRunner>()?.Bind(clock, _gate, _interpreter);
+            GetComponent<Jazztures.Presentation.TouchTargetBinder>()?.Bind(_melody);
 
             var probe = GetComponent<Jazztures.Diagnostics.LatencyProbe>();
             if (probe != null)
