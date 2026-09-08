@@ -152,10 +152,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Jazztures.App::Jazztures.App.PerformanceCompositionRoot
   _sampler: {fileID: 119089427}
   _handPoseSource: {fileID: 990448916}
-  _replayFixture: {fileID: 4900000, guid: 0f1e2d3c4b5a697887960a5b4c3d2e1f, type: 3}
+  _replayFixture: {fileID: 0}
   _gestureThresholds: {fileID: 11400000, guid: 8094b9744c1fb4a3eb8c0d5df669b17d, type: 2}
   _melodySustainSeconds: 0.5
   _noteChannel: {fileID: 11400000, guid: 43f958cab8fb0b246b9829f3181537d2, type: 2}
+  _touchTargets: {fileID: 1001962249}
 --- !u!114 &119089427
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -699,6 +700,7 @@ MonoBehaviour:
   _config: {fileID: 11400000, guid: 253f90023ed61b241865e2b5f3639010, type: 2}
   _head: {fileID: 368964558}
   _targetPrefab: {fileID: 0}
+  _targetMaterial: {fileID: 2100000, guid: f6236b26e7de43fe9e8fd9a3245dbb2a, type: 2}
 --- !u!1 &573008090
 GameObject:
   m_ObjectHideFlags: 0
@@ -874,6 +876,57 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!1 &712729944
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 712729946}
+  - component: {fileID: 712729945}
+  m_Layer: 0
+  m_Name: TensionColorDriver
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &712729945
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 712729944}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d3ff624fdef141b1a435bed471cdcdea, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.TensionColorDriver
+  _palette: {fileID: 11400000, guid: b5e62c0b551e480cac73d2df756a102a, type: 2}
+  _chordChanged: {fileID: 11400000, guid: 5ae3de7f447f0864aa9394c89016b234, type: 2}
+  _rig: {fileID: 498091629}
+  _leftHandMaterialBlocks: []
+  _handColorProperties:
+  - _OutlineColor
+  - _OutlineGlowColor
+--- !u!4 &712729946
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 712729944}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0, y: -0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &803032604
 GameObject:
   m_ObjectHideFlags: 0
@@ -2522,3 +2575,4 @@ SceneRoots:
   - {fileID: 406873689}
   - {fileID: 2109847785}
   - {fileID: 839083463}
+  - {fileID: 712729946}

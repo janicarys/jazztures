@@ -8,6 +8,144 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0018 — Touch targets: depth-extended volume, any fingertip, gate decoupled from the loudness curve
+
+**Date:** 2026-09-08 · **Status:** Accepted · **Milestone:** M4 ·
+**Amends:** ADR-0016 · **Changes the thesis:** §3.3 `[TUNABLE]` wording only
+
+First on-device test of the right-hand melody targets: hard to hit. Two reports —
+**only the index finger fires**, and **aiming carefully at a target often does nothing**.
+
+Finger-curl-per-tone was raised again as the fix and **rejected again**: §1.3 `[THESIS]`
+fixes the right hand as mid-air touch targets, ADR-0005 already discarded exactly that
+mapping (co-design: individual finger bends are "unergonomic and semantically empty"), and
+§1.2 warns that keyboard realism bought with gestural fluidity is a regression. Recording
+the re-test here because a panel may ask whether the constraint was ever pressure-tested —
+it was, under real usability failure, and held. The interaction stays; the implementation
+was the problem, and all of it is `[TUNABLE]` (§3.3 lists radius, spacing and the entry
+gate as tunables).
+
+**Three causes, three fixes:**
+
+1. **Depth was as unforgiving as lateral aim.** `TouchTarget.Contains` was a point-in-sphere
+   test, so a 3.5 cm radius punished Z error exactly as hard as XY error — and Z is the one
+   axis a person cannot judge in mid-air VR (no contact cue; §3.10 rules out haptics).
+   → The volume is now a **cylinder along the target's local Z** (the approach axis):
+   `Assets/Jazztures/Core/Melody/TargetVolume.cs`, a pure scalar `readonly struct`, unit-
+   tested. XY face **unchanged** — still 3.5 cm radius, still selects degree + octave, still
+   under half the 8 cm spacing (§3.3 "spacing must exceed 2×radius + jitter"). Depth default
+   **±7.5 cm** (`MelodyConfig._targetDepthMetres`, `[TUNABLE]`).
+
+2. **One finger.** `TouchTargetBinder` read only `HandJointId.HandIndexTip`.
+   → `_fingerTips` is now a serialized array, defaulting to index / middle / ring / pinky
+   tips (thumb excluded — it does not point the way the others do). Entry-edge state is
+   per-`(finger, target)`; `MelodyEngine`'s existing 80 ms per-target cooldown collapses
+   two fingers landing together into one note.
+
+3. **The entry gate punished careful aiming.** `MelodyEngine.EntryVelocityGateMetresPerSecond`
+   was aliased to `VelocityCurve.MinSpeed` (0.15 m/s), and the binder measured the *last
+   single frame's* delta. Deliberate aiming is slow and decelerates on arrival, so a
+   well-aimed approach landed under the gate and was dropped silently.
+   → The gate is its own `const` at **0.08 m/s** — it answers "was this a deliberate
+   strike?", a different question from the curve's "how loud?". `VelocityCurve` is
+   untouched (`MinSpeed` stays 0.15); `FromSpeed` already clamps below its minimum, so an
+   0.08–0.15 m/s entry sounds at `MinVelocity` (40) — well above §3.3's absolute floor of
+   30. The binder also now takes the **peak speed over a short window**
+   (`MelodyConfig._speedSampleFrames`, default 3) instead of one frame.
+
+**Also added:** a hover glow. Targets a fingertip is *near* (within
+`MelodyConfig._hoverScale`× the trigger volume, default 1.6) light up before the note
+fires, so the learner gets a signal while approaching and can learn the depth — the CTML
+secondary channel §3.10 already sanctions, no new HUD.
+
+**Not done:** a swept / continuous hit test. Extending the volume along the approach axis
+raises the in-volume dwell from ~3.4 frames to ~11 at 1.5 m/s (72 Hz), so tunnelling stops
+being the binding constraint, and fast strikes were not among the reported failures.
+Revisit only if lateral strumming across targets becomes a real gesture.
+
+**Thesis impact:** none to Chapter 6. §3.3's `[TUNABLE]` line "Target radius: 3.5 cm
+sphere" should read "3.5 cm radius, extended along the approach axis" in the design chapter.
+Entry-velocity gate there (0.15 m/s) should read 0.08 m/s and note that it is distinct from
+the velocity-curve minimum.
+
+---
+
+## ADR-0017 — Tension colour: always-visible neutral targets, right-biased anchor, hand+target share one eased colour
+
+**Date:** 2026-09-08 · **Status:** Accepted (student design call) ·
+**Milestone:** M4 · **Changes the thesis:** design chapter wording (not Chapter 6)
+
+Three linked presentation decisions, driven by a request to make the touch targets legible
+between chords and the colour scheme less arbitrary.
+
+### 1. Targets are always rendered
+
+Previously `TouchTarget.Clear()` disabled the renderer whenever no chord was held, so the
+grid vanished between chords and on every ii/I ambiguity hold. §3.1 `[THESIS]` has the
+learner building "a stable spatial map of scale degree" — a map that disappears is a map
+that is hard to build. Against that, §3.10 demands visual restraint ("every added HUD
+element spends limited-capacity budget").
+
+**Decision.** The ten targets are always visible. With no chord held they render in a cool
+grey at low alpha (`0.35`) — present enough to anchor the spatial map, muted enough to read
+as inactive. Visibility and playability are **decoupled**: `IsSounding` (set only by a held
+chord) still gates triggering in `TouchTargetBinder`, so a visible neutral target cannot
+fire a note. This spends a modest, constant slice of visual budget to buy spatial-map
+stability — a CLT trade in §3.1's favour, and cheaper than the alternative of the learner
+re-locating ten targets every chord change.
+
+### 2. The target grid is biased to the right
+
+ADR-0015 body-anchors the grid to head position + flattened yaw, but centres it on the
+body midline. The right hand plays it; a centred grid asks the learner to reach across.
+`MelodyConfig._anchorLateralOffsetMetres` (default **+0.20 m**, `[TUNABLE]`) shifts the
+whole grid right along the anchor's local X. At 8 cm spacing the 5-wide grid spans ~0.32 m,
+so it sits roughly +0.04 → +0.36 m off the midline — within the right hand's natural reach
+and inside the ~140° tracking FOV (§1.4). Extends ADR-0015; no new reference frame.
+
+### 3. Hand and targets share one eased colour
+
+New component `Jazztures.Presentation.TensionColorDriver` (the name §2.5's folder list
+already reserves) owns all tension colour. It subscribes to `ChordChangedChannel`, eases a
+single colour from the old chord's tint to the new one over
+`TensionPalette.TransitionSeconds` (default 0.25 s, SmoothStep), and pushes that colour to
+every touch target (base tint) and to the **left hand's outline** (`_OutlineColor` /
+`_OutlineGlowColor` on `OculusHand.mat`, via the two `MaterialPropertyBlockEditor`s
+`OVRHandVisual` ships). Tinting must route through `MaterialPropertyBlockEditor`, not a
+direct `SetPropertyBlock` — `HandVisual` re-pushes the block from that editor's own lists
+every frame and would clobber a direct write.
+
+The left hand carries the harmonic colour because it *is* the harmony hand (§1.3). This
+makes colour a **redundant** reinforcement of the tension–release arc, never the sole
+carrier (§3.10): the chord is always also audible, and the pose and the lit targets show it
+too. A learner who cannot resolve sage from olive loses nothing.
+
+### Palette — `[TUNABLE]`, on `Config/TensionPalette.asset`, pilot-calibrated at M8
+
+| Function | Colour | RGBA |
+|---|---|---|
+| none | cool grey | `0.58, 0.58, 0.62, 0.35` |
+| ii — preparation | sage / olive | `0.53, 0.60, 0.42, 0.80` |
+| V — peak tension | burnt sienna | `0.74, 0.33, 0.18, 0.85` |
+| I — resolution | warm purple | `0.52, 0.36, 0.60, 0.85` |
+
+**Deviation from §3.10.** §3.10 specifies "cool/neutral for ii, warm/saturated for V,
+resolved/settled for I". The student's palette direction was **mustard** for ii — a warm
+yellow, not cool. Sage/olive is the compromise: a desaturated yellow-green that still reads
+as "preparation / not yet resolved" while sitting closer to §3.10's intent than mustard
+would. V (burnt sienna) and I (warm purple) match §3.10 directly. Saturation and depth still
+rise across ii → V → I, so the arc reads as designed. All values are `[TUNABLE]` — an
+engineer's pick, not a co-design finding — and go in `Docs/CALIBRATION.md`, not the paper.
+
+**Thesis impact:** the design chapter's colour-coding description must say the ii → V → I
+arc runs **sage/olive → burnt sienna → warm purple** (not "cool → warm → resolved" in the
+abstract), that the neutral state is a low-alpha grey with the targets always visible, and
+that the left (harmony) hand's outline carries the same colour as a redundant channel. No
+Chapter 6 (methodology) impact — the §3.10 feedback model (auditory primary, visual
+secondary and redundant, restraint) is unchanged.
+
+---
+
 ## ADR-0016 — Touch targets are volumetric spheres over the tracked fingertip, not ISDK `PokeInteractor`
 
 **Date:** 2026-09-07 · **Status:** Accepted · **Milestone:** M4 ·

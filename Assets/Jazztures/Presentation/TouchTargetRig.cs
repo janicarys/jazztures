@@ -26,6 +26,10 @@ namespace Jazztures.Presentation
         [Tooltip("Optional. A styled target prefab (needs a Renderer). If empty, a sphere is generated.")]
         [SerializeField] private GameObject _targetPrefab;
 
+        [Tooltip("Material for generated spheres — a transparent unlit so alpha and the " +
+                 "chord colour read as authored. Ignored when a prefab is supplied.")]
+        [SerializeField] private Material _targetMaterial;
+
         private readonly List<TouchTarget> _targets = new List<TouchTarget>(ChordToneSet.TargetCount);
         private LazyRecenter _recenter;
         private float _lastYawRadians;
@@ -79,6 +83,7 @@ namespace Jazztures.Presentation
         {
             float spacing = _config.InterTargetSpacingMetres;
             float radius = _config.TargetRadiusMetres;
+            float halfDepth = _config.TargetDepthMetres * 0.5f;
             float midDegree = (ChordToneSet.DegreesPerOctave - 1) / 2f;
 
             for (int slot = 0; slot < ChordToneSet.TargetCount; slot++)
@@ -102,19 +107,24 @@ namespace Jazztures.Presentation
                     target = go.AddComponent<TouchTarget>();
                 }
 
-                target.Configure(slot, radius);
-                target.Clear(); // hidden until the first chord is held
+                target.Configure(slot, radius, halfDepth);
+                target.Clear(); // visible from the start (§3.1); just not soundable yet
                 _targets.Add(target);
             }
         }
 
-        private static GameObject GenerateSphere()
+        private GameObject GenerateSphere()
         {
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             Collider collider = go.GetComponent<Collider>();
             if (collider != null)
             {
                 Destroy(collider);
+            }
+
+            if (_targetMaterial != null && go.TryGetComponent(out Renderer renderer))
+            {
+                renderer.sharedMaterial = _targetMaterial;
             }
 
             return go;
@@ -124,9 +134,10 @@ namespace Jazztures.Presentation
         {
             Quaternion facing = Quaternion.AngleAxis(yawRadians * Mathf.Rad2Deg, Vector3.up);
             Vector3 origin = _head.position + Vector3.up * _config.AnchorHeightOffsetMetres;
-            transform.SetPositionAndRotation(
-                origin + facing * Vector3.forward * _config.ReachDistanceMetres,
-                facing);
+            Vector3 offset =
+                facing * Vector3.forward * _config.ReachDistanceMetres +
+                facing * Vector3.right * _config.AnchorLateralOffsetMetres;
+            transform.SetPositionAndRotation(origin + offset, facing);
         }
 
         private float ReadHeadYaw()

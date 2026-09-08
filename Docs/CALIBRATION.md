@@ -62,18 +62,42 @@ stability, §3.1; comfort).
 
 | Parameter | Default | Measured | Status | Notes |
 |---|---|---|---|---|
-| Target radius | 3.5 cm sphere | — | default | |
-| Inter-target spacing | 8 cm centre-to-centre | — | default | > 2×radius + tracking jitter; 2×5 degree/octave grid |
+| Target face radius | 3.5 cm | — | default | circular XY face; selects scale degree + octave |
+| Target depth | 15 cm total (±7.5 cm) | — | default | cylinder along the approach axis; depth is unaimable in mid-air VR (ADR-0018) |
+| Hover glow scale | 1.6× the trigger volume | — | default | a nearing fingertip lights the target before the note fires (ADR-0018) |
+| Speed sample window | 3 frames | — | default | binder fires on peak recent speed, so a decelerating approach still registers (ADR-0018) |
+| Inter-target spacing | 8 cm centre-to-centre | — | default | > 2×face-radius + tracking jitter; 2×5 degree/octave grid |
 | Anchor reach distance | 0.45 m | — | default | forward from the body anchor to the grid |
 | Anchor height offset | −0.25 m from head | — | default | negative = toward chest height |
+| Anchor lateral offset | +0.20 m (right) | — | default | grid shifted toward the right hand; keep the 5-wide grid inside the ~140° FOV (§1.4). ADR-0017 |
 | Recenter divergence angle | 35° | — | default | head-yaw offset before a recenter begins |
 | Recenter dwell | 0.6 s | — | default | divergence must hold this long first |
 | Recenter ease | 0.5 s | — | default | time to ease to the new facing |
-| Entry velocity gate | 0.15 m/s | — | default | prevents resting-hand triggers; mirrors `VelocityCurve.MinSpeed` |
+| Entry velocity gate | 0.08 m/s | — | default | "was this a deliberate strike?" — distinct from the loudness curve's minimum (ADR-0018); mirrors `MelodyEngine.EntryVelocityGateMetresPerSecond` |
+| Velocity-curve min speed | 0.15 m/s | — | default | anchors the quietest struck note; an entry between the gate and this sounds at MinVelocity. `VelocityCurve.MinSpeed` |
 | Velocity-curve max speed | 1.5 m/s | — | default | fingertip speed mapped to max MIDI velocity; mirrors `VelocityCurve.MaxSpeed` |
 | Per-target retrigger cooldown | 80 ms | — | default | mirrors `MelodyEngine.RetriggerCooldownSeconds` |
 | Fixed note sustain | 0.5 s `[OPEN]` | — | default | struck-piano model, no stuck notes; mirrors `MelodyEngine.DefaultSustainSeconds` |
 | MIDI velocity range (from fingertip speed) | 40–110, clamp; floor 30 | — | default | never emit < 30 (§3.3); mirrors `VelocityCurve` bounds |
+
+## Tension colour — `Config/TensionPalette.asset` (§3.10, ADR-0017)
+
+Asset: `Assets/Jazztures/Config/TensionPalette.asset` (`Jazztures/Config/Tension Palette`).
+Read by `Jazztures.Presentation.TensionColorDriver`, which eases one shared colour on every
+chord change and pushes it to the touch targets (base tint) and the left-hand outline.
+Colour is a **redundant** channel (§3.10) — the chord is always also audible and spatially
+shown. ii is a desaturated yellow-green rather than a cool hue: §3.10 says "cool/neutral for
+ii" but the student's palette direction was mustard; sage/olive is the compromise (ADR-0017).
+
+| Parameter | Default (RGBA) | Measured | Status | Notes |
+|---|---|---|---|---|
+| Neutral — no chord held | 0.58, 0.58, 0.62, 0.35 | — | default | cool grey, low alpha; targets stay visible but read as inactive |
+| ii — preparation | 0.53, 0.60, 0.42, 0.80 | — | default | sage/olive; deviates from §3.10 "cool" (ADR-0017) |
+| V — peak tension | 0.74, 0.33, 0.18, 0.85 | — | default | burnt sienna; warm, saturated |
+| I — resolution | 0.52, 0.36, 0.60, 0.85 | — | default | warm purple; deep, settled |
+| Strike flash | 1.00, 0.96, 0.85, 1.00 | — | default | near-white warm; fingertip-trigger flash |
+| Highlight boost | 0.35 | — | default | push toward white while a chord-change highlight is active |
+| Transition | 0.25 s | — | default | ease time between chord colours (SmoothStep); not a jarring snap |
 
 ## Register assignment — `Config/RegisterConfig.asset` (§3.1)
 

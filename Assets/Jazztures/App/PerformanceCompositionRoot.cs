@@ -43,6 +43,10 @@ namespace Jazztures.App
         [Tooltip("Optional: every note is also raised on this channel for presentation.")]
         [SerializeField] private NoteTriggeredChannel _noteChannel;
 
+        [Tooltip("The touch-target binder. Lives on the target rig, not on this object, so it "
+            + "must be assigned explicitly — leave empty only if the scene has no right hand.")]
+        [SerializeField] private Jazztures.Presentation.TouchTargetBinder _touchTargets;
+
         private IHandPoseSource _poseSource;
         private GestureInterpreter _interpreter;
         private ModeGatedNoteSink _gate;
@@ -90,7 +94,19 @@ namespace Jazztures.App
 
             GetComponent<DomainEventBridge>()?.Bind(_harmony, _interpreter, _poseSource);
             GetComponent<LessonRunner>()?.Bind(clock, _gate, _interpreter);
-            GetComponent<Jazztures.Presentation.TouchTargetBinder>()?.Bind(_melody);
+            // Assigned in the inspector, not GetComponent'd: the binder belongs on the
+            // target rig. An unassigned reference means melody notes silently never fire,
+            // so it is worth a warning rather than a null-check that says nothing.
+            if (_touchTargets != null)
+            {
+                _touchTargets.Bind(_melody);
+            }
+            else
+            {
+                Debug.LogWarning(
+                    $"{nameof(PerformanceCompositionRoot)}: no {nameof(Jazztures.Presentation.TouchTargetBinder)} "
+                    + "assigned — touch targets will light on chord change but will not sound.", this);
+            }
 
             var probe = GetComponent<Jazztures.Diagnostics.LatencyProbe>();
             if (probe != null)

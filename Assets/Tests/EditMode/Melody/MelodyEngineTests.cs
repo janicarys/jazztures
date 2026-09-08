@@ -63,6 +63,23 @@ namespace Jazztures.Tests.EditMode.Melody
         }
 
         [Test]
+        public void DeliberateEntry_BelowTheVelocityCurveFloor_StillFires_AtMinVelocity()
+        {
+            // A careful, decelerating approach: over the intent gate, under the loudness
+            // curve's minimum speed (ADR-0018). It must sound, and at MinVelocity.
+            float speed = (MelodyEngine.EntryVelocityGateMetresPerSecond + VelocityCurve.MinSpeed) / 2f;
+            Assert.That(speed, Is.GreaterThan(MelodyEngine.EntryVelocityGateMetresPerSecond));
+            Assert.That(speed, Is.LessThan(VelocityCurve.MinSpeed));
+
+            HoldChord(ChordFunction.Two);
+            _clock.Advance(1.0);
+
+            Assert.That(_engine.TriggerTarget(0, speed), Is.True);
+            Assert.That(_sink.On(MidiChannel.Melody), Has.Count.EqualTo(1));
+            Assert.That(_sink.On(MidiChannel.Melody)[0].Velocity, Is.EqualTo(VelocityCurve.MinVelocity));
+        }
+
+        [Test]
         public void RetriggerCooldown_IsPerTarget()
         {
             HoldChord(ChordFunction.Two);

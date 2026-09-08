@@ -28,8 +28,21 @@ namespace Jazztures.Core.Melody
         // TODO(OPEN): fixed melody sustain — measure a musically sensible value at M8.
         public const double DefaultSustainSeconds = 0.5;
 
-        /// <summary>Minimum fingertip speed to fire a note. `[TUNABLE]` (§3.3).</summary>
-        public const float EntryVelocityGateMetresPerSecond = VelocityCurve.MinSpeed;
+        /// <summary>
+        /// Minimum fingertip speed to fire a note — "was this a deliberate strike?".
+        /// `[TUNABLE]` (§3.3).
+        ///
+        /// <para>
+        /// Deliberately <b>not</b> <see cref="VelocityCurve.MinSpeed"/>, though it once
+        /// was. The two answer different questions: this one gates intent, the curve's
+        /// minimum anchors loudness. Conflating them meant careful aiming — which is slow,
+        /// and decelerates on arrival — fell under the gate and was discarded silently
+        /// (ADR-0018). <see cref="VelocityCurve.FromSpeed"/> clamps below its own minimum,
+        /// so an entry between this gate and the curve floor still sounds at
+        /// <see cref="VelocityCurve.MinVelocity"/> — well above the §3.3 absolute floor.
+        /// </para>
+        /// </summary>
+        public const float EntryVelocityGateMetresPerSecond = 0.08f;
 
         /// <summary>Per-target minimum interval between triggers. `[TUNABLE]` (§3.3).</summary>
         public const double RetriggerCooldownSeconds = 0.080;

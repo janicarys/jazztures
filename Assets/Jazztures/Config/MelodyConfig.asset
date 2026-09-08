@@ -13,13 +13,17 @@ MonoBehaviour:
   m_Name: MelodyConfig
   m_EditorClassIdentifier: Jazztures.Config::Jazztures.Config.MelodyConfig
   _targetRadiusMetres: 0.035
+  _targetDepthMetres: 0.15
   _interTargetSpacingMetres: 0.08
+  _hoverScale: 1.6
+  _speedSampleFrames: 3
   _reachDistanceMetres: 0.45
   _anchorHeightOffsetMetres: -0.25
+  _anchorLateralOffsetMetres: 0.2
   _recenterAngleDegrees: 35
   _recenterDwellSeconds: 0.6
   _recenterEaseSeconds: 0.5
-  _entryVelocityGateMetresPerSecond: 0.15
+  _entryVelocityGateMetresPerSecond: 0.08
   _velocityCurveMaxSpeedMetresPerSecond: 1.5
   _retriggerCooldownSeconds: 0.08
   _midiVelocityMin: 40
