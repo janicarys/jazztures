@@ -102,9 +102,9 @@ namespace Jazztures.Presentation.Editor
             }
 
             // §3.4: store the wrist orientation relative to head yaw, so it stays right as
-            // the learner turns. This is the ii-vs-I discriminator (ADR-0014).
-            Quaternion headYaw = Quaternion.Euler(0f, head.transform.eulerAngles.y, 0f);
-            wristHeadLocal = Quaternion.Inverse(headYaw) * wrist.rotation;
+            // the learner turns. This is the ii-vs-I discriminator (ADR-0014). Must use the
+            // same yaw extraction as GhostHandView so it round-trips.
+            wristHeadLocal = Quaternion.Inverse(GhostHandView.YawOnly(head.transform)) * wrist.rotation;
             return true;
         }
 

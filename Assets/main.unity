@@ -751,6 +751,7 @@ MonoBehaviour:
   _ghostChannel: {fileID: 11400000, guid: ff61668f9b6a4853accc8af87d511f03, type: 2}
   _puppet: {fileID: 1937435867}
   _leftHand: {fileID: 1054031027}
+  _head: {fileID: 368964558}
   _morphBeats: 1.5
   _ii: {fileID: 11400000, guid: 2574d55bf7453444a9b4bfa3bb4a7828, type: 2}
   _v: {fileID: 11400000, guid: d0f94a2c050fc9f45b4a52127318d458, type: 2}
@@ -1002,6 +1003,7 @@ MonoBehaviour:
   _noteChannel: {fileID: 11400000, guid: 43f958cab8fb0b246b9829f3181537d2, type: 2}
   _autoAdvance: 1
   _phraseTailSeconds: 1
+  _gateSettleBeats: 1.5
   _logCues: 1
   _startOnBind: 0
 --- !u!1 &771002001
@@ -2167,6 +2169,7 @@ MonoBehaviour:
   _selector: {fileID: 2121604859}
   _hud: {fileID: 771002003}
   _melodyInput: {fileID: 1001962249}
+  _performance: {fileID: 0}
 --- !u!1 &1618160654
 GameObject:
   m_ObjectHideFlags: 0
@@ -2870,13 +2873,17 @@ MonoBehaviour:
   _heightOffsetMetres: -0.05
   _followEaseSeconds: 0.4
   _rowSpacingMetres: 0.09
-  _rowReachMetres: 0.06
+  _rowWidthMetres: 0.34
+  _reachDepthMetres: 0.1
   _dwellSeconds: 0.6
+  _plateMaterial: {fileID: 0}
   _characterSize: 0.006
   _fontSize: 90
   _idleColor: {r: 0.78, g: 0.78, b: 0.82, a: 1}
   _focusColor: {r: 1, g: 0.97, b: 0.85, a: 1}
   _titleColor: {r: 0.62, g: 0.66, b: 0.72, a: 1}
+  _plateIdleColor: {r: 0.16, g: 0.17, b: 0.2, a: 0.55}
+  _plateFocusColor: {r: 0.3, g: 0.32, b: 0.24, a: 0.8}
 --- !u!4 &2121604860
 Transform:
   m_ObjectHideFlags: 0

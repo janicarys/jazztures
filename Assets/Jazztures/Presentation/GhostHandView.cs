@@ -95,6 +95,18 @@ namespace Jazztures.Presentation
                     "but won't ride the learner's wrist (ADR-0012 superimposition).", this);
             }
 
+            if (_head == null && Camera.main != null)
+            {
+                _head = Camera.main.transform; // the recorder uses Camera.main too — keep them the same
+            }
+
+            if (_head == null)
+            {
+                Debug.LogWarning(
+                    $"{nameof(GhostHandView)}: no head transform and no Camera.main — the demonstrated " +
+                    "wrist orientation can't be shown, so ii and I will look identical (ADR-0014).", this);
+            }
+
             SetGhostVisible(false);
         }
 
@@ -170,9 +182,7 @@ namespace Jazztures.Presentation
                 Quaternion rotation = wrist.rotation;
                 if (_haveTargetWrist && _head != null)
                 {
-                    Quaternion headYaw = Quaternion.Euler(0f, _head.eulerAngles.y, 0f);
-                    Quaternion targetWorld = headYaw * Quaternion.SlerpUnclamped(_previousWrist, _targetWrist, _morphT);
-                    rotation = targetWorld;
+                    rotation = YawOnly(_head) * Quaternion.SlerpUnclamped(_previousWrist, _targetWrist, _morphT);
                 }
 
                 _puppet.SetRootPose(new Pose(wrist.position, rotation));
@@ -191,6 +201,29 @@ namespace Jazztures.Presentation
 
         private static Quaternion WristFor(GhostPoseAsset asset) =>
             asset != null && asset.HasWrist ? asset.WristRotationHeadLocal : Quaternion.identity;
+
+        /// <summary>
+        /// The head's horizontal facing as a rotation about world up — pitch and roll
+        /// dropped. From the flattened forward vector, not <c>eulerAngles.y</c> (which is
+        /// ambiguous once the head tilts). Recorder and renderer must agree on this so the
+        /// captured wrist orientation round-trips (§3.4).
+        /// </summary>
+        public static Quaternion YawOnly(Transform head)
+        {
+            Vector3 forward = head.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 1e-6f)
+            {
+                forward = head.up; // looking straight up/down — fall back to the up vector's heading
+                forward.y = 0f;
+                if (forward.sqrMagnitude < 1e-6f)
+                {
+                    return Quaternion.identity;
+                }
+            }
+
+            return Quaternion.LookRotation(forward.normalized, Vector3.up);
+        }
 
         private void LightTarget(int index)
         {
