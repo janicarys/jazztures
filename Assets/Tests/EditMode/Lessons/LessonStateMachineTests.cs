@@ -119,10 +119,11 @@ namespace Jazztures.Tests.EditMode.Lessons
         public void Session1Lessons_EachRunStartToFinishUnattended()
         {
             // CLAUDE.md §3.9: S1 = L1 + L2 + L3, and S1 must not be left-hand-only.
+            // L1 is a single Gesture Learning phase (ADR-0024).
             var session1 = new[]
             {
                 new LessonPlan(new LessonId("L1"), "ii-V-I chords", "…",
-                    new[] { LearningMode.WatchAndListen, LearningMode.TryYourself },
+                    new[] { LearningMode.GestureLearning },
                     Tempo.Default, SwingRatio.Straight, ActiveHands.Left),
                 new LessonPlan(new LessonId("L2"), "Timing", "…",
                     new[] { LearningMode.WatchAndListen, LearningMode.TryYourself, LearningMode.TestYourself },

@@ -53,9 +53,9 @@ namespace Jazztures.Lessons
         [Min(0f)]
         [SerializeField] private float _phraseTailSeconds = 1.0f;
 
-        [Tooltip("Gesture-gated modes (Gesture Learning): after the ghost has had this many " +
-                 "beats to form a pose, the lesson holds there until the learner confirms it. " +
-                 "Match this to GhostHandView's morph beats so the ghost settles before the wait.")]
+        [Tooltip("Gesture-gated modes (Try Yourself, left-hand lesson): after the ghost has had " +
+                 "this many beats to form a pose, the lesson holds there until the learner confirms " +
+                 "it. Match this to GhostHandView's morph beats so the ghost settles before the wait.")]
         [Min(0f)]
         [SerializeField] private float _gateSettleBeats = 1.5f;
 
@@ -89,6 +89,14 @@ namespace Jazztures.Lessons
         public bool IsRunning => _running;
 
         public LessonStatus Status => _stateMachine != null ? _stateMachine.Status : LessonStatus.NotStarted;
+
+        /// <summary>
+        /// Which hands the loaded lesson exercises (§3.9, from <c>LessonDefinition</c>).
+        /// The flow controller shows the right-hand melody surfaces only when this
+        /// includes <see cref="ActiveHands.Right"/>. <see cref="ActiveHands.None"/> before
+        /// a lesson is loaded.
+        /// </summary>
+        public ActiveHands ActiveHands => _plan != null ? _plan.Hands : ActiveHands.None;
 
         /// <summary>Raised once when the lesson finishes its last phase (e.g. to re-show the selector).</summary>
         public event Action Completed;
@@ -202,6 +210,14 @@ namespace Jazztures.Lessons
             }
 
             _metronome?.Stop();
+            _ghostChannel?.Raise(GhostFrame.Hidden);
+
+            // A stopped lesson is the free instrument again: don't leave the note gate in
+            // the last phase's mode (a lesson ending on Try Yourself would keep muting the
+            // learner until their gesture matched a target that is no longer there).
+            _gate?.SetMode(LearningMode.ComposeOnTheFly);
+            _gate?.SetGestureCorrect(true);
+
             _running = false;
         }
 
@@ -291,15 +307,18 @@ namespace Jazztures.Lessons
 
         /// <summary>
         /// Where the phrase clock is allowed to be this frame. In a gesture-gated mode
-        /// (<see cref="ModePolicy.GateOnGesture"/>) it stops <see cref="_gateSettleBeats"/>
-        /// after each chord — enough for the ghost to form the pose — and does not move on
-        /// until <see cref="GestureInterpreter.ConfirmedFunction"/> matches that pose.
+        /// (<see cref="ModePolicy.GateOnGesture"/>) on a left-hand lesson it stops
+        /// <see cref="_gateSettleBeats"/> after each chord — enough for the ghost to form
+        /// the pose — and does not move on until
+        /// <see cref="GestureInterpreter.ConfirmedFunction"/> matches that pose. A melody
+        /// lesson never gates on the chord pose (the learner is not making one).
         /// </summary>
         private double NextLessonBeat(LessonPhase phase, double wanted)
         {
             _gateHeld = false;
 
-            if (!phase.Policy.GateOnGesture || _interpreter == null || _timeline.Chords.Count == 0)
+            if (!phase.Policy.GateOnGesture || _interpreter == null || _timeline.Chords.Count == 0
+                || _plan.Hands != ActiveHands.Left)
             {
                 return wanted;
             }
@@ -315,7 +334,9 @@ namespace Jazztures.Lessons
                 }
             }
 
-            if (pose == null || LearnerFunction(phase) == pose)
+            // Gate on the same confirmed function that fires the chord — so a matched pose
+            // always sounds, and the gate is exactly as loose as free-play triggering.
+            if (pose == null || _interpreter.ConfirmedFunction == pose)
             {
                 return wanted;
             }
@@ -337,28 +358,20 @@ namespace Jazztures.Lessons
                 return;
             }
 
-            ChordFunction? expected = _timeline.ChordFunctionAt(beatNow);
-            bool correct = expected.HasValue && LearnerFunction(phase) == expected;
-            _gate.SetGestureCorrect(correct);
-        }
-
-        /// <summary>
-        /// The learner's current pose as this phase judges it. A gesture-gated phase
-        /// (Gesture Learning) uses <see cref="GestureInterpreter.ReachingFunction"/> — it
-        /// accepts the pose the instant the learner clearly makes it, so the gate feels as
-        /// loose as free-play chord triggering. The timed modes use the fully-confirmed
-        /// function.
-        /// </summary>
-        private ChordFunction? LearnerFunction(LessonPhase phase)
-        {
-            if (_interpreter == null)
+            // The chord-pose gate is for a harmony lesson. In a melody lesson every note the
+            // engine lets through is already a chord tone (§3.3 — the wrong ones are removed),
+            // so a sounded note is always "correct": leave the reward gate open.
+            if (_plan.Hands != ActiveHands.Left)
             {
-                return null;
+                _gate.SetGestureCorrect(true);
+                return;
             }
 
-            return phase.Policy.GateOnGesture
-                ? _interpreter.ReachingFunction
-                : _interpreter.ConfirmedFunction;
+            ChordFunction? expected = _timeline.ChordFunctionAt(beatNow);
+            bool correct = expected.HasValue
+                           && _interpreter != null
+                           && _interpreter.ConfirmedFunction == expected;
+            _gate.SetGestureCorrect(correct);
         }
 
         private void PublishGhostFrame(LessonPhase phase, double beatNow)

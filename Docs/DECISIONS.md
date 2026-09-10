@@ -8,6 +8,47 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0024 — Lesson 1 is a single Gesture Learning phase
+
+**Date:** 2026-09-10 · **Status:** Accepted (student design call) · **Milestone:** M5 ·
+**Changes the thesis:** §3.9's mode table for L1 (again — see ADR-0021), and Chapter 6 lesson pacing
+**Supersedes:** the "L1 gains a `GestureLearning` phase → GestureLearning → WatchAndListen → TryYourself" decision in ADR-0021 §3
+
+ADR-0021 made L1 a three-phase follow-along: find the shapes (Gesture Learning), hear
+the progression demonstrated (Watch and Listen), then a gated attempt (Try Yourself).
+On device that sequence did not hold up.
+
+**Why it was cut.**
+
+- **Watch and Listen was jarring.** L1 authors no melody (`_notes: []`), so the demo is
+  six bare close voicings over ~16 s with no pulse (`_useMetronome: 0`, and no
+  `MetronomeVoice` exists yet), no groove and nothing for the learner to do — landing
+  straight after an interactive phase. It read as the system stalling, not demonstrating.
+- **Try Yourself was redundant.** Once Gesture Learning was restored to its §3.8 policy
+  (unconditional audio, ungated — see the same-day fix to `ModePolicy`), the only thing
+  Try Yourself adds for a *pose-only* lesson is that the ghost waits and the audio is
+  reward-gated. For three static shapes with no melodic dimension that is a near-duplicate
+  of the Gesture Learning phase the learner just did.
+
+**Decision.** L1's mode list is `[GestureLearning]` only. The lesson is a ~30 s primer:
+the ghost demonstrates ii → V → I twice on the phrase clock, the learner copies at their
+own pace and hears each chord as they form it (§3.8 — "pose fluency only, no musical
+target"). The timeline, markers and cue track are unchanged; the closing cue now fires at
+lesson end rather than after phase 1.
+
+**What L1 no longer does:** play the learner a fluent, in-time ii-V-I. That first fluent
+demonstration now arrives in **L2** (Watch and Listen, with the metronome, over frozen
+harmony) and **L3**, both in Session 1. L1's stated objective — gesture→chord mapping and
+the prepare/tension/release relationship — is carried by the mapping itself (shape →
+chord), the ii-V-I demonstration order, and the concept text.
+
+**Thesis text:** §3.9's table should show L1 as Gesture Learning only. Chapter 6's
+description of L1 as a three-phase follow-along (already flagged by ADR-0021) needs the
+same update. The Gesture Learning mode description in §3.8 is unchanged and now matches
+the implementation exactly.
+
+---
+
 ## ADR-0021 — Lesson 1 as a three-phase follow-along; cue actions get a channel; a placeholder HUD
 
 **Date:** 2026-09-09 · **Status:** Accepted (student design call) · **Milestone:** M5 ·

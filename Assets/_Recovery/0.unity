@@ -1515,63 +1515,6 @@ MonoBehaviour:
   _highlightSeconds: 0.6
   _pinchSpike: 1
   _pinchSelectRadiusMetres: 0.18
---- !u!1 &1033326364
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1033326366}
-  - component: {fileID: 1033326365}
-  m_Layer: 0
-  m_Name: ExitButton
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1033326365
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1033326364}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 907cb8505ac191b43a819b42c2395c1b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.ExitButton
-  _head: {fileID: 368964558}
-  _heightMetres: 0.34
-  _forwardMetres: 0.12
-  _followEaseSeconds: 0.25
-  _rightHand: {fileID: 1265530301}
-  _leftHand: {fileID: 1054031027}
-  _reachRadiusMetres: 0.13
-  _cooldownSeconds: 0.8
-  _discRadiusMetres: 0.055
-  _characterSize: 0.004
-  _idleColor: {r: 0.46, g: 0.13, b: 0.15, a: 0.66}
-  _armedColor: {r: 1, g: 0.42, b: 0.36, a: 0.96}
-  _textColor: {r: 1, g: 0.95, b: 0.92, a: 1}
---- !u!4 &1033326366
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1033326364}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.41443, y: 0, z: 1.54616}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1054031026
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2226,8 +2169,7 @@ MonoBehaviour:
   _selector: {fileID: 2121604859}
   _hud: {fileID: 771002003}
   _melodyInput: {fileID: 1001962249}
-  _performance: {fileID: 119089426}
-  _exitButton: {fileID: 1033326365}
+  _performance: {fileID: 0}
 --- !u!1 &1618160654
 GameObject:
   m_ObjectHideFlags: 0
@@ -2932,13 +2874,9 @@ MonoBehaviour:
   _followEaseSeconds: 0.4
   _rowSpacingMetres: 0.09
   _rowWidthMetres: 0.34
-  _rayWidthMetres: 0.006
-  _rayLengthMetres: 2.5
-  _hoverGraceSeconds: 0.18
-  _selectCooldownSeconds: 0.4
-  _rayColor: {r: 0.55, g: 0.7, b: 1, a: 0.5}
-  _rayFocusColor: {r: 1, g: 0.95, b: 0.7, a: 0.95}
-  _plateMaterial: {fileID: 2100000, guid: f6236b26e7de43fe9e8fd9a3245dbb2a, type: 2}
+  _reachDepthMetres: 0.1
+  _dwellSeconds: 0.6
+  _plateMaterial: {fileID: 0}
   _characterSize: 0.006
   _fontSize: 90
   _idleColor: {r: 0.78, g: 0.78, b: 0.82, a: 1}
@@ -2976,4 +2914,3 @@ SceneRoots:
   - {fileID: 712729946}
   - {fileID: 771002002}
   - {fileID: 2121604860}
-  - {fileID: 1033326366}

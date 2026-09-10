@@ -16,5 +16,4 @@ MonoBehaviour:
   - title: Session 1
     lessons:
     - {fileID: 11400000, guid: d53299446d8135b469cedcbee689351f, type: 2}
-    - {fileID: 11400000, guid: 602e0bd661c72514b9c90a02ee520f83, type: 2}
     - {fileID: 11400000, guid: 25e92bae4ffa9c04ebd987d19c5a0134, type: 2}

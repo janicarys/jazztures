@@ -77,7 +77,7 @@ namespace Jazztures.App
             INoteSink unconditional = _noteChannel != null
                 ? new ChannelNoteSink(_noteChannel)
                 : (INoteSink)new NullNoteSink();
-            _gate = new ModeGatedNoteSink(_sampler, unconditional);
+            _gate = new ModeGatedNoteSink(_sampler, unconditional, clock);
 
             _harmony = new HarmonyEngine(clock, _gate);
             _melody = new MelodyEngine(clock, _gate, _melodySustainSeconds);

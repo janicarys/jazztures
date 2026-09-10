@@ -33,16 +33,19 @@ namespace Jazztures.Core.Lessons
 
         /// <summary>
         /// True when the lesson holds on each demonstrated pose until the learner confirms
-        /// it, rather than advancing on the phrase clock. Gesture Learning steps through
-        /// the poses this way (§3.8 — "pose fluency"); the timed modes do not.
+        /// it, rather than advancing on the phrase clock. Try Yourself steps through the
+        /// targets this way — "audio is the reward for matching it" (§3.8) — but only on a
+        /// left-hand lesson, where the target is a chord pose; the runner leaves it off for
+        /// a melody lesson. Gesture Learning does <b>not</b> gate: it is free pose practice
+        /// with unconditional audio ("pose fluency only, no musical target", §3.8).
         /// </summary>
         public bool GateOnGesture { get; }
 
         public static ModePolicy For(LearningMode mode) => mode switch
         {
             LearningMode.GestureLearning => new ModePolicy(
-                SystemPlayback.None, ghostHandsVisible: true, UserAudioGate.OnlyWhenGestureCorrect,
-                deferFeedback: false, gateOnGesture: true),
+                SystemPlayback.None, ghostHandsVisible: true, UserAudioGate.Always,
+                deferFeedback: false, gateOnGesture: false),
 
             LearningMode.WatchAndListen => new ModePolicy(
                 SystemPlayback.Full, ghostHandsVisible: true, UserAudioGate.Never,
@@ -50,7 +53,7 @@ namespace Jazztures.Core.Lessons
 
             LearningMode.TryYourself => new ModePolicy(
                 SystemPlayback.None, ghostHandsVisible: true, UserAudioGate.OnlyWhenGestureCorrect,
-                deferFeedback: false, gateOnGesture: false),
+                deferFeedback: false, gateOnGesture: true),
 
             LearningMode.TestYourself => new ModePolicy(
                 SystemPlayback.None, ghostHandsVisible: false, UserAudioGate.Always,
