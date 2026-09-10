@@ -8,9 +8,210 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0021 — Lesson 1 as a three-phase follow-along; cue actions get a channel; a placeholder HUD
+
+**Date:** 2026-09-09 · **Status:** Accepted (student design call) · **Milestone:** M5 ·
+**Changes the thesis:** §3.9's mode table for L1, and lesson pacing
+
+M5's code was all written but never assembled: `LessonRunner`, the state machine, the
+timeline, the cue track and the mode gate all existed, but nothing was in the scene and
+cues had nowhere to go but the Console. Making L1 an actual follow-along lesson exposed
+three gaps.
+
+### 1. Cue actions had no route to presentation
+
+`LessonRunner.OnCueAction` consumed the control-flow cues (wait-for-input, scoring,
+advance-phase) and `Debug.Log`ged everything else, so an authored `ShowText` could never
+reach a display.
+
+**Decision.** New `CueActionChannel` (`EventChannel<CueAction>`). The runner still consumes
+control flow itself and publishes only *presentational* cues — captions, highlights,
+tension colour. The cue track can therefore drive the HUD without the HUD ever being able
+to steer the lesson, which is the §2.3 direction rule holding.
+
+### 2. No instruction surface
+
+**Decision.** `Presentation/LessonHud.cs`, an explicit M5 placeholder. Three lines of
+world-space text, soft-following the head (eased, not head-locked — rigid geometry at
+reading distance is a comfort problem), sitting slightly *below* eye line so reading it
+does not tilt the head and pull the hands out of the tracking cone (ADR-0020):
+
+- **banner** — the mode, in plain words ("Watch and listen", "Your turn");
+- **prompt** — the pose the lesson is asking for *right now*, from `GhostFrameChannel`,
+  named the way the learner was taught it: "Fist", "Open palm, facing down". Never a
+  chord symbol (§1.5 — no jargon without explanation);
+- **caption** — authored text from the cue track, plus the deferred end-of-attempt score
+  (§3.7 — never mid-phrase).
+
+It also cross-references `ChordChangedChannel` (the learner's *confirmed* pose) against the
+prompt and marks a match, so the learner gets a visual confirmation alongside the audio
+reward `ModeGatedNoteSink` already provides in Try-Yourself.
+
+Built from Unity's builtin font via runtime `TextMesh`, deliberately: TextMeshPro would
+need its Essentials package imported into `Assets/` and an extra assembly reference —
+two more things to be wrong on a first device test, for a surface M6 replaces anyway.
+
+### 3. L1's phrase was a demonstration, not a lesson
+
+As authored, L1 put its three chords at beats 0, 2 and 4. `LessonTimeline.DurationBeats`
+is the last event's beat, so the phrase was **4 beats — 3 seconds at 80 BPM**. Ample to
+*hear* a ii-V-I; nowhere near enough for a novice to find three unfamiliar hand shapes,
+each of which needs a 120 ms hold plus three confirming frames before it even registers
+(§3.4).
+
+**Decision.** One chord per bar, played twice: beats 0/4/8/12/16/20 → a 20-beat phrase,
+**15 s**, 3 s per chord, with a `second-time` marker at beat 12 for the cue track. Roughly
+48 s for the whole lesson.
+
+**Also: L1 gains a `GestureLearning` phase**, so the mode sequence is
+**GestureLearning → WatchAndListen → TryYourself**. §3.9's table lists L1 as "W&L, TY", so
+this is a deviation — but §3.8 describes Gesture Learning as the mode that "precedes
+Watch-and-Listen ... builds a movement lexicon before musical demand is added", which is
+exactly what a first lesson teaching three hand shapes needs. Its policy (no system
+playback, ghost visible, user audio *always* on) gives the learner a no-pressure phase to
+find each shape and hear it, before the demonstration and then the gated attempt.
+
+**Known limitation, deliberately not fixed:** cues are not phase-scoped —
+`LessonCuePlayer` resets per phase, so a beat-0 caption fires in all three. L1's captions
+are therefore written phase-neutrally. If lessons later need "say this only in Try
+Yourself", `CueTrigger` needs a phase filter; not worth the complexity until a lesson
+actually calls for it.
+
+**Thesis impact:** none to Chapter 6. §3.9's L1 row should read "GL, W&L, TY". The design
+chapter should note that lesson phrase length is a pedagogical parameter, not just a
+musical one — the same progression needs a longer phrase for practice than for
+demonstration, and the M8 pilot should measure it rather than inherit 80 BPM's arithmetic.
+
+---
+
+## ADR-0020 — Melody arc pulled toward centre: the two hands compete for the Quest 2 hand-tracking cone
+
+**Date:** 2026-09-09 · **Status:** Accepted (student design call) · **Milestone:** M4 ·
+**Amends:** ADR-0017 (the +0.20 m lateral offset), ADR-0019 · **Relates to:** the open
+"target Quest model" item (§7) · **Changes the thesis:** §1.4 wording
+
+On device (Quest 2), the learner instinctively turns their head right to look at the melody
+arc — and doing so carries the **left** hand toward the edge of the hand-tracking camera
+cone, dropping harmony tracking. §3.5's loss policy catches it (the chord sustains, no
+spurious change), but the layout should not force the choice.
+
+**The geometry.** With `_shoulderLateralOffsetMetres = 0.20` and the ADR-0019 ±32° arc
+span, the arc's right edge sits **+49° from body-forward**. Seeing it needs a ~30° head
+turn, which puts a centrally-held left hand at ~−40° from *head*-forward — at the ragged
+edge of the Quest 2's usable hand-tracking zone (roughly ±45–50° before reliability falls
+off; the ~140° in §1.4 is closer to head/controller tracking and to the Quest 3, not Quest
+2 hands).
+
+**Decision.** `_shoulderLateralOffsetMetres` 0.20 → **0.08** `[TUNABLE]`. The arc centre
+moves to ~10° right (still matching the learner's instinct to "look a bit right"), the
+right edge to ~+40°, the left edge to ~−20°. A modest head turn now reaches the outer
+melody targets while the left hand stays inside the tracking cone. The ADR-0019 arc *shape*
+— equal reach, glissando as one shoulder sweep — is unchanged; only where the arc sits
+laterally. The 16° columns / 4.5 cm neighbour gap are kept.
+
+This unwinds part of ADR-0017's reasoning ("shift the grid toward where the right hand
+rests"): correct for the arm in isolation, wrong once the left hand's FOV budget is
+counted. On a narrow-FOV headset, "directly in front of the learner" (§1.4) has to win.
+
+**Thesis impact:** §1.4's "inside the Quest's ~140° tracking FOV" should be qualified — for
+**hand** tracking on Quest 2 the usable cone is nearer ~100–120°, and both hands' resting
+and working positions must fit inside it *simultaneously*, which is a tighter constraint
+than either hand alone. This strengthens the case for running the study on Quest 3 / 3S if
+the lab has them (open item, §7); on Quest 2 the melody arc cannot be pushed as far to the
+side as the arm would prefer. No Chapter 6 (methodology) impact.
+
+---
+
+## ADR-0019 — Right-hand targets on a shoulder-centred arc; a plane-crossing redesign built and set aside
+
+**Date:** 2026-09-09 · **Status:** Accepted (student design call) · **Milestone:** M4 ·
+**Amends:** ADR-0016 (geometry), ADR-0018 (finger set) · **Changes the thesis:** §3.3
+`[TUNABLE]` wording + a design-chapter paragraph (not Chapter 6)
+
+### The brief
+
+After playing the ADR-0018 build (spheres, 3.5 cm radius, 8 cm spacing → **1 cm gap**, 15 cm
+deep), the student's own read was sharper than either bug report:
+
+> "it can actually be quite fun to slide my finger between the touch targets, but I find
+> that touching the targets individually can be finnicky."
+
+One number explains both halves. Ten 15 cm-deep volumes on a 1 cm gap form a near-continuous
+slab: sliding a finger through it fires note after note — a glissando that feels good — while
+reaching in for **one** target clips its neighbours. The depth is what makes the slide work;
+the gap is the lever.
+
+### Decision — open the spacing onto an arc
+
+A flat grid cannot just be spread wider: on a flat row the outer columns sit further from
+the shoulder than the centre, so they get harder to reach exactly as spacing grows. Instead
+the five degree-columns are swept around a **pivot at the learner's right shoulder**, every
+target at the same reach.
+
+- Pivot = head + (−0.25 m up, +0.20 m right) — the real shoulder. `_reachDistanceMetres`
+  (0.45 m) stops being a forward offset and becomes the **arc radius**.
+- Column `d` is at angle `(d − 2)·_columnAngleDegrees` about the pivot's up axis; the two
+  octave rows are stacked `_rowSpacingMetres` apart vertically.
+- Each target is rotated to face **radially outward**, so its local +Z — the axis
+  `TargetVolume` tests depth along, and the axis the fingertip approaches on — points back
+  at the learner. The hit test already runs in each target's own frame, so this is nearly
+  free.
+- The centre column does not move: at angle 0 it lands exactly where the old grid centre
+  was. Only the outer columns wrap toward the learner.
+
+| `[TUNABLE]` | Was | Now | Effect |
+|---|---|---|---|
+| Column spacing | 8 cm flat | **16°** (≈ 12.5 cm chord) | neighbour gap **1 cm → 4.5 cm** |
+| Row spacing | 8 cm | **14 cm** | 6 cm vertical gap; no reach cost, so generous is free |
+| Target radius | 3.5 cm | **4 cm** | easier to hit, still leaves the 4.5 cm gap |
+| Depth | 15 cm | **15 cm** (unchanged) | this is what lets a lateral slide play a glissando |
+| Trigger fingers | index/middle/ring/pinky | **index + middle** | spare fingers clip neighbours when isolating one target |
+
+Half-span is ±32°, putting the outer targets ~24 cm either side of the pivot and ~38 cm
+out — a comfortable shoulder sweep, inside the ~140° tracking FOV (§1.4). If isolating one
+target is still fiddly, `_columnAngleDegrees` 18–20° widens the gap to 6–7.6 cm; the cost is
+a gappier glissando as the off-zones approach target width. That is the M8 pilot-calibration
+loop, run early.
+
+Renamed the two anchor params to `_shoulderHeightOffsetMetres` / `_shoulderLateralOffsetMetres`
+— they now locate a pivot, not bias a grid, and the old names would mislead at calibration.
+
+### The plane-crossing redesign, and why it was set aside
+
+Between the ADR-0018 build and this one, a full redesign was drafted (and is in the plan
+history): replace the ten volumes with a single flat panel tiled into ten cells, firing a
+note the instant a fingertip **crosses** the plane pushing away — `TriggerPlane` in `Core`,
+unit-tested, `TargetVolume` deleted. It solved the isolation and depth problems cleanly:
+crossing is a sign flip on one coordinate, so depth error and frame-rate tunnelling both
+become structurally impossible.
+
+It was **not built** because it would have destroyed the gesture the student values. The
+panel took MIDI velocity from the **normal** component of fingertip speed — how hard you
+push through. A lateral slide has almost no normal component, so every glissando note would
+have been gated to silence. The slide is worth more than the theoretical cleanliness.
+
+This is a real finding, not just a dead end: **for a musical mid-air instrument, the
+mechanic that best preserves expressive lateral gesture is a shallow-front, deep-back
+containment volume — not a crossing plane.** The design chapter should say so, and note that
+three right-hand mechanics were prototyped (shallow sphere, deep cylinder, crossing plane)
+before the arc-of-cylinders settled.
+
+### Thesis impact
+
+None to Chapter 6 — the §3.3 interaction model (fingertip enters a target volume,
+entry-velocity gate, speed→velocity) is unchanged. §3.3's `[TUNABLE]` line "Inter-target
+spacing: 8 cm centre-to-centre" becomes an angular column spacing on a shoulder-centred arc.
+§3.1's ten targets, chord-tone restriction and stable degree→slot map are all intact — slot
+order is untouched, only the mapping from slot to position changed. The design chapter gains
+the arc rationale, the glissando as an intended gesture, and the three-mechanic prototype
+history.
+
+---
+
 ## ADR-0018 — Touch targets: depth-extended volume, any fingertip, gate decoupled from the loudness curve
 
-**Date:** 2026-09-08 · **Status:** Accepted · **Milestone:** M4 ·
+**Date:** 2026-09-08 · **Status:** Accepted; the depth-extended volume stands (it enables
+the glissando), the four-finger set is narrowed to two by ADR-0019 · **Milestone:** M4 ·
 **Amends:** ADR-0016 · **Changes the thesis:** §3.3 `[TUNABLE]` wording only
 
 First on-device test of the right-hand melody targets: hard to hit. Two reports —
@@ -72,8 +273,9 @@ the velocity-curve minimum.
 
 ## ADR-0017 — Tension colour: always-visible neutral targets, right-biased anchor, hand+target share one eased colour
 
-**Date:** 2026-09-08 · **Status:** Accepted (student design call) ·
-**Milestone:** M4 · **Changes the thesis:** design chapter wording (not Chapter 6)
+**Date:** 2026-09-08 · **Status:** Accepted (student design call); the +0.20 m rightward
+anchor is walked back to +0.08 m by ADR-0020 (Quest 2 FOV) · **Milestone:** M4 ·
+**Changes the thesis:** design chapter wording (not Chapter 6)
 
 Three linked presentation decisions, driven by a request to make the touch targets legible
 between chords and the colour scheme less arbitrary.

@@ -32,14 +32,13 @@ namespace Jazztures.Presentation
         [Tooltip("The right Interaction SDK Hand component.")]
         [SerializeField] private MonoBehaviour _rightHand;
 
-        [Tooltip("Right-hand fingertips that can strike a target. Thumb is left out — it " +
-                 "does not point the way the others do.")]
+        [Tooltip("Right-hand fingertips that can strike a target. Index + middle only " +
+                 "(ADR-0019): spare fingers clip neighbouring targets when reaching for " +
+                 "one. Drop to index alone if the middle finger still causes strays.")]
         [SerializeField] private HandJointId[] _fingerTips =
         {
             HandJointId.HandIndexTip,
             HandJointId.HandMiddleTip,
-            HandJointId.HandRingTip,
-            HandJointId.HandPinkyTip,
         };
 
         [Tooltip("How long targets stay lit after a chord change, seconds.")]

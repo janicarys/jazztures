@@ -104,7 +104,7 @@ flowchart LR
     HE -->|ChordChanged| ME
     HE -->|NoteEvent| MG
     ME -->|NoteEvent| MG
-    HPS -.->|"right index tip enters a target sphere → MelodyEngine.TriggerTarget(index, speed)<br/>(TouchTargetBinder, Presentation — ADR-0016)"| ME
+    HPS -.->|"a right-hand fingertip (index/middle) enters a target volume on the shoulder arc → MelodyEngine.TriggerTarget(index, speed)<br/>(TouchTargetBinder, Presentation — ADR-0016/0019)"| ME
     MG -->|audible, mode-gated| S
     MG -->|unconditional, always logged| NC
 ```
@@ -167,8 +167,14 @@ flowchart TD
 
 **The asset is data; the behaviour is the runner.** Adding a lesson means a new
 `LessonDefinition` asset — no C# change (§3.9). `LessonRunner` also raises
-`LessonPhaseChannel`, `EvaluationResultChannel` and `GhostFrameChannel` for
-presentation; captions and the ghost-hand mesh are wired but not yet rendered.
+`LessonPhaseChannel`, `EvaluationResultChannel`, `GhostFrameChannel` and
+`CueActionChannel` for presentation. `LessonHud` renders the first three as a mode
+banner, a plain-language pose prompt and authored captions (ADR-0021); the articulated
+ghost-hand mesh is still M6 (ADR-0012).
+
+Note the split in `LessonRunner.OnCueAction`: control-flow cues (wait-for-input, scoring,
+advance-phase) are consumed internally, and only *presentational* cues are published —
+so the cue track can drive the HUD without the HUD ever steering the lesson (§2.3).
 
 ---
 
@@ -187,9 +193,10 @@ presentation; captions and the ghost-hand mesh are wired but not yet rendered.
 | Sampler, voice pool, DSP clock, piano bank | `Audio/` | verified in editor |
 | Hand-pose sources, keyboard input | `Input/` | keyboard ok · all three left-hand recognisers verified on device (ADR-0013/0014); `HandPoseFixture_M3.txt` recorded, replay verified at desk |
 | ScriptableObject event channels | `Events/` | done |
-| Lesson assets, `LessonRunner` | `Lessons/` | verified in editor |
-| Right-hand touch targets — rig, body anchor, re-pitch, fingertip trigger | `Presentation/` | built (ADR-0015/0016) · verify on device |
-| Ghost-hand renderer | — | not built · ADR-0012 spec'd |
+| Lesson assets, `LessonRunner` | `Lessons/` | L1 rebuilt as a 3-phase follow-along (GestureLearning → W&L → TryYourself), wired in `main.unity` · verify on device |
+| Right-hand touch targets — shoulder-arc rig, body anchor, re-pitch, fingertip trigger | `Presentation/` | built (ADR-0015/0016/0019) · spacing opened onto an arc after on-device play · verify |
+| Lesson HUD — mode banner, pose prompt, captions | `Presentation/LessonHud.cs` | M5 placeholder (runtime `TextMesh`, builtin font) · ADR-0021 |
+| Ghost-hand renderer | — | not built · ADR-0012 spec'd; the HUD pose prompt stands in for M5 |
 | SMF lesson importer | — | M6 |
 | OSC + JSONL telemetry sinks | — | M7 |
 
@@ -218,7 +225,8 @@ Full text in `Docs/DECISIONS.md`.
 
 | ADR | Decision |
 |---|---|
-| 0016 | Touch targets are **volumetric spheres over the tracked fingertip** (`IHand.GetJointPose(HandIndexTip)` + a distance test), not ISDK `PokeInteractor` — Poke is a surface interaction and carries no entry speed. §3.3's gate + cooldown + velocity curve stay in `MelodyEngine`. §4.1 wording change. |
+| 0019 | Right-hand targets sit on a **shoulder-centred arc**, not a flat grid: 5 degree-columns swept 16° apart at a constant 0.45 m reach, 2 octave rows, each facing radially outward. Opens the neighbour gap 1 cm → 4.5 cm so a finger can isolate one target, while the 15 cm depth still lets a lateral slide play a glissando. Trigger fingers cut to index + middle. A plane-crossing redesign was built and set aside — it would have silenced the slide. |
+| 0016 | Touch targets are **volumetric depth-extended cylinders over the tracked fingertip** (`IHand.GetJointPose` + a containment test), not ISDK `PokeInteractor` — Poke is a surface interaction and carries no entry speed. §3.3's gate + cooldown + velocity curve stay in `MelodyEngine`. §4.1 wording change. Geometry since revised by 0018/0019. |
 | 0015 | Right-hand touch targets are a **body-anchored rig with a lazy recenter** (head position + flattened yaw, chest-height offset, eases to a new facing only after the yaw diverges past a threshold for a dwell). World-locked and head-locked rejected. `LazyRecenter` (pure, tested) in `Core/Melody`; params in `MelodyConfig.asset`. |
 | 0014 | The SDK has no lateral orientation feature, so ii is recognised by hand verticality: **ii = `OpenPalm` + `FingersUp`**, **I = `OpenPalm` + `PalmDown`**. Cone thresholds in `GesturePalmConeThresholds.asset`. |
 | 0013 | Hand-tracking scene topology: the Building Block hand objects are a data source with their renderers disabled (but the GameObjects stay active); the Interaction SDK `HandVisual` is the only hand renderer. |

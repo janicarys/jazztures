@@ -45,31 +45,35 @@ forward.
 | High-confidence frames to accept after tracking loss | 3 | — | default | `GestureInterpreter` (§3.5) |
 | Tracking-loss cue delay | 200 ms | — | default | `GestureInterpreter` → presentation (§3.5.2) |
 
-## Melody / touch targets — `Config/MelodyConfig.asset` (§3.3, §3.1, ADR-0015)
+## Melody / touch targets — `Config/MelodyConfig.asset` (§3.3, §3.1, ADR-0015/0019)
 
 Asset: `Assets/Jazztures/Config/MelodyConfig.asset` (`Jazztures/Config/Melody`). The
-geometry + body-anchor group is read live by the touch-target rig. The melody-engine
+geometry + pivot group is read live by the touch-target rig. The melody-engine
 group **mirrors** the `[TUNABLE]` constants still in `Jazztures.Core.Melody`
 (`MelodyEngine`, `VelocityCurve`); Core consumes its own constants until Phase 8 (M8)
 wires this asset to the parameterised overloads — keep the two in sync by hand.
 
-The targets are a **body-anchored rig with a lazy recenter** (ADR-0015): anchored to head
-position + head yaw flattened to horizontal, offset to chest height, pushed forward a
-reach; ignores head pitch/roll; recenters toward the current facing only after the yaw
-diverges past `_recenterAngleDegrees` for `_recenterDwellSeconds`, easing over
-`_recenterEaseSeconds`. World-locked and head-locked were rejected (spatial-map
+The ten targets sit on an **arc centred on the right shoulder** (ADR-0019): five
+scale-degree columns swept about the pivot at a constant reach, two octave rows, each
+target facing radially outward. Every target is the same distance from the shoulder, so a
+glissando is one shoulder rotation and the outer degrees are no harder to reach than the
+centre. The pivot is **body-anchored with a lazy recenter** (ADR-0015): head position +
+flattened yaw, offset down and right to the real shoulder; recenters toward the current
+facing only after the yaw diverges past `_recenterAngleDegrees` for `_recenterDwellSeconds`,
+easing over `_recenterEaseSeconds`. World-locked and head-locked were rejected (spatial-map
 stability, §3.1; comfort).
 
 | Parameter | Default | Measured | Status | Notes |
 |---|---|---|---|---|
-| Target face radius | 3.5 cm | — | default | circular XY face; selects scale degree + octave |
-| Target depth | 15 cm total (±7.5 cm) | — | default | cylinder along the approach axis; depth is unaimable in mid-air VR (ADR-0018) |
+| Target face radius | 4 cm | — | default | circular face; selects scale degree + octave. Up from 3.5 cm — the wider arc leaves room (ADR-0019) |
+| Target depth | 15 cm total (±7.5 cm) | — | default | cylinder along the radial approach axis; depth is unaimable in mid-air VR (ADR-0018). Kept — this is what makes the glissando slide work |
+| Column angle | 16° at the pivot | — | default | → 12.5 cm chord spacing, **4.5 cm gap** between neighbours (was 1 cm). Tune up to 18–20° if isolating one target is still fiddly (ADR-0019) |
+| Row spacing | 14 cm | — | default | vertical octave separation; 6 cm gap. No reach cost so it can be generous |
 | Hover glow scale | 1.6× the trigger volume | — | default | a nearing fingertip lights the target before the note fires (ADR-0018) |
 | Speed sample window | 3 frames | — | default | binder fires on peak recent speed, so a decelerating approach still registers (ADR-0018) |
-| Inter-target spacing | 8 cm centre-to-centre | — | default | > 2×face-radius + tracking jitter; 2×5 degree/octave grid |
-| Anchor reach distance | 0.45 m | — | default | forward from the body anchor to the grid |
-| Anchor height offset | −0.25 m from head | — | default | negative = toward chest height |
-| Anchor lateral offset | +0.20 m (right) | — | default | grid shifted toward the right hand; keep the 5-wide grid inside the ~140° FOV (§1.4). ADR-0017 |
+| Arc reach (radius) | 0.45 m | — | default | shoulder pivot to every target; the arc radius, not a forward offset |
+| Shoulder height offset | −0.25 m from head | — | default | down toward the real shoulder |
+| Shoulder lateral offset | +0.08 m (right) | — | default | small rightward bias (arc centre ~10°, right edge ~+40°). Pulled in from +0.20 m: on Quest 2 the hand-tracking cone is narrower than §1.4's ~140°, and a big offset made the learner turn their head to see the arc and lose left-hand tracking. ADR-0020 |
 | Recenter divergence angle | 35° | — | default | head-yaw offset before a recenter begins |
 | Recenter dwell | 0.6 s | — | default | divergence must hold this long first |
 | Recenter ease | 0.5 s | — | default | time to ease to the new facing |
@@ -118,6 +122,21 @@ constants become fallback defaults only.
 | Default tempo | 80 BPM | — | default | >100 BPM gated behind a config flag (unvalidated). Code: `Tempo.Default` |
 | Swing ratio | 0.66 | — | default | per-lesson; L4 introduces swing, L1–3 straight. Code: `SwingRatio.Default` (straight = `SwingRatio.Straight`); warp in `SwingQuantizer` |
 | Metronome bar length | 4 beats | — | default | click grid only, not swung. Code: `Metronome.DefaultBeatsPerBar` |
+
+## Lesson pacing — per-lesson `LessonDefinition` asset (§3.9, ADR-0021)
+
+Phrase length is a **pedagogical** parameter, not only a musical one: the same ii-V-I needs
+a longer phrase to *practise* than to *demonstrate*. `LessonTimeline.DurationBeats` is
+simply the last event's beat, so pacing is set by where the chords are placed.
+A pose costs the learner a 120 ms hold plus 3 confirming frames before it registers (§3.4)
+— on top of the time to recall and form an unfamiliar shape.
+
+| Parameter | Default | Measured | Status | Notes |
+|---|---|---|---|---|
+| L1 chord spacing | 4 beats (3.0 s at 80 BPM) | — | default | one chord per bar. Was 2 beats, giving a 3 s phrase — enough to hear, not to play (ADR-0021) |
+| L1 phrase length | 20 beats (15 s), ii-V-I twice | — | default | the repeat gives a second attempt without restarting the phase |
+| L1 mode phases | GestureLearning → W&L → TryYourself | — | default | deviates from §3.9's "W&L, TY"; §3.8 puts Gesture Learning first for pose fluency (ADR-0021) |
+| Phrase tail | 1.0 s | — | default | grace after the last beat before auto-advance. `LessonRunner._phraseTailSeconds` |
 
 ## Onset scoring — `Config/OnsetScoringConfig.asset` (§3.7)
 

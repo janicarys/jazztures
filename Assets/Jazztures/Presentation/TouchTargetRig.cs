@@ -7,13 +7,19 @@ using UnityEngine;
 namespace Jazztures.Presentation
 {
     /// <summary>
-    /// Spawns the ten <see cref="TouchTarget"/>s in a 2×5 grid (octave × scale degree,
-    /// matching the <see cref="ChordToneSet"/> slot order) and keeps the whole grid
-    /// body-anchored in front of the learner (ADR-0015): it tracks head position and yaw
-    /// but ignores pitch/roll, and only eases to a new facing once the head has turned
-    /// past a threshold for a dwell. All the timing is in the pure
-    /// <see cref="LazyRecenter"/>; this component just feeds it head yaw and applies the
-    /// result.
+    /// Spawns the ten <see cref="TouchTarget"/>s on an arc centred on the learner's right
+    /// shoulder (ADR-0019): five scale-degree columns swept around the pivot at a constant
+    /// reach, two octave rows. Every target is the same distance from the shoulder, so the
+    /// outer degrees are no harder to reach than the centre and a glissando is a single
+    /// shoulder rotation. Each target faces radially outward, along the axis the fingertip
+    /// approaches on.
+    ///
+    /// <para>
+    /// The rig is body-anchored at the shoulder pivot and keeps its facing with the pure
+    /// <see cref="LazyRecenter"/> (ADR-0015): it tracks head position and yaw but ignores
+    /// pitch/roll, and only eases to a new facing once the head has turned past a threshold
+    /// for a dwell.
+    /// </para>
     /// </summary>
     public sealed class TouchTargetRig : MonoBehaviour
     {
@@ -81,10 +87,8 @@ namespace Jazztures.Presentation
 
         private void SpawnTargets()
         {
-            float spacing = _config.InterTargetSpacingMetres;
             float radius = _config.TargetRadiusMetres;
             float halfDepth = _config.TargetDepthMetres * 0.5f;
-            float midDegree = (ChordToneSet.DegreesPerOctave - 1) / 2f;
 
             for (int slot = 0; slot < ChordToneSet.TargetCount; slot++)
             {
@@ -95,11 +99,10 @@ namespace Jazztures.Presentation
                     ? Instantiate(_targetPrefab, transform)
                     : GenerateSphere();
                 go.transform.SetParent(transform, worldPositionStays: false);
-                go.transform.localPosition = new Vector3(
-                    (degree - midDegree) * spacing,
-                    (octave - 0.5f) * spacing,
-                    0f);
-                go.transform.localRotation = Quaternion.identity;
+
+                LocalPlacement(octave, degree, out Vector3 localPosition, out Quaternion localRotation);
+                go.transform.localPosition = localPosition;
+                go.transform.localRotation = localRotation;
 
                 TouchTarget target = go.GetComponent<TouchTarget>();
                 if (target == null)
@@ -111,6 +114,27 @@ namespace Jazztures.Presentation
                 target.Clear(); // visible from the start (§3.1); just not soundable yet
                 _targets.Add(target);
             }
+        }
+
+        /// <summary>
+        /// One target's place on the shoulder arc (ADR-0019). Column <paramref name="degree"/>
+        /// is swept by <c>ColumnAngleDegrees</c> about the pivot's up axis; the two octave
+        /// rows are stacked vertically. The target faces radially outward so its local +Z —
+        /// the depth axis <see cref="TouchTarget.Contains"/> tests along — points back at
+        /// the learner's approaching fingertip.
+        /// </summary>
+        private void LocalPlacement(int octave, int degree, out Vector3 position, out Quaternion rotation)
+        {
+            float midDegree = (ChordToneSet.DegreesPerOctave - 1) / 2f;
+            float angleDeg = (degree - midDegree) * _config.ColumnAngleDegrees;
+            float angleRad = angleDeg * Mathf.Deg2Rad;
+            float reach = _config.ReachDistanceMetres;
+
+            position = new Vector3(
+                Mathf.Sin(angleRad) * reach,
+                (octave - 0.5f) * _config.RowSpacingMetres,
+                Mathf.Cos(angleRad) * reach);
+            rotation = Quaternion.Euler(0f, angleDeg, 0f);
         }
 
         private GameObject GenerateSphere()
@@ -132,12 +156,14 @@ namespace Jazztures.Presentation
 
         private void ApplyAnchor(float yawRadians)
         {
+            // The rig sits AT the shoulder pivot; the arc radius (reach) is applied
+            // per-target in LocalPlacement, not here (ADR-0019).
             Quaternion facing = Quaternion.AngleAxis(yawRadians * Mathf.Rad2Deg, Vector3.up);
-            Vector3 origin = _head.position + Vector3.up * _config.AnchorHeightOffsetMetres;
-            Vector3 offset =
-                facing * Vector3.forward * _config.ReachDistanceMetres +
-                facing * Vector3.right * _config.AnchorLateralOffsetMetres;
-            transform.SetPositionAndRotation(origin + offset, facing);
+            Vector3 pivot =
+                _head.position +
+                Vector3.up * _config.ShoulderHeightOffsetMetres +
+                facing * Vector3.right * _config.ShoulderLateralOffsetMetres;
+            transform.SetPositionAndRotation(pivot, facing);
         }
 
         private float ReadHeadYaw()
@@ -151,6 +177,52 @@ namespace Jazztures.Presentation
 
             _lastYawRadians = Mathf.Atan2(forward.x, forward.z);
             return _lastYawRadians;
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (_config == null)
+            {
+                return;
+            }
+
+            // Draw the arc and each target volume in the pivot's frame, so the layout is
+            // checkable in the editor without the headset (ADR-0019). At edit time the rig
+            // has not been anchored yet, so estimate the pivot from the head.
+            Quaternion facing;
+            Vector3 pivot;
+            if (Application.isPlaying || _head == null)
+            {
+                facing = transform.rotation;
+                pivot = transform.position;
+            }
+            else
+            {
+                Vector3 flat = _head.forward;
+                flat.y = 0f;
+                facing = flat.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(flat, Vector3.up) : Quaternion.identity;
+                pivot = _head.position
+                    + Vector3.up * _config.ShoulderHeightOffsetMetres
+                    + facing * Vector3.right * _config.ShoulderLateralOffsetMetres;
+            }
+
+            float radius = _config.TargetRadiusMetres;
+            float halfDepth = _config.TargetDepthMetres * 0.5f;
+            var pivotFrame = Matrix4x4.TRS(pivot, facing, Vector3.one);
+
+            Gizmos.matrix = pivotFrame;
+            Gizmos.color = new Color(0.4f, 0.6f, 0.9f, 0.25f);
+            Gizmos.DrawWireSphere(Vector3.zero, _config.ReachDistanceMetres);
+
+            for (int slot = 0; slot < ChordToneSet.TargetCount; slot++)
+            {
+                LocalPlacement(slot / ChordToneSet.DegreesPerOctave, slot % ChordToneSet.DegreesPerOctave,
+                    out Vector3 p, out Quaternion r);
+
+                Gizmos.matrix = pivotFrame * Matrix4x4.TRS(p, r, Vector3.one);
+                Gizmos.color = new Color(0.55f, 0.80f, 1f, 0.6f);
+                Gizmos.DrawWireCube(Vector3.zero, new Vector3(radius * 2f, radius * 2f, halfDepth * 2f));
+            }
         }
     }
 }

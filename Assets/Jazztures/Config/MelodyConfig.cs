@@ -22,16 +22,22 @@ namespace Jazztures.Config
     {
         [Header("Target geometry — consumed by the touch-target rig (§3.3)")]
         [Tooltip("Radius of each target's circular face, metres — selects scale degree + octave.")]
-        [Min(0.001f)] [SerializeField] private float _targetRadiusMetres = 0.035f;
+        [Min(0.001f)] [SerializeField] private float _targetRadiusMetres = 0.04f;
 
         [Tooltip("Total depth of each target along the approach axis, metres. Generous on " +
                  "purpose: mid-air VR gives no depth cue and haptics are ruled out, so Z is " +
                  "the axis nobody can aim (ADR-0018). ±half this from the face.")]
         [Min(0.001f)] [SerializeField] private float _targetDepthMetres = 0.15f;
 
-        [Tooltip("Centre-to-centre spacing between adjacent targets, metres. Must exceed " +
-                 "2×radius plus tracking jitter or targets bleed (§3.3).")]
-        [Min(0.001f)] [SerializeField] private float _interTargetSpacingMetres = 0.08f;
+        [Tooltip("Angle between adjacent scale-degree columns, measured at the shoulder " +
+                 "pivot (ADR-0019). Chord spacing = 2·reach·sin(angle/2); it must clear " +
+                 "2×radius plus tracking jitter with room to spare, or a finger reaching " +
+                 "for one target clips its neighbours.")]
+        [Range(4f, 40f)] [SerializeField] private float _columnAngleDegrees = 16f;
+
+        [Tooltip("Vertical spacing between the two octave rows, metres. No reach cost — " +
+                 "the arm does not stretch to go up — so this can be generous.")]
+        [Min(0.001f)] [SerializeField] private float _rowSpacingMetres = 0.14f;
 
         [Tooltip("Volume multiplier for the 'hovering' glow — a target lights this much " +
                  "bigger than its trigger volume as a fingertip nears, so aim is learnable.")]
@@ -41,18 +47,22 @@ namespace Jazztures.Config
                  "the peak, so a hand decelerating into a target still reports its approach.")]
         [Min(1)] [SerializeField] private int _speedSampleFrames = 3;
 
-        [Header("Body anchor — consumed by the touch-target rig (ADR-0015)")]
-        [Tooltip("Forward distance from the anchor to the target grid, metres — a comfortable reach.")]
+        [Header("Shoulder pivot — consumed by the touch-target rig (ADR-0015/0019)")]
+        [Tooltip("Arc radius: the reach from the shoulder pivot to every target, metres. " +
+                 "Every column sits at this distance, so the outer degrees are no further " +
+                 "away than the centre and a glissando is one shoulder sweep.")]
         [Min(0.05f)] [SerializeField] private float _reachDistanceMetres = 0.45f;
 
-        [Tooltip("Vertical offset of the anchor from head height, metres. Negative = below " +
-                 "the head, toward chest height.")]
-        [SerializeField] private float _anchorHeightOffsetMetres = -0.25f;
+        [Tooltip("Vertical offset of the shoulder pivot from head height, metres. Negative " +
+                 "= below the head, toward the real shoulder.")]
+        [SerializeField] private float _shoulderHeightOffsetMetres = -0.25f;
 
-        [Tooltip("Lateral offset of the grid from the body centreline, metres. Positive = " +
-                 "right, toward where the right hand rests. Keep the whole grid inside the " +
-                 "~140° tracking FOV (§1.4).")]
-        [SerializeField] private float _anchorLateralOffsetMetres = 0.20f;
+        [Tooltip("Lateral offset of the shoulder pivot from the body centreline, metres. " +
+                 "Positive = right. Small on purpose (ADR-0020): on a Quest 2 the hand-" +
+                 "tracking cone is narrower than §1.4's ~140°, so a big rightward offset " +
+                 "makes the learner turn their head to see the melody arc and drop the " +
+                 "left hand out of frame. Keep the arc mostly in front.")]
+        [SerializeField] private float _shoulderLateralOffsetMetres = 0.08f;
 
         [Tooltip("Head-yaw divergence from the rig's facing before a recenter begins, degrees.")]
         [Range(0f, 90f)] [SerializeField] private float _recenterAngleDegrees = 35f;
@@ -94,7 +104,9 @@ namespace Jazztures.Config
 
         public float TargetDepthMetres => _targetDepthMetres;
 
-        public float InterTargetSpacingMetres => _interTargetSpacingMetres;
+        public float ColumnAngleDegrees => _columnAngleDegrees;
+
+        public float RowSpacingMetres => _rowSpacingMetres;
 
         public float HoverScale => _hoverScale;
 
@@ -102,9 +114,9 @@ namespace Jazztures.Config
 
         public float ReachDistanceMetres => _reachDistanceMetres;
 
-        public float AnchorHeightOffsetMetres => _anchorHeightOffsetMetres;
+        public float ShoulderHeightOffsetMetres => _shoulderHeightOffsetMetres;
 
-        public float AnchorLateralOffsetMetres => _anchorLateralOffsetMetres;
+        public float ShoulderLateralOffsetMetres => _shoulderLateralOffsetMetres;
 
         public float RecenterAngleDegrees => _recenterAngleDegrees;
 

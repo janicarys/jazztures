@@ -12,14 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b7c3e9d21f4a05684d9c2a1e6f8b3e57, type: 3}
   m_Name: MelodyConfig
   m_EditorClassIdentifier: Jazztures.Config::Jazztures.Config.MelodyConfig
-  _targetRadiusMetres: 0.035
+  _targetRadiusMetres: 0.04
   _targetDepthMetres: 0.15
-  _interTargetSpacingMetres: 0.08
+  _columnAngleDegrees: 16
+  _rowSpacingMetres: 0.14
   _hoverScale: 1.6
   _speedSampleFrames: 3
   _reachDistanceMetres: 0.45
-  _anchorHeightOffsetMetres: -0.25
-  _anchorLateralOffsetMetres: 0.2
+  _shoulderHeightOffsetMetres: -0.25
+  _shoulderLateralOffsetMetres: 0.08
   _recenterAngleDegrees: 35
   _recenterDwellSeconds: 0.6
   _recenterEaseSeconds: 0.5

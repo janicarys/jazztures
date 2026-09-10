@@ -21,14 +21,80 @@ MonoBehaviour:
   _beatsPerBar: 4
   _hands: 1
   _useMetronome: 0
-  _modes: 0100000002000000
+  _modes: 000000000100000002000000
   _chords:
   - beat: 0
     function: 0
-  - beat: 2
-    function: 1
   - beat: 4
+    function: 1
+  - beat: 8
+    function: 2
+  - beat: 12
+    function: 0
+  - beat: 16
+    function: 1
+  - beat: 20
     function: 2
   _notes: []
-  _markers: []
-  _cues: []
+  _markers:
+  - beat: 0
+    name: start
+  - beat: 12
+    name: second-time
+  _cues:
+  - triggerKind: 0
+    beat: 0
+    marker:
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Open palm right prepares. Fist is the tension. Palm down releases.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 1
+    beat: 0
+    marker: second-time
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: Once more.
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 14
+    marker:
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text:
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 2
+    beat: 0
+    marker:
+    learnerAction: 3
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Prepare, tension, release: that is the whole journey.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0

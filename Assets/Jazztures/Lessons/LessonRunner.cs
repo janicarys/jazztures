@@ -37,6 +37,10 @@ namespace Jazztures.Lessons
         [SerializeField] private EvaluationResultChannel _evaluationChannel;
         [SerializeField] private GhostFrameChannel _ghostChannel;
 
+        [Tooltip("Presentational cues (captions, highlights, tension colour) are raised here " +
+                 "for the HUD. Control-flow cues are handled internally and never published.")]
+        [SerializeField] private CueActionChannel _cueChannel;
+
         [Tooltip("Melody note-ons are read from here to score Test-Yourself attempts. " +
                  "Wire the same channel the composition root uses.")]
         [SerializeField] private NoteTriggeredChannel _noteChannel;
@@ -398,6 +402,10 @@ namespace Jazztures.Lessons
                     break;
 
                 default:
+                    // Presentational: caption, highlight, tension colour. The HUD owns how
+                    // these look; this only says when they fire (§2.3).
+                    _cueChannel?.Raise(action);
+
                     if (_logCues)
                     {
                         Debug.Log($"[{name}] cue: {action}", this);
