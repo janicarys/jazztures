@@ -52,6 +52,20 @@ namespace Jazztures.Tests.EditMode.Gesture
         }
 
         [Test]
+        public void ReachingFunction_TracksThePoseBeforeItConfirms()
+        {
+            Feed(3, HandPoseCandidate.None); // become usable
+
+            Assert.That(_interpreter.ReachingFunction, Is.Null);
+
+            _clock.Advance(0.02);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.Null, "not held long enough to confirm");
+            Assert.That(_interpreter.ReachingFunction, Is.EqualTo(ChordFunction.Two), "but the intent is visible");
+        }
+
+        [Test]
         public void ConfirmsAPose_OnlyAfterHoldTimeAndFrameCount()
         {
             Feed(3, HandPoseCandidate.None); // become usable

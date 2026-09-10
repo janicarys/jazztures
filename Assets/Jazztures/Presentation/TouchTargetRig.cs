@@ -20,19 +20,34 @@ namespace Jazztures.Presentation
     /// pitch/roll, and only eases to a new facing once the head has turned past a threshold
     /// for a dwell.
     /// </para>
+    ///
+    /// <para>
+    /// Runs at DefaultExecutionOrder(-10) so its per-frame re-anchor lands before
+    /// <see cref="TouchTargetBinder"/> reads the target transforms for its hit test —
+    /// otherwise a fast reach mid-recenter is tested against one-frame-stale positions.
+    /// </para>
     /// </summary>
+    [DefaultExecutionOrder(-10)]
     public sealed class TouchTargetRig : MonoBehaviour
     {
+        // Generated-visual cosmetics — how the volume is drawn, not how it behaves, so not
+        // [TUNABLE]. Ignored entirely when a _targetPrefab is supplied.
+        private const float RimRadiusScale = 1.12f;
+        private const float RimThicknessMetres = 0.004f;
+        private const float DepthDiscRadiusScale = 0.85f;
+        private const float DepthDiscThicknessMetres = 0.006f;
+
         [Tooltip("Tuning for geometry and the lazy-recenter follow (ADR-0015).")]
         [SerializeField] private MelodyConfig _config;
 
         [Tooltip("The centre-eye / head transform to anchor against.")]
         [SerializeField] private Transform _head;
 
-        [Tooltip("Optional. A styled target prefab (needs a Renderer). If empty, a sphere is generated.")]
+        [Tooltip("Optional. A styled target prefab (needs a Renderer). If empty, the volume " +
+                 "visual (tube + entry rim + depth disc) is generated.")]
         [SerializeField] private GameObject _targetPrefab;
 
-        [Tooltip("Material for generated spheres — a transparent unlit so alpha and the " +
+        [Tooltip("Material for the generated visual — a transparent unlit so alpha and the " +
                  "chord colour read as authored. Ignored when a prefab is supplied.")]
         [SerializeField] private Material _targetMaterial;
 
@@ -42,6 +57,21 @@ namespace Jazztures.Presentation
         private bool _ready;
 
         public IReadOnlyList<TouchTarget> Targets => _targets;
+
+        /// <summary>
+        /// Show or hide the ten stop markers. The lesson flow hides them on the selector
+        /// screen — the melody instrument is not part of the menu (§3.10).
+        /// </summary>
+        public void SetTargetsVisible(bool visible)
+        {
+            for (int i = 0; i < _targets.Count; i++)
+            {
+                if (_targets[i] != null)
+                {
+                    _targets[i].gameObject.SetActive(visible);
+                }
+            }
+        }
 
         private void Awake()
         {
@@ -95,20 +125,26 @@ namespace Jazztures.Presentation
                 int octave = slot / ChordToneSet.DegreesPerOctave;
                 int degree = slot % ChordToneSet.DegreesPerOctave;
 
-                GameObject go = _targetPrefab != null
-                    ? Instantiate(_targetPrefab, transform)
-                    : GenerateSphere();
+                TouchTarget target;
+                GameObject go;
+                if (_targetPrefab != null)
+                {
+                    go = Instantiate(_targetPrefab, transform);
+                    target = go.GetComponent<TouchTarget>() ?? go.AddComponent<TouchTarget>();
+                }
+                else
+                {
+                    go = GenerateTarget(radius, halfDepth,
+                        out Renderer tube, out Renderer rim, out Transform depthIndicator);
+                    target = go.AddComponent<TouchTarget>();
+                    target.BindGeneratedVisual(tube, rim, depthIndicator);
+                }
+
                 go.transform.SetParent(transform, worldPositionStays: false);
 
                 LocalPlacement(octave, degree, out Vector3 localPosition, out Quaternion localRotation);
                 go.transform.localPosition = localPosition;
                 go.transform.localRotation = localRotation;
-
-                TouchTarget target = go.GetComponent<TouchTarget>();
-                if (target == null)
-                {
-                    target = go.AddComponent<TouchTarget>();
-                }
 
                 target.Configure(slot, radius, halfDepth);
                 target.Clear(); // visible from the start (§3.1); just not soundable yet
@@ -137,21 +173,57 @@ namespace Jazztures.Presentation
             rotation = Quaternion.Euler(0f, angleDeg, 0f);
         }
 
-        private GameObject GenerateSphere()
+        /// <summary>
+        /// The default target visual, used when no <c>_targetPrefab</c> is set: the trigger
+        /// volume drawn at its true extent — a translucent tube, a brighter rim at the near
+        /// (+Z) face marking the entry threshold, and a depth disc (starts hidden, slid to a
+        /// fingertip's depth by <see cref="TouchTargetBinder"/>). Replaces the earlier
+        /// single sphere, which was drawn ~2× shorter than the volume along local Z — the
+        /// one axis a person cannot judge in mid-air (ADR-0018).
+        /// </summary>
+        private GameObject GenerateTarget(
+            float radius, float halfDepth, out Renderer tube, out Renderer rim, out Transform depthIndicator)
         {
-            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            Collider collider = go.GetComponent<Collider>();
-            if (collider != null)
+            var root = new GameObject("Target");
+
+            tube = MakeCylinder("Tube", root.transform, radius, halfDepth);
+
+            rim = MakeCylinder("Rim", root.transform, radius * RimRadiusScale, RimThicknessMetres * 0.5f);
+            rim.transform.localPosition = new Vector3(0f, 0f, halfDepth);
+
+            Renderer disc = MakeCylinder(
+                "DepthIndicator", root.transform, radius * DepthDiscRadiusScale, DepthDiscThicknessMetres * 0.5f);
+            depthIndicator = disc.transform;
+
+            return root;
+        }
+
+        /// <summary>
+        /// A cylinder primitive re-aligned to the target's local Z (its approach axis) and
+        /// scaled to <paramref name="radius"/> across the face by ±<paramref name="halfLength"/>
+        /// along Z. Unity's cylinder is Y-aligned, half-height 1, radius 0.5.
+        /// </summary>
+        private Renderer MakeCylinder(string name, Transform parent, float radius, float halfLength)
+        {
+            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            go.name = name;
+            if (go.TryGetComponent(out Collider collider))
             {
                 Destroy(collider);
             }
 
-            if (_targetMaterial != null && go.TryGetComponent(out Renderer renderer))
+            Transform t = go.transform;
+            t.SetParent(parent, worldPositionStays: false);
+            t.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            t.localScale = new Vector3(radius * 2f, halfLength, radius * 2f);
+
+            var renderer = go.GetComponent<Renderer>();
+            if (_targetMaterial != null)
             {
                 renderer.sharedMaterial = _targetMaterial;
             }
 
-            return go;
+            return renderer;
         }
 
         private void ApplyAnchor(float yawRadians)

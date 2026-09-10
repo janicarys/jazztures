@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f802cc137f00464478a010b9cdf7a6b9, type: 3}
+  m_Name: LessonCatalog
+  m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.LessonCatalog
+  _sessions:
+  - title: Session 1
+    lessons:
+    - {fileID: 11400000, guid: d53299446d8135b469cedcbee689351f, type: 2}
+    - {fileID: 11400000, guid: 602e0bd661c72514b9c90a02ee520f83, type: 2}
+    - {fileID: 11400000, guid: 25e92bae4ffa9c04ebd987d19c5a0134, type: 2}

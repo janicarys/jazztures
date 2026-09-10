@@ -14,7 +14,17 @@ namespace Jazztures.Presentation
     /// <para>
     /// The trigger volume is a cylinder along the target's local Z — generous in depth,
     /// tight in the XY face (ADR-0018): depth is the axis a person cannot judge in mid-air,
-    /// while the face still selects scale degree and octave.
+    /// while the face still selects scale degree and octave. The generated visual draws
+    /// that volume <b>at its true extent</b> — a translucent tube, a brighter rim at the
+    /// near (+Z) face marking the entry threshold, and a disc that slides to a fingertip's
+    /// depth while it is inside. Before this the target was drawn as a small sphere, ~2×
+    /// shorter than the volume it stood for, on the one axis with no depth cue.
+    /// </para>
+    ///
+    /// <para>
+    /// The target transform is never scaled — the visual children carry the volume's
+    /// dimensions — so <see cref="Contains"/> stays a rotation-only inverse and the hit
+    /// test is provably independent of how the target is drawn.
     /// </para>
     ///
     /// <para>
@@ -28,7 +38,19 @@ namespace Jazztures.Presentation
     [DisallowMultipleComponent]
     public sealed class TouchTarget : MonoBehaviour
     {
+        [Tooltip("The tube renderer — the trigger volume drawn at its true extent.")]
         [SerializeField] private Renderer _renderer;
+
+        [Tooltip("Ring at the near (+Z) face: the entry threshold made visible. Optional.")]
+        [SerializeField] private Renderer _mouthRenderer;
+
+        [Tooltip("Thin disc that slides along the approach axis to a fingertip's depth while "
+            + "it is inside — a cue on the one axis mid-air VR cannot show (ADR-0018). Optional.")]
+        [SerializeField] private Transform _depthIndicator;
+
+        [Tooltip("Colour of the depth disc — a fingertip 'cursor', kept clear of the chord "
+            + "palette and the warm strike flash so it reads as position, not state.")]
+        [SerializeField] private Color _depthIndicatorColor = new Color(0.5f, 0.9f, 1f, 0.85f);
 
         [Tooltip("Seconds for a strike flash to decay back to the base colour.")]
         [Min(0.01f)] [SerializeField] private float _flashDecaySeconds = 0.18f;
@@ -43,9 +65,14 @@ namespace Jazztures.Presentation
         private float _highlightBoost = 0.35f;
 
         private TargetVolume _volume;
+        private float _halfDepth;
+        private Renderer _depthIndicatorRenderer;
+        private bool _depthShown;
         private float _flash; // 1 at the moment of a strike, decays to 0
         private bool _highlighted;
         private bool _hovered;
+        private bool _armed;        // pinch spike: this is the stop a pinch will fire
+        private bool _demonstrated; // ghost hand: the lesson demo is playing this stop right now
 
         /// <summary>Stable slot, 0..9.</summary>
         public int Index { get; private set; }
@@ -69,17 +96,38 @@ namespace Jazztures.Presentation
                 _renderer = GetComponentInChildren<Renderer>();
             }
 
+            CacheDepthIndicator();
+
             _mpb = new MaterialPropertyBlock();
             ApplyTint();
         }
 
-        /// <summary>Called once by the rig at spawn.</summary>
+        /// <summary>
+        /// Called once by the rig at spawn. The target transform is never scaled — the
+        /// visual children carry the volume's dimensions.
+        /// </summary>
         public void Configure(int index, float radius, float halfDepth)
         {
             Index = index;
             _volume = new TargetVolume(radius, halfDepth);
-            transform.localScale = Vector3.one * (radius * 2f);
+            _halfDepth = halfDepth;
             name = $"TouchTarget {index}";
+        }
+
+        /// <summary>
+        /// Wired by the rig when it generates the default visual (tube + rim + depth disc).
+        /// A supplied prefab assigns these in the inspector instead.
+        /// </summary>
+        public void BindGeneratedVisual(Renderer tube, Renderer mouth, Transform depthIndicator)
+        {
+            _renderer = tube;
+            _mouthRenderer = mouth;
+            _depthIndicator = depthIndicator;
+            CacheDepthIndicator();
+            if (_mpb != null)
+            {
+                ApplyTint();
+            }
         }
 
         /// <summary>Called once by <see cref="TensionColorDriver"/> — the palette's overlay style.</summary>
@@ -112,16 +160,56 @@ namespace Jazztures.Presentation
         }
 
         /// <summary>
-        /// True when <paramref name="worldPoint"/> lies within the trigger volume, or
-        /// within <paramref name="volumeScale"/>× it (the binder uses a scaled test to
-        /// drive the hover glow). Uses the target's rotation only — the mesh is scaled, so
-        /// a full inverse-transform would divide the offset by that scale.
+        /// <paramref name="worldPoint"/> expressed in this target's local frame. Rotation
+        /// only: the target transform is never scaled (its visual children are), so an
+        /// inverse rotation is the whole transform.
         /// </summary>
-        public bool Contains(Vector3 worldPoint, float volumeScale = 1f)
+        public Vector3 ToLocal(Vector3 worldPoint) =>
+            Quaternion.Inverse(transform.rotation) * (worldPoint - transform.position);
+
+        /// <summary>
+        /// True when a point already in this target's local frame lies within the trigger
+        /// volume, or within <paramref name="volumeScale"/>× it (the binder uses a scaled
+        /// test for the hover glow).
+        /// </summary>
+        public bool ContainsLocal(Vector3 local, float volumeScale = 1f)
         {
-            Vector3 local = Quaternion.Inverse(transform.rotation) * (worldPoint - transform.position);
             float inv = volumeScale > 0f ? 1f / volumeScale : 1f;
             return _volume.Contains(local.x * inv, local.y * inv, local.z * inv);
+        }
+
+        /// <summary>True when <paramref name="worldPoint"/> lies within the trigger volume, or <paramref name="volumeScale"/>× it.</summary>
+        public bool Contains(Vector3 worldPoint, float volumeScale = 1f) =>
+            ContainsLocal(ToLocal(worldPoint), volumeScale);
+
+        /// <summary>
+        /// Show the depth disc at <paramref name="localZ"/> along the approach axis (clamped
+        /// to the volume), or hide it when <paramref name="inside"/> is false. Called every
+        /// frame by <see cref="TouchTargetBinder"/> with the deepest fingertip inside.
+        /// </summary>
+        public void SetFingerDepth(bool inside, float localZ)
+        {
+            if (_depthIndicator == null)
+            {
+                return;
+            }
+
+            if (inside != _depthShown)
+            {
+                _depthShown = inside;
+                _depthIndicator.gameObject.SetActive(inside);
+                if (inside && _depthIndicatorRenderer != null)
+                {
+                    Write(_depthIndicatorRenderer, _depthIndicatorColor); // re-assert after re-enable
+                }
+            }
+
+            if (inside)
+            {
+                Vector3 p = _depthIndicator.localPosition;
+                p.z = Mathf.Clamp(localZ, -_halfDepth, _halfDepth);
+                _depthIndicator.localPosition = p;
+            }
         }
 
         public void SetHighlighted(bool highlighted)
@@ -142,6 +230,34 @@ namespace Jazztures.Presentation
             ApplyTint();
         }
 
+        /// <summary>Pinch spike: mark this as the stop a pinch will fire — a strong, persistent glow.</summary>
+        public void SetArmed(bool armed)
+        {
+            if (_armed == armed)
+            {
+                return;
+            }
+
+            _armed = armed;
+            ApplyTint();
+        }
+
+        /// <summary>
+        /// Ghost hand (ADR-0012): the lesson demonstration is sounding this stop right now.
+        /// A distinct, warm look — separate from <see cref="SetArmed"/> ("a pinch will fire
+        /// this"), since in Try Yourself both are live at once.
+        /// </summary>
+        public void SetDemonstrated(bool demonstrated)
+        {
+            if (_demonstrated == demonstrated)
+            {
+                return;
+            }
+
+            _demonstrated = demonstrated;
+            ApplyTint();
+        }
+
         /// <summary>Flash the target — a fingertip just triggered it.</summary>
         public void Strike()
         {
@@ -156,6 +272,18 @@ namespace Jazztures.Presentation
                 _flash = Mathf.Max(0f, _flash - Time.deltaTime / _flashDecaySeconds);
                 ApplyTint();
             }
+        }
+
+        private void CacheDepthIndicator()
+        {
+            if (_depthIndicator == null)
+            {
+                return;
+            }
+
+            _depthIndicatorRenderer = _depthIndicator.GetComponent<Renderer>();
+            _depthShown = false;
+            _depthIndicator.gameObject.SetActive(false);
         }
 
         private void ApplyTint()
@@ -177,15 +305,50 @@ namespace Jazztures.Presentation
                 color.a = Mathf.Max(color.a, _baseColor.a + 0.15f);
             }
 
+            if (_armed)
+            {
+                color = Color.Lerp(color, Color.white, 0.6f);
+                color.a = Mathf.Clamp01(Mathf.Max(color.a, _baseColor.a) + 0.35f);
+            }
+
+            if (_demonstrated)
+            {
+                // The demo's own colour — warm, toward the strike tint, held steady.
+                color = Color.Lerp(color, _struckColor, 0.55f);
+                color.a = Mathf.Clamp01(Mathf.Max(color.a, _baseColor.a) + 0.4f);
+            }
+
             if (_flash > 0f)
             {
                 color = Color.Lerp(color, _struckColor, _flash);
             }
 
-            _renderer.GetPropertyBlock(_mpb);
+            Write(_renderer, color);
+
+            if (_mouthRenderer != null)
+            {
+                // The rim reads as a brighter edge of the same colour — it marks the
+                // threshold without becoming a second information channel (§3.10).
+                Color rim = Color.Lerp(color, Color.white, 0.35f);
+                rim.a = Mathf.Clamp01(color.a + 0.3f);
+                Write(_mouthRenderer, rim);
+            }
+
+            if (_depthIndicatorRenderer != null)
+            {
+                Write(_depthIndicatorRenderer, _depthIndicatorColor);
+            }
+        }
+
+        private void Write(Renderer target, Color color)
+        {
+            // Clear, not GetPropertyBlock: the shared _mpb is reused across the tube, rim
+            // and depth disc in one ApplyTint pass, and nothing else writes a block on
+            // these renderers, so the two colour keys are the whole block.
+            _mpb.Clear();
             _mpb.SetColor(ColorId, color);
             _mpb.SetColor(ColorIdLegacy, color);
-            _renderer.SetPropertyBlock(_mpb);
+            target.SetPropertyBlock(_mpb);
         }
 
         private void OnDrawGizmosSelected()

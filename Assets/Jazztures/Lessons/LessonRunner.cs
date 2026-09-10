@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Jazztures.Core.Evaluation;
 using Jazztures.Core.Gesture;
@@ -52,6 +53,12 @@ namespace Jazztures.Lessons
         [Min(0f)]
         [SerializeField] private float _phraseTailSeconds = 1.0f;
 
+        [Tooltip("Gesture-gated modes (Gesture Learning): after the ghost has had this many " +
+                 "beats to form a pose, the lesson holds there until the learner confirms it. " +
+                 "Match this to GhostHandView's morph beats so the ghost settles before the wait.")]
+        [Min(0f)]
+        [SerializeField] private float _gateSettleBeats = 1.5f;
+
         [Tooltip("Log captions and highlight cues to the Console (HUD not built yet).")]
         [SerializeField] private bool _logCues = true;
 
@@ -70,6 +77,9 @@ namespace Jazztures.Lessons
 
         private readonly List<double> _capturedOnsets = new List<double>();
         private double _phaseStartDsp;
+        private double _lessonBeat;    // phrase position — gated (held) on each pose in Gesture Learning
+        private double _lastRealBeat;  // clock-derived beat last frame, to measure real elapsed
+        private bool _gateHeld;        // the gesture gate is holding the cursor right now
         private bool _capturing;
         private bool _waitingForInput;
         private bool _noteChannelRegistered;
@@ -79,6 +89,12 @@ namespace Jazztures.Lessons
         public bool IsRunning => _running;
 
         public LessonStatus Status => _stateMachine != null ? _stateMachine.Status : LessonStatus.NotStarted;
+
+        /// <summary>Raised once when the lesson finishes its last phase (e.g. to re-show the selector).</summary>
+        public event Action Completed;
+
+        /// <summary>The lesson currently loaded, or null before <see cref="Bind"/> / <see cref="LoadLesson"/>.</summary>
+        public LessonDefinition CurrentLesson => _lesson;
 
         /// <summary>Wire the domain in. Call once from the composition root's <c>Awake</c>.</summary>
         public void Bind(IMusicalClock clock, ModeGatedNoteSink gate, GestureInterpreter interpreter)
@@ -137,6 +153,25 @@ namespace Jazztures.Lessons
             _stateMachine.Begin();
         }
 
+        /// <summary>
+        /// Swap to a different lesson and start it. Safe to call at runtime — a selector
+        /// uses this. <see cref="StartLesson"/> rebuilds the plan / timeline / cue-player /
+        /// state-machine from scratch, so no handlers leak; <see cref="StopLesson"/> first
+        /// kills anything the previous lesson still has sounding.
+        /// </summary>
+        public void LoadLesson(LessonDefinition lesson)
+        {
+            if (lesson == null)
+            {
+                Debug.LogError($"{nameof(LessonRunner)}: {nameof(LoadLesson)}(null).", this);
+                return;
+            }
+
+            StopLesson();
+            _lesson = lesson;
+            StartLesson();
+        }
+
         /// <summary>Move to the next phase now (e.g. from a HUD button).</summary>
         public void AdvancePhase()
         {
@@ -166,12 +201,15 @@ namespace Jazztures.Lessons
                 _playback = null;
             }
 
+            _metronome?.Stop();
             _running = false;
         }
 
         private void OnPhaseChanged(LessonPhase phase)
         {
             _phaseStartDsp = _clock.Now;
+            _lessonBeat = 0.0;
+            _lastRealBeat = 0.0;
             _waitingForInput = false;
             _capturedOnsets.Clear();
             _cuePlayer.Reset();
@@ -185,6 +223,13 @@ namespace Jazztures.Lessons
             if (_phaseChannel != null)
             {
                 _phaseChannel.Raise(new LessonPhaseInfo(_plan.Id, phase));
+            }
+
+            // §3.9 co-design ask: the plain-language concept, shown as the lesson opens.
+            // The selector is titles only; this is where the theory lands.
+            if (phase.Index == 0 && _cueChannel != null && !string.IsNullOrWhiteSpace(_plan.ConceptExplanation))
+            {
+                _cueChannel.Raise(CueAction.ShowText(_plan.ConceptExplanation));
             }
 
             _playback = null;
@@ -211,6 +256,8 @@ namespace Jazztures.Lessons
             {
                 Debug.Log($"[{name}] lesson '{_plan.Id}' complete.", this);
             }
+
+            Completed?.Invoke();
         }
 
         private void Update()
@@ -221,20 +268,66 @@ namespace Jazztures.Lessons
             }
 
             LessonPhase phase = _stateMachine.CurrentPhase.Value;
-            double elapsed = _clock.Now - _phaseStartDsp;
-            double beatNow = _plan.Tempo.SecondsToBeats(elapsed);
+
+            // The phrase position. Normally it tracks real time; in a gesture-gated mode it
+            // holds on each demonstrated pose until the learner confirms that pose (§3.8).
+            double realBeat = _plan.Tempo.SecondsToBeats(_clock.Now - _phaseStartDsp);
+            double advanced = realBeat - _lastRealBeat;
+            _lastRealBeat = realBeat;
+            _lessonBeat = NextLessonBeat(phase, _lessonBeat + (advanced > 0.0 ? advanced : 0.0));
 
             _playback?.Tick();
             DrainMetronome();
 
-            _cuePlayer.AdvanceTo(beatNow < 0.0 ? 0.0 : beatNow);
-            PublishGhostFrame(phase, beatNow);
-            UpdateGestureCorrectness(phase, beatNow);
+            _cuePlayer.AdvanceTo(_lessonBeat < 0.0 ? 0.0 : _lessonBeat);
+            PublishGhostFrame(phase, _lessonBeat);
+            UpdateGestureCorrectness(phase, _lessonBeat);
 
-            if (_autoAdvance && !_waitingForInput && PhraseIsFinished(phase, elapsed))
+            if (_autoAdvance && !_waitingForInput && PhraseIsFinished(phase))
             {
                 AdvancePhase();
             }
+        }
+
+        /// <summary>
+        /// Where the phrase clock is allowed to be this frame. In a gesture-gated mode
+        /// (<see cref="ModePolicy.GateOnGesture"/>) it stops <see cref="_gateSettleBeats"/>
+        /// after each chord — enough for the ghost to form the pose — and does not move on
+        /// until <see cref="GestureInterpreter.ConfirmedFunction"/> matches that pose.
+        /// </summary>
+        private double NextLessonBeat(LessonPhase phase, double wanted)
+        {
+            _gateHeld = false;
+
+            if (!phase.Policy.GateOnGesture || _interpreter == null || _timeline.Chords.Count == 0)
+            {
+                return wanted;
+            }
+
+            double chordBeat = 0.0;
+            ChordFunction? pose = null;
+            for (int i = 0; i < _timeline.Chords.Count; i++)
+            {
+                if (_timeline.Chords[i].Beat.Position <= wanted)
+                {
+                    chordBeat = _timeline.Chords[i].Beat.Position;
+                    pose = _timeline.Chords[i].Function;
+                }
+            }
+
+            if (pose == null || LearnerFunction(phase) == pose)
+            {
+                return wanted;
+            }
+
+            double holdAt = chordBeat + _gateSettleBeats;
+            if (wanted <= holdAt)
+            {
+                return wanted; // still letting the ghost form the pose
+            }
+
+            _gateHeld = true;
+            return holdAt;
         }
 
         private void UpdateGestureCorrectness(LessonPhase phase, double beatNow)
@@ -245,10 +338,27 @@ namespace Jazztures.Lessons
             }
 
             ChordFunction? expected = _timeline.ChordFunctionAt(beatNow);
-            bool correct = expected.HasValue
-                           && _interpreter != null
-                           && _interpreter.ConfirmedFunction == expected;
+            bool correct = expected.HasValue && LearnerFunction(phase) == expected;
             _gate.SetGestureCorrect(correct);
+        }
+
+        /// <summary>
+        /// The learner's current pose as this phase judges it. A gesture-gated phase
+        /// (Gesture Learning) uses <see cref="GestureInterpreter.ReachingFunction"/> — it
+        /// accepts the pose the instant the learner clearly makes it, so the gate feels as
+        /// loose as free-play chord triggering. The timed modes use the fully-confirmed
+        /// function.
+        /// </summary>
+        private ChordFunction? LearnerFunction(LessonPhase phase)
+        {
+            if (_interpreter == null)
+            {
+                return null;
+            }
+
+            return phase.Policy.GateOnGesture
+                ? _interpreter.ReachingFunction
+                : _interpreter.ConfirmedFunction;
         }
 
         private void PublishGhostFrame(LessonPhase phase, double beatNow)
@@ -293,15 +403,22 @@ namespace Jazztures.Lessons
             return -1;
         }
 
-        private bool PhraseIsFinished(LessonPhase phase, double elapsed)
+        private bool PhraseIsFinished(LessonPhase phase)
         {
             if (phase.Policy.SystemPlayback == SystemPlayback.Full)
             {
                 return _playback == null || _playback.HasEnded;
             }
 
-            double phraseSeconds = _plan.Tempo.BeatsToSeconds(_timeline.DurationBeats);
-            return elapsed >= phraseSeconds + _phraseTailSeconds;
+            // _lessonBeat is gated, so in a gesture-gated mode this is only true once every
+            // pose (including the last) has been matched and the cursor has run out the tail.
+            if (_gateHeld)
+            {
+                return false;
+            }
+
+            double tailBeats = _plan.Tempo.SecondsToBeats(_phraseTailSeconds);
+            return _lessonBeat >= _timeline.DurationBeats + tailBeats;
         }
 
         private void EndCurrentPhase()

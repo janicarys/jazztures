@@ -54,6 +54,15 @@ namespace Jazztures.Core.Gesture
         /// <summary>The confirmed chord function, or null for "no chord held".</summary>
         public ChordFunction? ConfirmedFunction => _confirmed;
 
+        /// <summary>
+        /// The function being <b>reached for</b> — the pose currently detected (even before
+        /// it has been held long enough to confirm), or the confirmed one if the hand is
+        /// steady. For UI that should react to intent as fast as free play does: a lesson
+        /// gate uses this so it accepts the pose the moment the learner clearly makes it,
+        /// not <see cref="GestureThresholds.PoseHoldSeconds"/> later.
+        /// </summary>
+        public ChordFunction? ReachingFunction => _hasPending ? TargetOf(_pendingCandidate) : _confirmed;
+
         /// <summary>What the interpreter is doing, for the gesture-state channel.</summary>
         public GesturePhase Phase { get; private set; }
 

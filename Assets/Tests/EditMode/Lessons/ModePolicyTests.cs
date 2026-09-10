@@ -5,18 +5,20 @@ namespace Jazztures.Tests.EditMode.Lessons
 {
     public class ModePolicyTests
     {
-        // The CLAUDE.md §3.8 table, row by row.
-        [TestCase(LearningMode.GestureLearning, SystemPlayback.None, true, UserAudioGate.Always, false)]
-        [TestCase(LearningMode.WatchAndListen, SystemPlayback.Full, true, UserAudioGate.Never, false)]
-        [TestCase(LearningMode.TryYourself, SystemPlayback.None, true, UserAudioGate.OnlyWhenGestureCorrect, false)]
-        [TestCase(LearningMode.TestYourself, SystemPlayback.None, false, UserAudioGate.Always, true)]
-        [TestCase(LearningMode.ComposeOnTheFly, SystemPlayback.BackingOnly, false, UserAudioGate.Always, false)]
+        // The CLAUDE.md §3.8 table, row by row. Gesture Learning gates on the gesture and
+        // rewards a correct pose with audio (a project decision layered on §3.8).
+        [TestCase(LearningMode.GestureLearning, SystemPlayback.None, true, UserAudioGate.OnlyWhenGestureCorrect, false, true)]
+        [TestCase(LearningMode.WatchAndListen, SystemPlayback.Full, true, UserAudioGate.Never, false, false)]
+        [TestCase(LearningMode.TryYourself, SystemPlayback.None, true, UserAudioGate.OnlyWhenGestureCorrect, false, false)]
+        [TestCase(LearningMode.TestYourself, SystemPlayback.None, false, UserAudioGate.Always, true, false)]
+        [TestCase(LearningMode.ComposeOnTheFly, SystemPlayback.BackingOnly, false, UserAudioGate.Always, false, false)]
         public void For_MatchesTheModeTable(
             LearningMode mode,
             SystemPlayback playback,
             bool ghost,
             UserAudioGate userAudio,
-            bool deferFeedback)
+            bool deferFeedback,
+            bool gateOnGesture)
         {
             ModePolicy policy = ModePolicy.For(mode);
 
@@ -24,6 +26,7 @@ namespace Jazztures.Tests.EditMode.Lessons
             Assert.That(policy.GhostHandsVisible, Is.EqualTo(ghost));
             Assert.That(policy.UserAudio, Is.EqualTo(userAudio));
             Assert.That(policy.DeferFeedback, Is.EqualTo(deferFeedback));
+            Assert.That(policy.GateOnGesture, Is.EqualTo(gateOnGesture));
         }
 
         [Test]

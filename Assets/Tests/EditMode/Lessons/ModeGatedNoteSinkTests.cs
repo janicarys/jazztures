@@ -53,9 +53,9 @@ namespace Jazztures.Tests.EditMode.Lessons
         }
 
         [Test]
-        public void GestureLearningAndCompose_SoundTheLearner()
+        public void ComposeAndTest_AlwaysSoundTheLearner()
         {
-            foreach (LearningMode mode in new[] { LearningMode.GestureLearning, LearningMode.ComposeOnTheFly, LearningMode.TestYourself })
+            foreach (LearningMode mode in new[] { LearningMode.ComposeOnTheFly, LearningMode.TestYourself })
             {
                 _audible.Clear();
                 _gate.SetMode(mode);
@@ -65,18 +65,21 @@ namespace Jazztures.Tests.EditMode.Lessons
             }
         }
 
-        [Test]
-        public void TryYourself_SoundsTheLearnerOnlyWhenTheGestureIsCorrect()
+        // Gesture Learning was moved to the same gate as Try Yourself — a correct pose is
+        // rewarded with audio, and the lesson steps on it (ModePolicy.GateOnGesture).
+        [TestCase(LearningMode.TryYourself)]
+        [TestCase(LearningMode.GestureLearning)]
+        public void SoundsTheLearnerOnlyWhenTheGestureIsCorrect(LearningMode mode)
         {
-            _gate.SetMode(LearningMode.TryYourself);
+            _gate.SetMode(mode);
 
             _gate.SetGestureCorrect(false);
             _gate.Send(UserNote());
-            Assert.That(_audible.Events, Is.Empty);
+            Assert.That(_audible.Events, Is.Empty, mode.ToString());
 
             _gate.SetGestureCorrect(true);
             _gate.Send(UserNote());
-            Assert.That(_audible.Events, Has.Count.EqualTo(1));
+            Assert.That(_audible.Events, Has.Count.EqualTo(1), mode.ToString());
         }
 
         [Test]

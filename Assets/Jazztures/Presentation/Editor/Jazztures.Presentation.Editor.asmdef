@@ -1,14 +1,13 @@
 {
-    "name": "Jazztures.Presentation",
-    "rootNamespace": "Jazztures.Presentation",
+    "name": "Jazztures.Presentation.Editor",
+    "rootNamespace": "Jazztures.Presentation.Editor",
     "references": [
-        "Jazztures.Core",
-        "Jazztures.Config",
-        "Jazztures.Events",
-        "Oculus.Interaction",
-        "Unity.InputSystem"
+        "Jazztures.Presentation",
+        "Oculus.Interaction"
     ],
-    "includePlatforms": [],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
