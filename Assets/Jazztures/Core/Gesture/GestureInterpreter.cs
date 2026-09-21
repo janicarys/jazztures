@@ -11,8 +11,12 @@ namespace Jazztures.Core.Gesture
     ///
     /// <list type="bullet">
     ///   <item>a pose must be held for <see cref="GestureThresholds.PoseHoldSeconds"/>
-    ///   <b>and</b> for <see cref="GestureThresholds.ConfirmingFrames"/> consecutive
-    ///   frames before it takes effect;</item>
+    ///   <b>and</b> match for <see cref="GestureThresholds.ConfirmingFrames"/> frames
+    ///   before it takes effect — tolerating up to
+    ///   <see cref="GestureThresholds.ConfirmationMissTolerance"/> consecutive
+    ///   non-matching frames along the way without losing progress (ADR-0025: a real pose
+    ///   transition produces brief tracking noise, and penalising it made confirmation
+    ///   time unpredictable rather than merely slow);</item>
     ///   <item>confirmed changes are debounced by
     ///   <see cref="GestureThresholds.MinInterChordSeconds"/>;</item>
     ///   <item>if ii and I both match (<see cref="HandPoseCandidate.Ambiguous"/>) the
@@ -21,7 +25,18 @@ namespace Jazztures.Core.Gesture
     ///   current function is <b>sustained, not released</b>; input resumes only after
     ///   <see cref="GestureThresholds.HighFramesToResumeAfterLoss"/> consecutive
     ///   High-quality frames.</item>
+    ///   <item>releasing <b>from</b> an already-confirmed function needs
+    ///   <see cref="GestureThresholds.ReleaseHoldSeconds"/> /
+    ///   <see cref="GestureThresholds.ReleaseMissTolerance"/> — more conservative than
+    ///   confirming a pose (ADR-0027: a chord strike is itself a fast hand motion that can
+    ///   disrupt the pose reading for longer than ordinary noise, and a false release is
+    ///   audible — it cuts the sounding chord — where a merely late one is not).</item>
     /// </list>
+    ///
+    /// This only decides <b>which</b> function is selected. <b>When</b> it sounds is a
+    /// separate, explicit event — see <see cref="ChordStrikeDetector"/> and
+    /// <see cref="Jazztures.Core.Harmony.HarmonyEngine.Strike"/> (ADR-0025) — so pose
+    /// selection can stay this tolerant without blurring musical timing.
     ///
     /// Pure and deterministic — driven by an injected <see cref="IMusicalClock"/> so it
     /// can be unit-tested and replayed against recorded fixtures without a headset (§2.6).
@@ -37,7 +52,8 @@ namespace Jazztures.Core.Gesture
 
         private bool _hasPending;
         private HandPoseCandidate _pendingCandidate;
-        private int _pendingFrameCount;
+        private int _pendingMatchFrames;
+        private int _pendingMissRun;
         private double _pendingSince;
 
         private bool _trackingUsable;
@@ -65,6 +81,14 @@ namespace Jazztures.Core.Gesture
 
         /// <summary>What the interpreter is doing, for the gesture-state channel.</summary>
         public GesturePhase Phase { get; private set; }
+
+        /// <summary>
+        /// True once tracking is good enough to accept input (§3.5 — after
+        /// <see cref="GestureThresholds.HighFramesToResumeAfterLoss"/> consecutive High
+        /// frames). <see cref="Jazztures.Core.Gesture.ChordStrikeDetector"/> reads this so a
+        /// strike cannot be manufactured from a tracking glitch (ADR-0025).
+        /// </summary>
+        public bool TrackingUsable => _trackingUsable;
 
         private void SetPhase(GesturePhase phase)
         {
@@ -152,39 +176,120 @@ namespace Jazztures.Core.Gesture
             // _confirmed is deliberately left untouched — sustain, do not release (§3.5.1).
         }
 
+        /// <summary>
+        /// ADR-0025: confirmation tolerates up to
+        /// <see cref="GestureThresholds.ConfirmationMissTolerance"/> consecutive
+        /// non-matching frames — a tracking blip during a real pose transition — without
+        /// losing progress. Only a *sustained* mismatch (more misses than the tolerance)
+        /// means the hand has genuinely moved on. This is what lets a learner re-take a
+        /// pose at tempo instead of paying a fresh <see cref="GestureThresholds.PoseHoldSeconds"/>
+        /// window every time the recogniser hiccups.
+        /// </summary>
         private void ProcessCandidate(HandPoseCandidate candidate, double now)
         {
             if (candidate == HandPoseCandidate.Ambiguous)
             {
-                ResetPending();
-                SetPhase(_confirmed.HasValue ? GesturePhase.Confirmed : GesturePhase.Idle);
+                RegisterMiss(now, newCandidate: null);
                 return;
             }
 
             ChordFunction? target = TargetOf(candidate);
 
-            if (target == _confirmed)
+            if (_hasPending && _pendingCandidate == candidate)
             {
-                ResetPending();
+                RegisterMatch(target, now);
+                return;
+            }
+
+            if (!_hasPending && target == _confirmed)
+            {
+                // Steady state: nothing in progress and this frame simply reaffirms what is
+                // already confirmed. Not even a miss — the common case stays branch-light.
                 SetPhase(_confirmed.HasValue ? GesturePhase.Confirmed : GesturePhase.Idle);
                 return;
             }
 
-            if (!_hasPending || _pendingCandidate != candidate)
+            RegisterMiss(now, candidate);
+        }
+
+        /// <summary>
+        /// This frame did not match the pose currently being confirmed (or nothing was
+        /// pending). Within tolerance, the pending timer and match count are left exactly
+        /// as they were — a blip costs the learner nothing. Once the tolerance is
+        /// exceeded, start fresh on whatever this frame actually is.
+        ///
+        /// <para>
+        /// ADR-0027: if what is pending is a <b>release</b> — the hand is reading
+        /// <see cref="HandPoseCandidate.None"/> while a function is still confirmed — the
+        /// tolerance is <see cref="GestureThresholds.ReleaseMissTolerance"/>, not
+        /// <see cref="GestureThresholds.ConfirmationMissTolerance"/>. A chord strike is
+        /// itself a fast hand motion that can disrupt the pose reading for longer than
+        /// ordinary tracking noise; a false release is audible (it cuts the sounding
+        /// chord), so releasing gets the more conservative budget.
+        /// </para>
+        ///
+        /// <para>
+        /// ADR-0029: that elevated budget applies only to <i>weak</i> evidence against the
+        /// release — <see cref="HandPoseCandidate.Ambiguous"/>, <see cref="HandPoseCandidate.None"/>
+        /// itself, or a reading that matches what's already confirmed (the hand bouncing
+        /// back to the pose it never really left). A reading of a <b>different, concrete</b>
+        /// pose is unambiguous: the learner is not mid-release, they are switching. That
+        /// case always uses the ordinary tolerance, however this attempt started — a
+        /// pose-to-pose switch commonly passes through one <c>None</c> frame first, and
+        /// that single frame must not lock the whole switch to the release-attempt's
+        /// far more patient budget.
+        /// </para>
+        /// </summary>
+        private void RegisterMiss(double now, HandPoseCandidate? newCandidate)
+        {
+            if (_hasPending)
             {
-                _hasPending = true;
-                _pendingCandidate = candidate;
-                _pendingFrameCount = 1;
-                _pendingSince = now;
-                SetPhase(GesturePhase.Detecting);
-                return;
+                _pendingMissRun++;
+
+                bool weakEvidence = !newCandidate.HasValue
+                    || newCandidate.Value == HandPoseCandidate.None
+                    || TargetOf(newCandidate.Value) == _confirmed;
+                int tolerance = IsPendingRelease && weakEvidence
+                    ? _thresholds.ReleaseMissTolerance
+                    : _thresholds.ConfirmationMissTolerance;
+
+                if (_pendingMissRun <= tolerance)
+                {
+                    SetPhase(GesturePhase.Detecting);
+                    return;
+                }
             }
 
-            _pendingFrameCount++;
+            if (newCandidate.HasValue && TargetOf(newCandidate.Value) != _confirmed)
+            {
+                StartPending(newCandidate.Value, now);
+            }
+            else
+            {
+                ResetPending();
+                SetPhase(_confirmed.HasValue ? GesturePhase.Confirmed : GesturePhase.Idle);
+            }
+        }
+
+        /// <summary>
+        /// ADR-0027: a release (<paramref name="target"/> null while a function is already
+        /// confirmed) needs <see cref="GestureThresholds.ReleaseHoldSeconds"/>, not the
+        /// ordinary <see cref="GestureThresholds.PoseHoldSeconds"/> — see
+        /// <see cref="RegisterMiss"/> for why. Confirming a fresh pose (nothing was held) or
+        /// switching between two concrete poses is unaffected and stays exactly as
+        /// responsive as before.
+        /// </summary>
+        private void RegisterMatch(ChordFunction? target, double now)
+        {
+            _pendingMatchFrames++;
+            _pendingMissRun = 0;
             SetPhase(GesturePhase.Detecting);
 
-            bool heldLongEnough = now - _pendingSince >= _thresholds.PoseHoldSeconds;
-            bool enoughFrames = _pendingFrameCount >= _thresholds.ConfirmingFrames;
+            bool isRelease = target == null && _confirmed.HasValue;
+            double holdSeconds = isRelease ? _thresholds.ReleaseHoldSeconds : _thresholds.PoseHoldSeconds;
+
+            bool heldLongEnough = now - _pendingSince >= holdSeconds;
+            bool enoughFrames = _pendingMatchFrames >= _thresholds.ConfirmingFrames;
             bool debounceElapsed = now - _lastConfirmChangeTime >= _thresholds.MinInterChordSeconds;
 
             if (heldLongEnough && enoughFrames && debounceElapsed)
@@ -198,6 +303,18 @@ namespace Jazztures.Core.Gesture
             }
         }
 
+        private bool IsPendingRelease => TargetOf(_pendingCandidate) == null && _confirmed.HasValue;
+
+        private void StartPending(HandPoseCandidate candidate, double now)
+        {
+            _hasPending = true;
+            _pendingCandidate = candidate;
+            _pendingMatchFrames = 1;
+            _pendingMissRun = 0;
+            _pendingSince = now;
+            SetPhase(GesturePhase.Detecting);
+        }
+
         private void UpdateTrackingCue(double now)
         {
             TrackingCueActive = !_trackingUsable
@@ -208,7 +325,8 @@ namespace Jazztures.Core.Gesture
         private void ResetPending()
         {
             _hasPending = false;
-            _pendingFrameCount = 0;
+            _pendingMatchFrames = 0;
+            _pendingMissRun = 0;
         }
 
         private static ChordFunction? TargetOf(HandPoseCandidate candidate) => candidate switch

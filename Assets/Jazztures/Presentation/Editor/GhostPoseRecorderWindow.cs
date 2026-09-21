@@ -14,7 +14,8 @@ namespace Jazztures.Presentation.Editor
     /// Enter Play Mode with hand tracking (Quest Link is fine), hold ii / V / I, and click
     /// Capture. Writes / overwrites <c>Assets/Jazztures/Input/Poses/Ghost/{Ii,V,I}.asset</c>.
     /// Author the pose the learner is <b>taught</b> — a genuine palm-facing-right for ii,
-    /// not the machine's <c>FingersUp</c> discriminator (ADR-0014).
+    /// not the machine's <c>WristUp</c> discriminator (ADR-0014 / ADR-0026): arm extended
+    /// forward, thumb up, fingers pointing away from you, palm facing right.
     /// </para>
     /// </summary>
     public sealed class GhostPoseRecorderWindow : EditorWindow

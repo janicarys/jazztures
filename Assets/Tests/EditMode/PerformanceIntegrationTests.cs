@@ -29,8 +29,10 @@ namespace Jazztures.Tests.EditMode
             const byte h = HarmonyEngine.DefaultVoicingVelocity;
             byte m = VelocityCurve.FromSpeed(1.0f);
 
-            // t=0.0 — hold ii (Dm7)
+            // t=0.0 — select and strike ii (Dm7). Selection alone is silent (ADR-0025) —
+            // the explicit Strike is what a ChordStrikeDetector-driven performance sends.
             harmony.SetHeldFunction(ChordFunction.Two);
+            harmony.Strike(h);
 
             // t=0.5 — strike the lower-octave root (Dm7 slot 0 = D5 = 74)
             clock.SetNow(0.5);
@@ -41,16 +43,20 @@ namespace Jazztures.Tests.EditMode
             melody.Tick();
             melody.TriggerTarget(5, 1.0f);
 
-            // t=2.0 — flush the 86, then move to V (G7)
+            // t=2.0 — flush the 86, then select and strike V (G7). The re-strike cuts the
+            // still-ringing ii voicing before sounding G7 — same off-before-on ordering as
+            // the pre-ADR-0025 "sound on selection change" model, now explicit.
             clock.SetNow(2.0);
             melody.Tick();
             harmony.SetHeldFunction(ChordFunction.Five);
+            harmony.Strike(h);
 
             // t=2.5 — strike G7 slot 0 (G5 = 79)
             clock.SetNow(2.5);
             melody.TriggerTarget(0, 1.0f);
 
-            // t=3.0 — flush the 79, then release everything
+            // t=3.0 — flush the 79, then release everything (an explicit release cuts the
+            // ringing G7 voicing immediately — §3.2's "lift the hand off the keys").
             clock.SetNow(3.0);
             melody.Tick();
             harmony.SetHeldFunction(null);

@@ -27,10 +27,11 @@ The palm cone is enforced by `Assets/Jazztures/Config/GesturePalmConeThresholds.
 (a `TransformFeatureStateThresholds`), pointed at from each ii / I
 `TransformRecognizerActiveState.TransformConfig.FeatureThresholds`, `UpVectorType = Head`.
 `PalmDown` is set to midpoint 42.5° / width 15° → enter 35°, exit 50°.
-**ii = `OpenPalm` + `FingersUp`; I = `OpenPalm` + `PalmDown`** (ADR-0014 — the SDK has no
-lateral axis, so ii is recognised by hand verticality, not palm azimuth). `FingersUp` is
-at the SDK default (30°/50°); widen it if ii is hard to trigger with fingers angled
-forward.
+**ii = `OpenPalm` + `WristUp`; I = `OpenPalm` + `PalmDown`** (ADR-0014 / ADR-0026 — the SDK
+has no lateral axis and no fingers-vs-forward axis either, so ii is recognised by wrist
+roll — the thumb points up when the hand is held horizontal, fingers away from the
+learner, palm right — not by palm azimuth). `WristUp` is at the SDK default (30°/50°);
+widen it if ii is hard to trigger.
 
 | Parameter                                            | Default   | Measured | Status  | Consumed by                                                                                            |
 | ---------------------------------------------------- | --------- | -------- | ------- | ------------------------------------------------------------------------------------------------------ |
@@ -38,12 +39,20 @@ forward.
 | Finger "curled" curl                                 | > 0.75    | —        | default | SDK ShapeRecognizer (`Poses/Fist.asset`)                                                               |
 | Palm-down cone — enter (I pose)                      | 35°       | —        | default | `GesturePalmConeThresholds.asset` → SDK TransformRecognizer (midpoint 42.5 − width/2)                  |
 | Palm-down cone — exit (I pose)                       | 50°       | —        | default | `GesturePalmConeThresholds.asset` → SDK TransformRecognizer (midpoint 42.5 + width/2; wider — Schmitt) |
-| Fingers-up cone — enter/exit (ii pose)               | 30° / 50° | —        | default | `GesturePalmConeThresholds.asset` feature `FingersUp` (SDK default; ADR-0014)                          |
-| Pose hold to confirm                                 | 120 ms    | —        | default | `GestureInterpreter` (also the latency-budget lever, §4.3)                                             |
+| Wrist-up cone — enter/exit (ii pose)                 | 30° / 50° | —        | default | `GesturePalmConeThresholds.asset` feature `WristUp` (SDK default; ADR-0026, was `FingersUp` per ADR-0014) |
+| Pose hold to confirm                                 | 150 ms    | —        | default | `GestureInterpreter` (also the latency-budget lever, §4.3). Was 120 ms; raised in ADR-0025 now that selection no longer gates musical timing |
 | Minimum inter-chord interval                         | 100 ms    | —        | default | `GestureInterpreter` (debounce)                                                                        |
-| Consecutive confirming frames                        | 3         | —        | default | `GestureInterpreter` (~60 Hz hand update)                                                              |
+| Consecutive confirming frames                        | 3         | —        | default | `GestureInterpreter` (~60 Hz hand update; need not be consecutive — see miss tolerance below, ADR-0025) |
+| Confirmation miss tolerance                          | 2 frames  | —        | default | `GestureInterpreter` — consecutive non-matching frames tolerated without restarting the hold window (ADR-0025; fixes the measured flicker-reset bug) |
+| Release hold (from an already-confirmed function)    | 400 ms    | —        | default | `GestureInterpreter` — always ≥ pose hold; a false release is audible, a strike can disrupt the pose reading this long (ADR-0027) |
+| Release miss tolerance                               | 6 frames  | —        | default | `GestureInterpreter` — always ≥ confirmation miss tolerance (ADR-0027). Only applies to weak evidence (`None`/`Ambiguous`/reverting to what's confirmed) — a different concrete pose always uses the ordinary tolerance instead, however the pending attempt started (ADR-0029) |
 | High-confidence frames to accept after tracking loss | 3         | —        | default | `GestureInterpreter` (§3.5)                                                                            |
 | Tracking-loss cue delay                              | 200 ms    | —        | default | `GestureInterpreter` → presentation (§3.5.2)                                                           |
+| Strike enter speed (downward)                        | 0.25 m/s  | —        | default | `ChordStrikeDetector` (ADR-0025) — starts a chord articulation                                          |
+| Strike exit speed                                    | 0.10 m/s  | —        | default | `ChordStrikeDetector` — must decelerate below this to re-arm (Schmitt)                                  |
+| Minimum inter-strike interval                        | 120 ms    | —        | default | `ChordStrikeDetector` (retrigger cooldown)                                                              |
+| Strike settle frames                                 | 3 frames  | —        | default | `ChordStrikeDetector` — consecutive frames at/below exit speed needed to re-arm; a real strike's own rebound could otherwise re-arm and fire a second, unintended strike (ADR-0030) |
+| Strike speed sample window                           | 3 frames  | —        | default | `MetaXRHandPoseSource._speedSampleFrames` — peak downward fingertip speed over this window, not instantaneous; mirrors `MelodyConfig.SpeedSampleFrames` (ADR-0018 / ADR-0028). Lives on the component, not the shared config asset — see ADR-0028 |
 
 ## Melody / touch targets — `Config/MelodyConfig.asset` (§3.3, §3.1, ADR-0015/0019)
 
@@ -86,6 +95,16 @@ arc. The visual/hit volume tracks the config, so face and volume shrink together
 | Per-target retrigger cooldown              | 80 ms                   | —        | default | mirrors `MelodyEngine.RetriggerCooldownSeconds`                                                                                                                                                                                                           |
 | Fixed note sustain                         | 0.5 s `[OPEN]`          | —        | default | struck-piano model, no stuck notes; mirrors `MelodyEngine.DefaultSustainSeconds`                                                                                                                                                                          |
 | MIDI velocity range (from fingertip speed) | 40–110, clamp; floor 30 | —        | default | never emit < 30 (§3.3); mirrors `VelocityCurve` bounds                                                                                                                                                                                                    |
+
+## Harmony — `HarmonyEngine` (§3.2, ADR-0025)
+
+Selection (pose) and articulation (strike) are separate events as of ADR-0025 — see the
+gesture-recognition table above for the strike-detection thresholds. This row is the
+harmony-side counterpart of the melody engine's fixed note sustain, above.
+
+| Parameter                | Default        | Measured | Status  | Notes                                                                                     |
+| ------------------------ | -------------- | -------- | ------- | ------------------------------------------------------------------------------------------ |
+| Fixed chord ring length  | 1.5 s `[OPEN]` | —        | default | struck-piano model, mirrors `MelodyEngine.DefaultSustainSeconds`; long enough to read as sustained, short enough to have decayed before a typical re-strike. Code: `HarmonyEngine.DefaultSustainSeconds` |
 
 ## Tension colour — `Config/TensionPalette.asset` (§3.10, ADR-0017)
 

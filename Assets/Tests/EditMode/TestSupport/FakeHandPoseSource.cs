@@ -10,9 +10,10 @@ namespace Jazztures.Tests.EditMode.TestSupport
         public void Set(
             HandPoseCandidate leftCandidate,
             TrackingQuality leftTracking = TrackingQuality.High,
-            TrackingQuality rightTracking = TrackingQuality.High)
+            TrackingQuality rightTracking = TrackingQuality.High,
+            float leftVerticalSpeedMetresPerSecond = 0f)
         {
-            CurrentFrame = new HandPoseFrame(leftCandidate, leftTracking, rightTracking);
+            CurrentFrame = new HandPoseFrame(leftCandidate, leftTracking, rightTracking, leftVerticalSpeedMetresPerSecond);
         }
     }
 }

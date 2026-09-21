@@ -46,9 +46,21 @@ namespace Jazztures.Tests.EditMode.Gesture
         {
             Feed(2, HandPoseCandidate.None);
             Assert.That(_interpreter.Phase, Is.EqualTo(GesturePhase.Suppressed));
+            Assert.That(_interpreter.TrackingUsable, Is.False);
 
             Feed(1, HandPoseCandidate.None);
             Assert.That(_interpreter.Phase, Is.EqualTo(GesturePhase.Idle));
+            Assert.That(_interpreter.TrackingUsable, Is.True, "ChordStrikeDetector gates on this (ADR-0025)");
+        }
+
+        [Test]
+        public void TrackingUsable_GoesFalseAssoonAsTrackingDrops()
+        {
+            Feed(3, HandPoseCandidate.None);
+            Assert.That(_interpreter.TrackingUsable, Is.True);
+
+            Feed(1, HandPoseCandidate.None, left: TrackingQuality.Low);
+            Assert.That(_interpreter.TrackingUsable, Is.False);
         }
 
         [Test]
@@ -73,13 +85,13 @@ namespace Jazztures.Tests.EditMode.Gesture
             _clock.Advance(0.02);
             _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
             Assert.That(_interpreter.Phase, Is.EqualTo(GesturePhase.Detecting));
-            Assert.That(_interpreter.ConfirmedFunction, Is.Null, "held < 120 ms");
+            Assert.That(_interpreter.ConfirmedFunction, Is.Null, "held < 150 ms");
 
             _clock.Advance(0.05);
             _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
-            Assert.That(_interpreter.ConfirmedFunction, Is.Null, "still < 120 ms");
+            Assert.That(_interpreter.ConfirmedFunction, Is.Null, "still < 150 ms");
 
-            _clock.Advance(0.08); // total hold ~0.13 s, frame 3
+            _clock.Advance(0.12); // total hold ~0.19 s (clear of the 150 ms default), frame 3
             _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
 
             Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
@@ -100,15 +112,56 @@ namespace Jazztures.Tests.EditMode.Gesture
             Assert.That(_interpreter.ConfirmedFunction, Is.Null, "held long enough but only 2 frames");
         }
 
+        // ADR-0025: this used to be "a flicker restarts confirmation" — the measured root
+        // cause of the reported left-hand timing/fluidity problem. Real hand tracking
+        // produces brief None/Ambiguous blips mid-transition; penalising every one of them
+        // made confirmation time unpredictable rather than merely slow, which is why a
+        // chord change couldn't reliably land on a beat. It now costs nothing, up to
+        // GestureThresholds.ConfirmationMissTolerance consecutive misses.
         [Test]
-        public void AFlickerToADifferentCandidate_RestartsConfirmation()
+        public void ABriefBlipToADifferentReading_DoesNotRestartConfirmation()
+        {
+            Feed(3, HandPoseCandidate.None); // become usable
+
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High)); // match 1
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High)); // match 2
+
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High)); // 1-frame blip
+            Assert.That(_interpreter.ConfirmedFunction, Is.Null, "the blip itself must not confirm None");
+
+            _clock.Advance(0.05); // total elapsed since the first Ii frame: 0.20 s, clear of the 150 ms hold
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High)); // match 3
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two),
+                "the blip must not have cost a fresh confirmation window");
+        }
+
+        [Test]
+        public void ABriefAmbiguousBlip_DuringConfirmation_IsAlsoTolerated()
         {
             Feed(3, HandPoseCandidate.None);
-            Feed(2, HandPoseCandidate.Ii);
-            Feed(1, HandPoseCandidate.None); // flicker resets the in-progress confirmation
-            Feed(10, HandPoseCandidate.Ii, dt: 0.05); // long, unbroken hold after the flicker
+            Feed(2, HandPoseCandidate.Ii, dt: 0.06);   // elapsed since 1st match: 0.06 s
+            Feed(1, HandPoseCandidate.Ambiguous, dt: 0.06); // 0.12 s — tolerated blip
+            Feed(1, HandPoseCandidate.Ii, dt: 0.06);   // 0.18 s — clear of the 150 ms hold
 
             Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+        }
+
+        [Test]
+        public void MoreConsecutiveMissesThanTolerance_DoesRestartConfirmation_OnWhatTheHandActuallyDoesNow()
+        {
+            Feed(3, HandPoseCandidate.None);
+            Feed(2, HandPoseCandidate.Ii, dt: 0.05); // 2 matches toward Ii, not yet confirmed
+
+            // A sustained switch — more consecutive V frames than the tolerance — is a real
+            // transition, not noise, and must redirect confirmation to V.
+            Feed(GestureThresholds.Default.ConfirmationMissTolerance + 1, HandPoseCandidate.V, dt: 0.05);
+            Feed(10, HandPoseCandidate.V, dt: 0.05);
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Five));
         }
 
         [Test]
@@ -181,6 +234,132 @@ namespace Jazztures.Tests.EditMode.Gesture
 
             Assert.That(_interpreter.ConfirmedFunction, Is.Null);
             Assert.That(_changes, Does.Contain(null));
+        }
+
+        // ADR-0027: reported symptom — striking (a fast downward hand motion) while ii is
+        // held could disrupt the WristUp reading for a real, non-trivial stretch (tracking
+        // is High throughout — this is not the tracking-loss path above), long enough to
+        // satisfy the ordinary PoseHoldSeconds/ConfirmingFrames release requirement and cut
+        // the sounding chord mid-strike. Releasing now needs its own, more conservative bar.
+        [Test]
+        public void ABriefLossOfTheHeldPose_ShorterThanReleaseHold_DoesNotRelease()
+        {
+            Feed(3, HandPoseCandidate.None);
+            Feed(10, HandPoseCandidate.Ii, dt: 0.05);
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+
+            _changes.Clear();
+            // A strike-length disruption: comfortably longer than the ordinary confirmation
+            // window (150 ms / 3 frames) would need, but short of ReleaseHoldSeconds (400 ms).
+            Feed(5, HandPoseCandidate.None, dt: 0.05); // 0.25 s, tracking still High throughout
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two),
+                "a strike-length disruption must not release the chord");
+            Assert.That(_changes, Is.Empty);
+        }
+
+        [Test]
+        public void ASustainedLossOfTheHeldPose_LongerThanReleaseHold_StillReleases()
+        {
+            Feed(3, HandPoseCandidate.None);
+            Feed(10, HandPoseCandidate.Ii, dt: 0.05);
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+
+            _changes.Clear();
+            Feed(20, HandPoseCandidate.None, dt: 0.05); // 1.0 s, well past ReleaseHoldSeconds
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.Null, "a genuine, sustained release must still work");
+            Assert.That(_changes, Is.EqualTo(new ChordFunction?[] { null }));
+        }
+
+        [Test]
+        public void SwitchingBetweenTwoConcretePoses_StaysAsFastAsBefore_OnlyReleaseIsMoreConservative()
+        {
+            Feed(3, HandPoseCandidate.None);
+            Feed(10, HandPoseCandidate.Ii, dt: 0.05);
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+
+            _changes.Clear();
+            // Comfortably past PoseHoldSeconds (150 ms) but short of ReleaseHoldSeconds
+            // (400 ms) — a pose-to-pose switch must not be held to the release bar.
+            Feed(5, HandPoseCandidate.V, dt: 0.05); // 0.25 s
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Five));
+        }
+
+        [Test]
+        public void APendingRelease_ToleratesMoreRecoveryFramesThanAnOrdinaryConfirmationWould()
+        {
+            Feed(3, HandPoseCandidate.None);
+            Feed(10, HandPoseCandidate.Ii, dt: 0.05);
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+
+            int releaseTolerance = GestureThresholds.Default.ReleaseMissTolerance;
+            Assert.That(releaseTolerance, Is.GreaterThan(GestureThresholds.Default.ConfirmationMissTolerance),
+                "this test only proves something if release tolerance is the larger of the two");
+
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+
+            // More recoveries in a row than ConfirmationMissTolerance would ever survive —
+            // the pending release must still be alive: ii is neither re-confirmed nor released.
+            for (int i = 0; i < releaseTolerance; i++)
+            {
+                _clock.Advance(0.01);
+                _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+            }
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two), "still holding ii throughout");
+
+            _clock.Advance(0.01);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two),
+                "exceeding tolerance recovers cleanly onto what was already held");
+            Assert.That(_interpreter.Phase, Is.EqualTo(GesturePhase.Confirmed));
+        }
+
+        // ADR-0029: reported symptom — switching poses would sometimes "incorrectly trigger
+        // ii". A normal pose-to-pose switch commonly passes through one None frame first
+        // (any orientation change can briefly read as unrecognised); that single frame was
+        // enough to classify the whole attempt as a release-pending and hand it
+        // ReleaseMissTolerance's far larger budget, so every subsequent V/I frame was
+        // absorbed as a tolerated "miss" instead of being recognised as a clear switch —
+        // ii stayed confirmed for up to ReleaseHoldSeconds while the learner visibly held
+        // a different pose. Only None/Ambiguous/"matches what's confirmed" are weak enough
+        // evidence to deserve the release budget; a different concrete pose never is.
+        [Test]
+        public void APoseToPoseSwitch_ThroughABriefNoneWaypoint_DoesNotInheritTheReleaseBudget()
+        {
+            Feed(3, HandPoseCandidate.None);
+            Feed(10, HandPoseCandidate.Ii, dt: 0.05);
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+
+            _changes.Clear();
+
+            // A single None frame - an ordinary waypoint of any orientation change - starts
+            // a release-pending attempt...
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+
+            // ...but the hand is actually heading to V. Redirecting must only cost the
+            // ordinary ConfirmationMissTolerance budget, not ReleaseMissTolerance's.
+            int normalTolerance = GestureThresholds.Default.ConfirmationMissTolerance;
+            Assert.That(normalTolerance, Is.LessThan(GestureThresholds.Default.ReleaseMissTolerance),
+                "this test only proves something if the normal budget is the smaller of the two");
+
+            for (int i = 0; i < normalTolerance + 1; i++)
+            {
+                _clock.Advance(0.05);
+                _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.V, TrackingQuality.High, TrackingQuality.High));
+            }
+
+            // A few more clean V frames to satisfy the ordinary confirmation window from
+            // the redirect point.
+            Feed(5, HandPoseCandidate.V, dt: 0.05);
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Five),
+                "switching to V must not be held hostage by the stale None release-pending");
         }
 
         [Test]

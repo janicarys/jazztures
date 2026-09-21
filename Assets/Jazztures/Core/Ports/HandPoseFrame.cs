@@ -13,11 +13,13 @@ namespace Jazztures.Core.Ports
         public HandPoseFrame(
             HandPoseCandidate leftCandidate,
             TrackingQuality leftTracking,
-            TrackingQuality rightTracking)
+            TrackingQuality rightTracking,
+            float leftVerticalSpeedMetresPerSecond = 0f)
         {
             LeftCandidate = leftCandidate;
             LeftTracking = leftTracking;
             RightTracking = rightTracking;
+            LeftVerticalSpeedMetresPerSecond = leftVerticalSpeedMetresPerSecond;
         }
 
         public HandPoseCandidate LeftCandidate { get; }
@@ -26,6 +28,15 @@ namespace Jazztures.Core.Ports
 
         public TrackingQuality RightTracking { get; }
 
+        /// <summary>
+        /// The left hand's signed vertical speed, metres per second — negative is downward
+        /// (ADR-0025). Head/gravity-relative, not world-relative in the §3.4 lateral sense:
+        /// "down" does not rotate when the user turns, so a plain vertical delta is valid
+        /// without a head-forward correction. Drives <see cref="Jazztures.Core.Gesture.ChordStrikeDetector"/>,
+        /// which is what actually articulates a chord — see §3.2 vs. ADR-0025.
+        /// </summary>
+        public float LeftVerticalSpeedMetresPerSecond { get; }
+
         /// <summary>A frame with nothing tracked — the safe default before input arrives.</summary>
         public static HandPoseFrame Untracked =>
             new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.NotTracked, TrackingQuality.NotTracked);
@@ -33,7 +44,8 @@ namespace Jazztures.Core.Ports
         public bool Equals(HandPoseFrame other) =>
             LeftCandidate == other.LeftCandidate
             && LeftTracking == other.LeftTracking
-            && RightTracking == other.RightTracking;
+            && RightTracking == other.RightTracking
+            && LeftVerticalSpeedMetresPerSecond.Equals(other.LeftVerticalSpeedMetresPerSecond);
 
         public override bool Equals(object? obj) => obj is HandPoseFrame other && Equals(other);
 
@@ -44,12 +56,13 @@ namespace Jazztures.Core.Ports
                 int hash = (int)LeftCandidate;
                 hash = (hash * 397) ^ (int)LeftTracking;
                 hash = (hash * 397) ^ (int)RightTracking;
+                hash = (hash * 397) ^ LeftVerticalSpeedMetresPerSecond.GetHashCode();
                 return hash;
             }
         }
 
         public override string ToString() =>
-            $"{LeftCandidate} (L:{LeftTracking} R:{RightTracking})";
+            $"{LeftCandidate} (L:{LeftTracking} R:{RightTracking} vy:{LeftVerticalSpeedMetresPerSecond:0.00})";
 
         public static bool operator ==(HandPoseFrame left, HandPoseFrame right) => left.Equals(right);
 

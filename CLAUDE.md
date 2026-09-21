@@ -200,7 +200,9 @@ State: `ChordFunction? Active` — nullable, because "no gesture held" is a lega
 
 Transitions are gesture-driven and **unordered**. `[THESIS]` The system teaches the ii-V-I as a *functional* relationship, not as a fixed sequence to be executed. The learner may play I → V → ii. The lesson layer may *prompt* an order; the harmony engine must never *enforce* one.
 
-On chord change: emit note-off for the outgoing voicing, note-on for the incoming, publish `ChordChangedChannel`. The melody engine recomputes its chord-tone set from that event and from nothing else.
+On chord change (a new function selected, or released to none): publish `ChordChangedChannel`. The melody engine recomputes its chord-tone set from that event and from nothing else.
+
+**Selecting a chord does not sound it.** A pose only selects which function is active; a downward hand motion (a "strike", see §3.4) is the separate event that sounds the currently-selected voicing — cutting whatever is still ringing first, then sounding the new one with a fixed sustain, exactly like the melody engine's struck-piano model (§3.3). This split exists because re-articulating the *same* held chord (comping on the beat) must be possible, and "sound on selection change" cannot express that a held function was struck again — see `Docs/DECISIONS.md` ADR-0025 for the on-device finding that drove this. Releasing to no function still cuts a ringing chord immediately (lifting the hand off the keys); merely selecting a *different* function does not — the old chord decays on its own timer, same as melody.
 
 ### 3.3 Melody engine
 
@@ -227,11 +229,28 @@ Built on Meta XR Interaction SDK pose detection (`ShapeRecognizer` for finger cu
 | Finger "curled" curl | > 0.75 | |
 | Palm orientation cone (enter) | 35° | angle between palm normal and target axis |
 | Palm orientation cone (exit) | 50° | **must be wider than enter** |
-| Pose hold to confirm | 120 ms | |
+| Pose hold to confirm | 150 ms | raised from 120 ms — see ADR-0025 |
 | Minimum inter-chord interval | 100 ms | debounce |
-| Consecutive confirming frames | 3 | at ~60 Hz hand update |
+| Consecutive confirming frames | 3 | need not be consecutive — see confirmation miss tolerance |
+| Confirmation miss tolerance | 2 frames | consecutive non-matching frames tolerated without restarting the hold window (ADR-0025) |
+| Strike enter speed (downward) | 0.25 m/s | starts a chord articulation (§3.2, ADR-0025) |
+| Strike exit speed | 0.10 m/s | must decelerate below this to re-arm — Schmitt, as above |
+| Minimum inter-strike interval | 120 ms | retrigger cooldown |
+| Release hold (from an already-confirmed function) | 400 ms | always ≥ pose hold to confirm (ADR-0027) |
+| Release miss tolerance | 6 frames | always ≥ confirmation miss tolerance; only applies to weak evidence — see below (ADR-0027 / ADR-0029) |
+| Strike settle frames | 3 frames | consecutive frames at/below exit speed needed to re-arm (ADR-0030) |
 
 **Hysteresis is mandatory.** Enter and exit thresholds must differ (Schmitt trigger). Symmetric thresholds produce chord flicker at the boundary, which sounds like the system is broken and will contaminate the NASA-TLX frustration subscale.
+
+**Confirmation tolerates brief noise.** A single non-matching frame (tracking jitter, or `Ambiguous` mid-rotation) must not restart the hold-time/frame-count requirement — only a run longer than the miss tolerance means the hand has genuinely moved to something else. Penalising every blip made confirmation time unpredictable rather than merely slow, which read as missed gestures rather than latency (ADR-0025).
+
+**Releasing a held function is held to a higher bar than confirming one.** A chord strike is itself a fast hand motion that can disrupt the pose reading for longer than ordinary tracking noise — long enough to satisfy the ordinary confirmation window if release used it. A false release is audible (it cuts the sounding chord); a late one is not. Confirming a fresh pose, and switching between two concrete poses, are unaffected — only the release path is more conservative (ADR-0027).
+
+**The release budget is for weak evidence only.** `None`, `Ambiguous`, and a reading that matches what's already confirmed (the hand bouncing back to the pose it never left) are the only misses that get the release tolerance — a different, concrete pose is always strong, unambiguous evidence of a deliberate switch, and always uses the ordinary confirmation tolerance instead, no matter how the pending attempt started. Without this, an ordinary pose-to-pose switch that happens to pass through one `None` frame first — very common, since any orientation change can briefly read as unrecognised — would lock onto the release attempt's much larger budget and hold the old pose confirmed for up to the full release window while the learner visibly held a different one (ADR-0029).
+
+**Strike velocity is read at a fingertip, not the wrist, and smoothed over a short window.** `MetaXRHandPoseSource` reads `HandJointId.HandMiddleTip`, not `GetRootPose` — comping from the horizontal ii pose (§1.3) is naturally a wrist flick, a rotation about the wrist joint that barely translates it, and a point farther from that pivot moves proportionally more. The reported speed is the peak over the last few frames (`_speedSampleFrames`, default 3, a `[SerializeField]` on the component itself — not `GestureThresholds.asset`, since it's a sensor-smoothing constant with no `Core` consumer), mirroring the right hand's own fingertip-speed sampling for touch targets (§3.3) so a strike that decelerates right as it crosses the threshold still registers (ADR-0028).
+
+**Re-arming needs the hand to actually settle.** A single frame at or below the exit speed used to re-arm a strike immediately — but a real strike's own deceleration commonly rebounds slightly near the bottom of its arc, and that rebound's small secondary motion could then cross the enter threshold again, firing a second, unintended strike for what was one motion. Re-arming now needs `StrikeSettleFrames` (default 3) *consecutive* qualifying frames, the same "consecutive, not one sample" pattern used everywhere else in this file (ADR-0030).
 
 **Ambiguity resolution:** ii (palm right) and I (palm down) share a hand shape and differ only in orientation. If both cones match, hold the previous state and emit nothing. Never guess. Silence is a recoverable error; a wrong chord is not.
 
@@ -353,11 +372,11 @@ Non-negotiable for a musical instrument. Measure end-to-end; do not estimate.
 | Segment | Target |
 |---|---|
 | Hand tracking → pose available | platform-bound, ~30–50 ms |
-| Pose confirmation (hold + frames) | ≤ 120 ms `[TUNABLE]` |
+| Pose confirmation (hold + frames) | ≤ 150 ms `[TUNABLE]` |
 | Domain processing | < 2 ms |
 | Note event → audible | < 20 ms |
 
-The confirmation window is the **only** segment you control. If gesture→sound feels sluggish, reduce hold time and consecutive-frame count before touching anything else — but measure the false-positive rate at each setting, because that trade is the interesting one. Build `Diagnostics/LatencyProbe` in the first milestone: it timestamps at each stage and writes percentiles. **Report these numbers in the thesis.** Latency and jitter are standard technical benchmarks in this literature and you currently have none.
+The confirmation window is the **only** segment you control for melody, where a touch-target entry sounds immediately — reduce hold time and consecutive-frame count before touching anything else if gesture→sound feels sluggish there, but measure the false-positive rate at each setting, because that trade is the interesting one. For harmony, confirmation only gates *selection*; a separate strike (§3.2, ADR-0025) gates when a chord is actually audible, so the confirmation window trades against selection responsiveness, not against musical timing. Build `Diagnostics/LatencyProbe` in the first milestone: it timestamps at each stage and writes percentiles. **Report these numbers in the thesis.** Latency and jitter are standard technical benchmarks in this literature and you currently have none.
 
 ### 4.4 OSC and recording
 
@@ -433,3 +452,6 @@ Run 1–2 pilot users. Replace `[TUNABLE]` defaults with measured values in `Doc
 | Backing track for Compose-on-the-Fly | `[OPEN]` — L7/L8 need accompaniment; source and generation method undefined. |
 | Q&A phrase generation (L8) | `[OPEN]` — pre-authored bank vs. generated. Prefer pre-authored; generation is a second thesis. |
 | Chord voicing register | `[TUNABLE]` — needs a pianist's ear, not a developer's. |
+| Left-hand articulation split (selection vs. strike) | Resolved in ADR-0025 — see §3.2. Fixes a measured on-device timing/fluidity problem; changes the §1.3 interaction description. |
+| `MetronomeVoice` (audible in-app click) | `[OPEN]` — `LessonRunner.DrainMetronome` still discards clicks; L2's metronome is silent. ADR-0024 already assumed this exists by L2. Resolve before any L2 pilot session. |
+| Rhythmic hand-pose fixture (fast re-articulation) | `[OPEN]` — the only recorded fixture (`HandPoseFixture_M3.txt`) is a clean happy-path recording with zero `Ambiguous` frames; it cannot exercise ADR-0025's fix. Needs an actual on-device recording session. |

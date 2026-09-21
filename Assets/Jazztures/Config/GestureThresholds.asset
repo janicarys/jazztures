@@ -12,11 +12,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 839726a804443634bba970cf5f5ac3ec, type: 3}
   m_Name: GestureThresholds
   m_EditorClassIdentifier: Jazztures.Config::Jazztures.Config.GestureThresholdsConfig
-  _poseHoldSeconds: 0.12
+  _poseHoldSeconds: 0.15
   _confirmingFrames: 3
   _minInterChordSeconds: 0.1
   _highFramesToResumeAfterLoss: 3
   _trackingLossCueSeconds: 0.2
+  _confirmationMissTolerance: 2
+  _strikeEnterSpeedMetresPerSecond: 0.25
+  _strikeExitSpeedMetresPerSecond: 0.1
+  _minInterStrikeSeconds: 0.12
+  _releaseHoldSeconds: 0.4
+  _releaseMissTolerance: 6
+  _strikeSettleFrames: 3
   _fingerExtendedCurl: 0.25
   _fingerCurledCurl: 0.75
   _palmConeEnterDegrees: 35

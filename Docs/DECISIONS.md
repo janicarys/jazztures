@@ -8,6 +8,360 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0030 — A strike's own rebound could re-arm and fire a second, unintended strike
+
+**Date:** 2026-09-19 · **Status:** Accepted (on-device finding, same session as ADR-0028/-0029)
+· **Milestone:** M3 (revises `ChordStrikeDetector`, landed in ADR-0025)
+**Changes the thesis:** none — an instrumentation correction, not a policy change.
+
+**The finding.** After ADR-0028 (fingertip velocity, peak-over-window), striking became
+reliably detectable — and a single strike would sometimes fire **twice**.
+
+**Root cause.** The Schmitt trigger re-armed on a single frame at or below
+`StrikeExitSpeedMetresPerSecond`. A real strike's deceleration commonly includes a small
+rebound or settle wobble near the bottom of its arc — entirely ordinary human motion, not
+tracking noise. One frame of that wobble dipping below the exit speed was enough to re-arm,
+and the wobble's own small secondary downward motion then crossed the enter threshold
+again, registering as a second, unintended strike for what the learner experienced as one
+motion.
+
+**Decision.** Re-arming now needs `GestureThresholds.StrikeSettleFrames` (default 3)
+*consecutive* frames at or below the exit speed, not one — mirroring the "consecutive
+frames," not "one sample," pattern already used everywhere else in `GestureInterpreter`
+(`ConfirmingFrames`, `HighFramesToResumeAfterLoss`). A single frame back above the exit
+speed resets the count, so a genuine rebound — which by definition doesn't stay settled —
+can no longer re-arm the detector; only an actually-stopped hand can.
+
+**Thesis impact:** none.
+
+---
+
+## ADR-0029 — A pose-to-pose switch must not inherit the release attempt's larger budget
+
+**Date:** 2026-09-19 · **Status:** Accepted (on-device finding, same session as ADR-0027/-0028)
+· **Milestone:** M3 (revises `GestureInterpreter`, landed in ADR-0025/-0027)
+**Changes the thesis:** none — corrects an unintended side effect of ADR-0027's own fix.
+
+**The finding.** After ADR-0027 (releasing needs more sustained evidence than confirming),
+switching between two concrete left-hand poses started intermittently reading as ii no
+matter which pose was actually being formed.
+
+**Root cause.** ADR-0027 classifies a pending attempt as a "release" from the *first*
+reading after leaving the confirmed pose, and grants that whole attempt
+`ReleaseMissTolerance` (6) / `ReleaseHoldSeconds` (400 ms) for its entire lifetime. But an
+ordinary pose-to-pose switch (ii → V, say) very often passes through one
+`HandPoseCandidate.None` frame first — any change of orientation can briefly read as
+unrecognised — and that single frame was enough to lock the whole transition into "this is
+a release attempt." Every subsequent, perfectly clear `V` reading was then absorbed as a
+merely-tolerated "miss" against the stale release-pending, rather than recognised as the
+strong, unambiguous signal it actually is. ii stayed confirmed for up to the full 400 ms
+release window while the learner visibly held a completely different pose — which reads
+exactly as "the wrong pose confirms."
+
+**Decision.** `GestureInterpreter.RegisterMiss` now grants the elevated release budget only
+to genuinely *weak* evidence against a release: `Ambiguous`, `None` itself, or a reading
+that matches what's already confirmed (the hand bouncing back to the pose it never really
+left — the exact pattern a strike disruption produces, per ADR-0027). A miss that is a
+**different, concrete** pose is never weak evidence, regardless of what the pending attempt
+started as — it always uses the ordinary `ConfirmationMissTolerance` (2), so a genuine
+switch redirects within a couple of frames even if it happened to pass through `None`
+first. This does not reopen the ADR-0027 hole: a strike's disruption reads as `None` /
+`Ambiguous` / a bounce back to the already-held pose, never as a different concrete pose, so
+it still gets the full, patient release budget.
+
+**Thesis impact:** none.
+
+---
+
+## ADR-0028 — Strike velocity read at the fingertip, not the wrist; peak-over-window
+
+**Date:** 2026-09-19 · **Status:** Accepted (on-device finding, immediately after ADR-0027)
+· **Milestone:** M3 (revises `MetaXRHandPoseSource`, landed in ADR-0025)
+**Changes the thesis:** none — an instrumentation correction, not a policy change.
+
+**The finding.** With ADR-0027 landed (chords no longer cut mid-strike), striking became
+reliably *hard to trigger at all* — confirmed on device: the physical motion is a wrist
+flick, not a whole-arm drop.
+
+**Root cause.** `ReadVerticalSpeed` measured `IHand.GetRootPose` — the **wrist** joint's
+world-space height — and differentiated it frame to frame. A wrist flick is a rotation
+*about* the wrist joint: the joint itself barely translates, no matter how fast the hand
+swings, because it's the pivot. The signal being measured was, by construction, close to
+blind to exactly the motion learners make from the ADR-0026 horizontal ii pose. (This is
+the same "the hand is now naturally a wrist-flick, not a translation" geometry ADR-0027
+already used to explain why releases needed more tolerance — it turns out the strike side
+of the same motion needed a different fix, not more tolerance.)
+
+**Decision — read the fingertip, and take the peak over a short window.**
+
+1. `ReadVerticalSpeed` now differentiates `HandJointId.HandMiddleTip`
+   (`Assets/Jazztures/Input/MetaXRHandPoseSource.cs`), not the wrist. A point farther from
+   a rotation's pivot moves proportionally faster for the same rotation, so the fingertip
+   picks up a wrist-flick that the wrist joint itself cannot show. This also generalises
+   correctly to a whole-arm-drop strike, where the fingertip moves at least as fast as the
+   wrist did — nothing is lost for that motion, only gained for the flick.
+2. The reported value is the **peak** downward speed over the last `_speedSampleFrames`
+   frames (default 3), not the instantaneous one — mirroring `TouchTargetBinder`'s
+   fingertip-speed sampling for the right hand (ADR-0018) exactly, down to the same default
+   window size and the same underlying reason: a real strike decelerates near the bottom of
+   its arc, and the single frame that happens to cross the enter threshold is often already
+   past its peak speed. `ChordStrikeDetector` and `GestureThresholds` are unchanged — the
+   smoothing is entirely a sensor-side concern in the adapter, exactly where ADR-0018 put
+   the equivalent smoothing for the right hand.
+
+**Why `_speedSampleFrames` is a plain `[SerializeField]` on the component, not threaded
+through `GestureThresholdsConfig`.** Every other ADR-0025/-0027 value there is consumed by
+`Core` (via `GestureThresholds`/`ToThresholds()`) or is a human-facing mirror of a real SDK
+asset (the finger-curl/palm-cone group). This one is neither: it's a smoothing-window size
+internal to one Unity adapter, with no Core consumer, closer in kind to a filter constant
+than a gesture-ergonomics parameter. Wiring a new cross-reference from
+`MetaXRHandPoseSource` to a shared config asset for one int was judged more machinery than
+the value warrants; `MelodyConfig.SpeedSampleFrames` was only cheap for `TouchTargetBinder`
+to adopt because that component already held a config reference for unrelated reasons.
+
+**Thesis impact:** none. This corrects where a signal is sampled, not what any policy
+requires or measures.
+
+---
+
+## ADR-0027 — Releasing a confirmed function needs its own, more conservative bar
+
+**Date:** 2026-09-19 · **Status:** Accepted (on-device finding, immediately after ADR-0026)
+· **Milestone:** M3 (revises `GestureInterpreter`, landed in ADR-0025)
+**Changes the thesis:** none — this is a direct application of §1.4's existing constraint
+("a dropped frame must never produce a spurious chord change") to a case ADR-0025 missed.
+
+**The finding.** With ii re-oriented per ADR-0026, striking (the fast downward motion that
+sounds a chord, ADR-0025) while holding ii would sometimes cut the sound instead of
+re-articulating it. Tracking quality stayed High throughout — this is not the §3.5
+tracking-loss path, which already sustains correctly.
+
+**Root cause.** ADR-0025's confirmation-miss tolerance
+(`GestureThresholds.ConfirmationMissTolerance`) only protects an **already in-progress**
+confirmation attempt from brief blips. It does nothing for an **already-confirmed, steady**
+pose: the very first frame that reads `None` while ii is held starts a *fresh* pending
+attempt toward release (bypassing the tolerance check entirely, since nothing was pending
+yet), and if that reading holds for the ordinary confirmation window
+(`PoseHoldSeconds`/`ConfirmingFrames` — 150 ms / 3 frames) it genuinely confirms the
+release, which cuts the sounding chord immediately per ADR-0025 ("an explicit release is a
+deliberate stop"). It also stops `ChordStrikeDetector` from firing at all, since it
+requires a confirmed function — so the new strike goes silent on top of the old one cutting.
+
+150 ms turns out not to be a safe bar for "the hand is definitely not making this pose
+anymore," because a strike is itself a fast, deliberate hand motion, and — per ADR-0026's
+own geometry — the natural downward-strike rotation from the new horizontal ii pose rotates
+the hand's thumb-side axis away from vertical, which is exactly what `WristUp` measures.
+The old vertical/`FingersUp` ii was comparatively immune to this because a downward strike
+from that starting orientation is more naturally a translation (an arm drop), which
+doesn't move any orientation feature at all. ADR-0026 didn't introduce this bug, but it
+made the pre-existing gap far more likely to be hit.
+
+**Decision.** Releasing **from** an already-confirmed function now needs its own,
+separately-tunable, more conservative bar: `GestureThresholds.ReleaseHoldSeconds` (default
+400 ms, must be ≥ `PoseHoldSeconds`) and `ReleaseMissTolerance` (default 6, must be ≥
+`ConfirmationMissTolerance`), applied in `GestureInterpreter.RegisterMatch` /
+`RegisterMiss` whenever the pending target is `null` and a function is currently held.
+Confirming a *fresh* pose (nothing was held) and switching *between* two concrete poses are
+both untouched — exactly as fast and tolerant as ADR-0025 left them. This is a direct
+instance of CLAUDE.md §1.4 / §3.5's own principle, just extended to cover a release racing
+against a strike: **a false release is audible (it cuts the sounding chord) where a merely
+late one is not** — the same "silence is a recoverable error; a wrong chord is not"
+asymmetry the thesis already states, now also applied to *losing* a chord, not just
+picking the wrong one.
+
+**Alternatives considered and rejected:**
+- *Raise `ConfirmationMissTolerance` / `PoseHoldSeconds` globally instead of adding a
+  release-specific pair* — would equally slow down every ordinary pose-to-pose transition
+  and fresh confirmation to buy safety only the release path needs, trading away exactly
+  the responsiveness ADR-0025 was written to protect.
+- *Have `ChordStrikeDetector` suppress `GestureInterpreter` during a strike* — would work,
+  but makes the interpreter's correctness depend on the strike detector's timing, a
+  dependency in the wrong direction (the detector already reads the interpreter, not the
+  reverse) for a problem the interpreter can solve on its own terms.
+
+**Calibration note.** 400 ms / 6 frames are engineering guesses, not measured against a
+real strike's disruption duration — no rhythmic hand-pose fixture exists yet to measure
+that (`CLAUDE.md` §7, still open). Pilot-calibrate alongside the other ADR-0025 values.
+
+---
+
+## ADR-0026 — ii re-oriented horizontal (`WristUp`), superseding ADR-0014's `FingersUp`
+
+**Date:** 2026-09-19 · **Status:** Accepted (student design call, ergonomics) · **Milestone:**
+M3 (revises the ii recogniser landed there)
+**Changes the thesis:** §1.3's description of how ii is recognised (not the gesture's
+meaning); Chapter 6 per ADR-0014's own note, now superseded
+**Supersedes:** ADR-0014's "ii keys on `FingersUp`" decision. ADR-0014's other finding —
+the SDK has no lateral ("faces right") axis at all, so I's `PalmDown` was the reliable
+correlate — still stands and is unaffected.
+
+**The request.** Reorient ii from vertical (fingers pointing at the ceiling) to
+horizontal — still an open palm facing right, but with the fingers pointing away from the
+learner instead of up.
+
+**The SDK still has no feature for this, literally.** `TransformFeature` (Meta XR
+Interaction SDK 205.0.0) is nine fixed (hand-axis, target-axis) pairs:
+`WristUp/WristDown/PalmUp/PalmDown/FingersUp/FingersDown` all measure a hand axis against
+*vertical* (head/tracking/world up); `PalmTowardsFace/PalmAwayFromFace/PinchClear` measure
+a hand axis against *depth* (`CenterEyePose.forward`). There is no pairing that measures
+the **fingers** axis against forward — "fingers pointing away from the face" is simply not
+an expressible feature, the same class of gap ADR-0014 hit for "palm right" itself.
+
+**The geometry resolves it anyway.** The request over-specifies the pose: fixing both
+"fingers point away from the face" (forward) *and* "palm faces right" pins the hand's full
+orientation — for a hand held with fingers forward and palm right, the thumb **must** point
+up (the alternative, palm facing left, needs active forearm pronation and is not the
+neutral, comfortable hold implied by "still facing right"). "Thumb points up" is exactly
+`TransformFeature.WristUp` (`Constants.LeftThumbSide` vs. vertical-up,
+`TransformFeatureValueProvider.cs`). So the taught pose the request describes has a single,
+correct, already-existing SDK feature — it just isn't named anything resembling "fingers".
+
+**Never-guess is preserved, by the same argument as ADR-0014.** `WristUp` reads the
+thumb-side axis; `PalmDown` (I's discriminator) reads the dorsal axis. These are two
+orthogonal axes of the same rigid wrist frame, so they cannot both register a small angle
+against the same vertical target at once — a hand can't have its thumb-side *and* the back
+of its hand both pointing up. ii and I stay mutually exclusive except genuinely
+mid-rotation, exactly as before; `Ambiguous` still resolves to "hold the previous state,
+emit nothing" (§3.4).
+
+**Change.** `Assets/main.unity`, `iiPose`'s `TransformRecognizerActiveState`:
+`_feature: 6` (`FingersUp`) → `_feature: 0` (`WristUp`); `_state: 18` → `_state: 0`
+(`WristUp`'s own `_firstState`, i.e. "angle below the enter threshold" — mirrors exactly
+how I's block already points `_state` at `PalmDown`'s `_firstState`).
+`GesturePalmConeThresholds.asset` needed no change: `WristUp` (feature 0) already carries
+the SDK's default midpoint 40° / width 20° (→ enter 30° / exit 50°) threshold row, unused
+until now. `UpVectorType` stays `Head`, unchanged — `WristUp` reads against the same
+head-relative vertical the old `FingersUp` check used.
+
+**What this does *not* fix by itself.** `Assets/Jazztures/Input/Poses/Ghost/Ii.asset`
+(`GhostPoseAsset`) is a captured snapshot of a real held hand — per-finger joint quaternions
+plus `_wristRotationHeadLocal` — authored by physically holding the *old* vertical pose in
+front of the `GhostPoseRecorderWindow` tool. It still encodes that old orientation. The
+finger shape (open, relaxed) does not need to change; the wrist orientation does, and doing
+that correctly requires a real hand in front of the capture tool, not a hand-edited
+quaternion — a wrong edit here would teach the learner a subtly incorrect pose and could go
+unnoticed until a pilot session. **Action required in-editor:** Play Mode with hand
+tracking (Quest Link is fine) → `Jazztures/Ghost Pose Recorder` → hold the new horizontal
+ii → `Capture → ii`. The ghost hand will keep showing the old pose until this is done.
+
+**Alternatives considered and rejected:**
+- *`TransformConfig.RotationOffset` on the existing `FingersUp` feature*, rotating the
+  target vector 90° instead of switching features — mathematically equivalent to picking a
+  different named feature, but "the fingers-up detector, rotated, means fingers-forward" is
+  exactly the kind of indefensible-under-questioning reframing ADR-0014 already rejected
+  for `PalmDown`. Using the feature whose plain-English name matches what it measures
+  (`WristUp`) is more defensible and no harder to implement.
+- *`JointRotationActiveState` on the wrist* (ADR-0014's noted "true palm-orientation"
+  path) — still deferred; still not needed, since `WristUp` cleanly resolves this pose.
+
+**Thesis impact.** ADR-0014's Chapter-6 note ("ii is recognised by hand verticality
+(`FingersUp`), not palm azimuth") is superseded — replace with: ii is now recognised by
+wrist roll (`WristUp` — the thumb points up), not palm azimuth. The taught concept is
+unchanged: open palm, facing the user's right, preparation.
+
+---
+
+## ADR-0025 — Left-hand articulation: selection and sound are separate events
+
+**Date:** 2026-09-19 · **Status:** Accepted (student design call, driven by an on-device
+finding) · **Milestone:** M3/M5 (revises the gesture-interpreter and harmony-engine
+behaviour landed there)
+**Changes the thesis:** §1.3's left-hand interaction description, §3.2, §3.4
+(confirmation), §4.3 (an added latency segment). See "Thesis impact" below.
+
+**The finding.** Testing against an external metronome at 80 BPM, playing a left-hand
+chord on every 2nd or 4th beat was not reproducible — gestures were missed or misfired,
+not merely late.
+
+**Root cause, in order of contribution:**
+
+1. **`ProgressionState.Hold` no-ops on re-selecting the same function**
+   (`Core/Harmony/ProgressionState.cs`). Because a chord only sounded on a *change* of
+   held function (`HarmonyEngine.OnProgressionChanged`, pre-ADR-0025), re-articulating the
+   same chord — exactly what "play a chord every N beats" asks for, and exactly what L2's
+   own stated objective ("steady pulse... frozen harmony", CLAUDE.md §3.9) requires —
+   was structurally impossible without releasing to no-pose and re-forming it. Each round
+   trip paid a full confirmation window twice (release + re-select), roughly 340 ms of
+   state-machine overhead against a 750 ms beat at 80 BPM, before any hand travel.
+2. **`GestureInterpreter.ProcessCandidate` reset all confirmation progress on any single
+   non-matching frame** — including a one-frame `None`/`Ambiguous` reading, which ordinary
+   hand-tracking noise produces routinely while the hand is physically mid-transition. This
+   made confirmation time *variable* rather than a fixed 150 ms: a learner could not build
+   a stable expectation of when a gesture would land, which reads as "missed" more than
+   "slow." (`AFlickerToADifferentCandidate_RestartsConfirmation` in the test suite asserted
+   this as correct behaviour — it was the bug, encoded as a passing test.)
+
+Neither the one existing hand-pose fixture (`Fixtures/HandPoseFixture_M3.txt` — a clean,
+deliberately-held cyclical test with zero `Ambiguous` frames) nor the wired latency
+instrumentation (only `PoseToConfirm` is populated; `ConfirmToNoteEvent`/`EndToEnd` are
+declared but never fed) could have surfaced either problem: the fixture never exercises
+rapid re-articulation, and nothing measured confirmation *variance*, only its lower bound.
+
+**Decision — split selection from articulation.**
+
+The left hand's three static poses (§1.3) now do two different jobs:
+
+- **Pose confirmation selects** which chord is active (`GestureInterpreter`, unchanged
+  gestures, unchanged mapping). `HarmonyEngine.SetHeldFunction` is now silent — it updates
+  `ActiveChord` (so the melody engine's chord-tone set and presentation still react
+  immediately) but sends no note events.
+- **A downward hand motion articulates** — `ChordStrikeDetector` (new,
+  `Core/Gesture/`), a Schmitt-triggered speed threshold exactly like every other gesture
+  threshold in §3.4, reading a new signed vertical-speed field on `HandPoseFrame`.
+  `HarmonyEngine.Strike(velocity)` sounds the currently-selected voicing: cuts whatever is
+  still ringing, then sounds the new one, struck-piano style with a fixed sustain
+  (`HarmonyEngine.DefaultSustainSeconds`) — the same model `MelodyEngine` already used for
+  the right hand (§3.3), now applied symmetrically. Re-striking the *same* function is now
+  ordinary — it is no longer a distinguished case at all.
+
+  Velocity reuses `Melody.VelocityCurve.FromSpeed` rather than a second bespoke mapping.
+
+A downward strike (comping) was chosen over "re-entering the same pose re-triggers it"
+because pose entry is inherently fuzzy (a static shape has no clean onset instant), while
+a ballistic motion gives a crisp, low-variance onset, free dynamics, and is literally how a
+pianist comps — and because decoupling lets pose confirmation become *more* tolerant
+(next point) without that tolerance ever blurring musical timing.
+
+**Confirmation is now tolerant of brief noise.** `GestureInterpreter` no longer resets
+progress on a single non-matching frame; it tolerates up to
+`GestureThresholds.ConfirmationMissTolerance` (default 2) consecutive misses —
+`None`, `Ambiguous`, or a third pose — before concluding the hand has genuinely moved on.
+Only a *sustained* mismatch redirects confirmation. Because pose selection no longer gates
+when a chord sounds, `PoseHoldSeconds` also moved 120 ms → 150 ms: selection can afford to
+buy stability now that it is off the critical timing path.
+
+**What was deliberately left out of this change**, to keep it scoped to the measured
+left-hand problem:
+
+- **`MetronomeVoice` was not built.** `LessonRunner.DrainMetronome` still discards clicks
+  (`Assets/Jazztures/Lessons/LessonRunner.cs`); L2's in-app metronome remains silent, which
+  is why the finding above was tested against an external one. ADR-0024 already assumed
+  this would exist by L2 ("Watch and Listen, with the metronome") — it is a real,
+  independent gap, not new. Recommend: fast-follow, before any L2 pilot session.
+- **A real rhythmic hand-pose fixture was not recorded** — this needs an actual headset
+  session (`HandPoseRecorderComponent`) attempting fast re-articulation, which cannot be
+  produced from a desk. `Fixtures/HandPoseFixture_M3.txt` remains a happy-path fixture
+  only. Recommend: record one and add it as a regression fixture before M8.
+- **`LatencyStage.ConfirmToNoteEvent` / `EndToEnd` remain unwired.** Under this design a
+  "confirm → note" stage no longer has a fixed meaning for harmony (confirmation no longer
+  causes a note at all); the meaningful new stage is strike → note event, which is a
+  synchronous same-call-stack operation with no frame boundary to measure. Re-scoping
+  `LatencyStage` was judged out of scope for this change rather than half-done.
+- Right-hand melody/touch-target behaviour is untouched.
+
+**Thesis impact.** §1.3's left-hand description ("hold a pose, the chord sounds") is now
+incomplete: the left hand has a static component (pose → selection) *and* a dynamic
+component (a downward strike → sound), the latter closer to how §1.3 already describes the
+right hand's mid-air touch targets than to a sustained organ-style hold. This is additive,
+not a reversal of the co-design gesture set — ii/V/I are unchanged — but Chapter 6's
+description of the interaction model, and any figure showing "pose held → chord audible",
+needs the strike step added. §4.3's latency budget gains a segment (pose → confirm remains
+as specified; confirm → sound is no longer applicable to harmony the way it is to melody).
+Pilot-measure `ChordStrikeDetector`'s thresholds and `HarmonyEngine.DefaultSustainSeconds`
+at M8 alongside the existing gesture thresholds; record them in `Docs/CALIBRATION.md`.
+
+---
+
 ## ADR-0024 — Lesson 1 is a single Gesture Learning phase
 
 **Date:** 2026-09-10 · **Status:** Accepted (student design call) · **Milestone:** M5 ·

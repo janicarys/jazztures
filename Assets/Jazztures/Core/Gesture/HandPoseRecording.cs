@@ -48,7 +48,12 @@ namespace Jazztures.Core.Gesture
 
         public double DurationSeconds => _samples.Length == 0 ? 0.0 : _samples[_samples.Length - 1].TimeSeconds;
 
-        /// <summary>One JSON object per line: <c>{"t":1.234,"c":"Ii","lt":"High","rt":"High"}</c>.</summary>
+        /// <summary>
+        /// One JSON object per line:
+        /// <c>{"t":1.234,"c":"Ii","lt":"High","rt":"High","vy":-0.4}</c>. <c>"vy"</c>
+        /// (ADR-0025) is the left hand's signed vertical speed, m/s, negative = downward —
+        /// omitted when zero, so every fixture recorded before ADR-0025 still round-trips.
+        /// </summary>
         public string ToJsonl()
         {
             var builder = new StringBuilder();
@@ -59,7 +64,15 @@ namespace Jazztures.Core.Gesture
                     .Append(",\"c\":\"").Append(sample.Frame.LeftCandidate)
                     .Append("\",\"lt\":\"").Append(sample.Frame.LeftTracking)
                     .Append("\",\"rt\":\"").Append(sample.Frame.RightTracking)
-                    .Append("\"}\n");
+                    .Append('"');
+
+                float vy = sample.Frame.LeftVerticalSpeedMetresPerSecond;
+                if (vy != 0f)
+                {
+                    builder.Append(",\"vy\":").Append(vy.ToString("0.#########", CultureInfo.InvariantCulture));
+                }
+
+                builder.Append("}\n");
             }
 
             return builder.ToString();
@@ -117,6 +130,7 @@ namespace Jazztures.Core.Gesture
             HandPoseCandidate? candidate = null;
             TrackingQuality? leftTracking = null;
             TrackingQuality? rightTracking = null;
+            float verticalSpeed = 0f; // absent "vy" (pre-ADR-0025 fixtures) means "not moving"
 
             foreach (string pair in line.Substring(1, line.Length - 2).Split(','))
             {
@@ -148,6 +162,14 @@ namespace Jazztures.Core.Gesture
                     case "rt":
                         rightTracking = ParseEnum<TrackingQuality>(value);
                         break;
+                    case "vy":
+                        if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float vy))
+                        {
+                            return false;
+                        }
+
+                        verticalSpeed = vy;
+                        break;
                 }
             }
 
@@ -160,7 +182,7 @@ namespace Jazztures.Core.Gesture
             {
                 sample = new HandPoseSample(
                     time.Value,
-                    new HandPoseFrame(candidate.Value, leftTracking.Value, rightTracking.Value));
+                    new HandPoseFrame(candidate.Value, leftTracking.Value, rightTracking.Value, verticalSpeed));
                 return true;
             }
             catch (ArgumentOutOfRangeException)

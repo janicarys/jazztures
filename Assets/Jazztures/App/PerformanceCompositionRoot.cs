@@ -19,7 +19,8 @@ namespace Jazztures.App
     ///
     /// <para>
     /// input → domain → presentation:
-    /// hand-pose source → <see cref="GestureInterpreter"/> → <see cref="HarmonyEngine"/>
+    /// hand-pose source → <see cref="GestureInterpreter"/> (selects) +
+    /// <see cref="ChordStrikeDetector"/> (articulates, ADR-0025) → <see cref="HarmonyEngine"/>
     /// + <see cref="MelodyEngine"/> → <see cref="SamplerNoteSink"/>. The composite sink
     /// gains the OSC and telemetry sinks in later milestones.
     /// </para>
@@ -49,6 +50,7 @@ namespace Jazztures.App
 
         private IHandPoseSource _poseSource;
         private GestureInterpreter _interpreter;
+        private ChordStrikeDetector _strikeDetector;
         private ModeGatedNoteSink _gate;
         private HarmonyEngine _harmony;
         private MelodyEngine _melody;
@@ -88,6 +90,11 @@ namespace Jazztures.App
                 : GestureThresholds.Default;
             _interpreter = new GestureInterpreter(clock, thresholds);
             _interpreter.ConfirmedFunctionChanged += function => _harmony.SetHeldFunction(function);
+
+            // ADR-0025: selection (above) and articulation (below) are separate events —
+            // the pose says which chord, the strike says when it sounds.
+            _strikeDetector = new ChordStrikeDetector(clock, _interpreter, thresholds);
+            _strikeDetector.Struck += velocity => _harmony.Strike(velocity);
 
             _poseSource = ResolvePoseSource(clock);
             _melodyKeys = new KeyboardMelodyInput();
@@ -154,7 +161,10 @@ namespace Jazztures.App
                 return;
             }
 
-            _interpreter.Feed(_poseSource.CurrentFrame);
+            HandPoseFrame frame = _poseSource.CurrentFrame;
+            _interpreter.Feed(frame);
+            _strikeDetector.Feed(frame.LeftVerticalSpeedMetresPerSecond);
+            _harmony.Tick();
             _melodyKeys.Poll(_melody);
             _melody.Tick();
         }
