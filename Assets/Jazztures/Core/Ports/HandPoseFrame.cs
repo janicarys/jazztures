@@ -14,12 +14,16 @@ namespace Jazztures.Core.Ports
             HandPoseCandidate leftCandidate,
             TrackingQuality leftTracking,
             TrackingQuality rightTracking,
-            float leftVerticalSpeedMetresPerSecond = 0f)
+            float leftVerticalSpeedMetresPerSecond = 0f,
+            bool leftIsPinching = false,
+            float leftPinchClosingRatePerSecond = 0f)
         {
             LeftCandidate = leftCandidate;
             LeftTracking = leftTracking;
             RightTracking = rightTracking;
             LeftVerticalSpeedMetresPerSecond = leftVerticalSpeedMetresPerSecond;
+            LeftIsPinching = leftIsPinching;
+            LeftPinchClosingRatePerSecond = leftPinchClosingRatePerSecond;
         }
 
         public HandPoseCandidate LeftCandidate { get; }
@@ -37,6 +41,25 @@ namespace Jazztures.Core.Ports
         /// </summary>
         public float LeftVerticalSpeedMetresPerSecond { get; }
 
+        /// <summary>
+        /// The left hand's index-to-thumb self-contact this frame (Design A, ADR-0038) —
+        /// the articulation commit under the continuous harmonic-field selection model,
+        /// the counterpart to <see cref="LeftVerticalSpeedMetresPerSecond"/> under ADR-0025.
+        /// Drives <see cref="Jazztures.Core.Gesture.ChordPinchDetector"/>. Always
+        /// <see langword="false"/> when the discrete pose recognisers are the selection
+        /// source instead.
+        /// </summary>
+        public bool LeftIsPinching { get; }
+
+        /// <summary>
+        /// Peak d(pinch strength)/dt over the adapter's sample window, per second, while the pinch
+        /// is closing (ADR-0038) — 0 when not closing or not pinching. The pinch-commit
+        /// counterpart of the strike path's fingertip speed: it feeds
+        /// <see cref="Jazztures.Core.Melody.VelocityCurve.FromNormalized"/> to map a
+        /// deliberate, fast pinch to a louder chord than a slow one.
+        /// </summary>
+        public float LeftPinchClosingRatePerSecond { get; }
+
         /// <summary>A frame with nothing tracked — the safe default before input arrives.</summary>
         public static HandPoseFrame Untracked =>
             new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.NotTracked, TrackingQuality.NotTracked);
@@ -45,7 +68,9 @@ namespace Jazztures.Core.Ports
             LeftCandidate == other.LeftCandidate
             && LeftTracking == other.LeftTracking
             && RightTracking == other.RightTracking
-            && LeftVerticalSpeedMetresPerSecond.Equals(other.LeftVerticalSpeedMetresPerSecond);
+            && LeftVerticalSpeedMetresPerSecond.Equals(other.LeftVerticalSpeedMetresPerSecond)
+            && LeftIsPinching == other.LeftIsPinching
+            && LeftPinchClosingRatePerSecond.Equals(other.LeftPinchClosingRatePerSecond);
 
         public override bool Equals(object? obj) => obj is HandPoseFrame other && Equals(other);
 
@@ -57,12 +82,15 @@ namespace Jazztures.Core.Ports
                 hash = (hash * 397) ^ (int)LeftTracking;
                 hash = (hash * 397) ^ (int)RightTracking;
                 hash = (hash * 397) ^ LeftVerticalSpeedMetresPerSecond.GetHashCode();
+                hash = (hash * 397) ^ LeftIsPinching.GetHashCode();
+                hash = (hash * 397) ^ LeftPinchClosingRatePerSecond.GetHashCode();
                 return hash;
             }
         }
 
         public override string ToString() =>
-            $"{LeftCandidate} (L:{LeftTracking} R:{RightTracking} vy:{LeftVerticalSpeedMetresPerSecond:0.00})";
+            $"{LeftCandidate} (L:{LeftTracking} R:{RightTracking} vy:{LeftVerticalSpeedMetresPerSecond:0.00} " +
+            $"pinch:{LeftIsPinching} pinchRate:{LeftPinchClosingRatePerSecond:0.00})";
 
         public static bool operator ==(HandPoseFrame left, HandPoseFrame right) => left.Equals(right);
 

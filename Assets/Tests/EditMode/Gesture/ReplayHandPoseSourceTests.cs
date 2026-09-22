@@ -90,7 +90,10 @@ namespace Jazztures.Tests.EditMode.Gesture
             Hold(HandPoseCandidate.None, 0.1);
             Hold(HandPoseCandidate.Ii, 0.4);
             Hold(HandPoseCandidate.V, 0.4);
-            Hold(HandPoseCandidate.None, 0.4);
+            // 0.5, not 0.4: at a 60 Hz step the loop's last frame lands at 23/60 ≈ 0.383 s,
+            // one frame short of ReleaseHoldSeconds (0.4, ADR-0027) — the release never
+            // actually confirmed. 0.5 s comfortably clears it.
+            Hold(HandPoseCandidate.None, 0.5);
 
             // 2. Serialise and parse back.
             Assert.That(

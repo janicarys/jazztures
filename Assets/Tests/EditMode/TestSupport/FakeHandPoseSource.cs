@@ -11,9 +11,13 @@ namespace Jazztures.Tests.EditMode.TestSupport
             HandPoseCandidate leftCandidate,
             TrackingQuality leftTracking = TrackingQuality.High,
             TrackingQuality rightTracking = TrackingQuality.High,
-            float leftVerticalSpeedMetresPerSecond = 0f)
+            float leftVerticalSpeedMetresPerSecond = 0f,
+            bool leftIsPinching = false,
+            float leftPinchClosingRatePerSecond = 0f)
         {
-            CurrentFrame = new HandPoseFrame(leftCandidate, leftTracking, rightTracking, leftVerticalSpeedMetresPerSecond);
+            CurrentFrame = new HandPoseFrame(
+                leftCandidate, leftTracking, rightTracking,
+                leftVerticalSpeedMetresPerSecond, leftIsPinching, leftPinchClosingRatePerSecond);
         }
     }
 }

@@ -122,24 +122,25 @@ namespace Jazztures.Core.Gesture
         public event Action<GesturePhase>? PhaseChanged;
 
         /// <summary>
-        /// A downward strike was just detected and articulated the currently-confirmed
-        /// chord (ADR-0034). If a release happens to be pending at that moment, this
-        /// cancels it outright rather than letting it merely tolerate the strike as one
-        /// more weak-evidence miss: successfully striking a pose is definitive proof the
-        /// hand is still engaged with it, stronger evidence than <see cref="RegisterMiss"/>
-        /// alone can express.
+        /// A commit gesture — a downward strike (ADR-0025) or an index pinch (Design A,
+        /// ADR-0038) — was just detected and articulated the currently-confirmed chord. If
+        /// a release happens to be pending at that moment, this cancels it outright rather
+        /// than letting it merely tolerate the gesture as one more weak-evidence miss:
+        /// successfully committing is definitive proof the hand is still engaged with the
+        /// selected function, stronger evidence than <see cref="RegisterMiss"/> alone can
+        /// express.
         ///
         /// <para>
         /// Without this, <see cref="GestureThresholds.ReleaseHoldSeconds"/> is measured
         /// from when the release attempt first started pending, not from a continuous run
         /// of matching frames — so a release that had been silently accumulating
-        /// wall-clock progress (ordinary pose noise, or the strike's own disruption, which
-        /// is exactly what <see cref="GestureThresholds.ReleaseMissTolerance"/> is built to
-        /// absorb) could still cross its threshold moments after a successful strike,
+        /// wall-clock progress (ordinary pose noise, or a strike's own disruption, which is
+        /// exactly what <see cref="GestureThresholds.ReleaseMissTolerance"/> is built to
+        /// absorb) could still cross its threshold moments after a successful commit,
         /// cutting the chord that was just deliberately re-articulated.
         /// </para>
         ///
-        /// <para>Call from <see cref="ChordStrikeDetector"/> whenever <c>Struck</c> fires.</para>
+        /// <para>Call from <see cref="ChordStrikeDetector"/> or <see cref="ChordPinchDetector"/> whenever a commit fires.</para>
         /// </summary>
         public void NotifyStruck()
         {

@@ -50,9 +50,11 @@ namespace Jazztures.Core.Gesture
 
         /// <summary>
         /// One JSON object per line:
-        /// <c>{"t":1.234,"c":"Ii","lt":"High","rt":"High","vy":-0.4}</c>. <c>"vy"</c>
-        /// (ADR-0025) is the left hand's signed vertical speed, m/s, negative = downward —
-        /// omitted when zero, so every fixture recorded before ADR-0025 still round-trips.
+        /// <c>{"t":1.234,"c":"Ii","lt":"High","rt":"High","vy":-0.4,"lp":true,"pr":5.2}</c>.
+        /// <c>"vy"</c> (ADR-0025) is the left hand's signed vertical speed, m/s, negative =
+        /// downward. <c>"lp"</c>/<c>"pr"</c> (ADR-0038, Design A) are the left hand's pinch
+        /// state and closing rate. All three are omitted when at their default (zero /
+        /// false), so every fixture recorded before ADR-0025 or ADR-0038 still round-trips.
         /// </summary>
         public string ToJsonl()
         {
@@ -70,6 +72,17 @@ namespace Jazztures.Core.Gesture
                 if (vy != 0f)
                 {
                     builder.Append(",\"vy\":").Append(vy.ToString("0.#########", CultureInfo.InvariantCulture));
+                }
+
+                if (sample.Frame.LeftIsPinching)
+                {
+                    builder.Append(",\"lp\":true");
+                }
+
+                float pinchRate = sample.Frame.LeftPinchClosingRatePerSecond;
+                if (pinchRate != 0f)
+                {
+                    builder.Append(",\"pr\":").Append(pinchRate.ToString("0.#########", CultureInfo.InvariantCulture));
                 }
 
                 builder.Append("}\n");
@@ -131,6 +144,8 @@ namespace Jazztures.Core.Gesture
             TrackingQuality? leftTracking = null;
             TrackingQuality? rightTracking = null;
             float verticalSpeed = 0f; // absent "vy" (pre-ADR-0025 fixtures) means "not moving"
+            bool isPinching = false; // absent "lp" (pre-ADR-0038 fixtures) means "not pinching"
+            float pinchRate = 0f; // absent "pr" means "not closing"
 
             foreach (string pair in line.Substring(1, line.Length - 2).Split(','))
             {
@@ -170,6 +185,22 @@ namespace Jazztures.Core.Gesture
 
                         verticalSpeed = vy;
                         break;
+                    case "lp":
+                        if (!bool.TryParse(value, out bool lp))
+                        {
+                            return false;
+                        }
+
+                        isPinching = lp;
+                        break;
+                    case "pr":
+                        if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float pr))
+                        {
+                            return false;
+                        }
+
+                        pinchRate = pr;
+                        break;
                 }
             }
 
@@ -182,7 +213,9 @@ namespace Jazztures.Core.Gesture
             {
                 sample = new HandPoseSample(
                     time.Value,
-                    new HandPoseFrame(candidate.Value, leftTracking.Value, rightTracking.Value, verticalSpeed));
+                    new HandPoseFrame(
+                        candidate.Value, leftTracking.Value, rightTracking.Value,
+                        verticalSpeed, isPinching, pinchRate));
                 return true;
             }
             catch (ArgumentOutOfRangeException)

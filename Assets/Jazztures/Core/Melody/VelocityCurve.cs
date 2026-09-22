@@ -22,9 +22,17 @@ namespace Jazztures.Core.Melody
         /// <summary>Hard floor — no note-on is ever quieter than this (§3.3).</summary>
         public const byte AbsoluteFloor = 30;
 
-        public static byte FromSpeed(float metresPerSecond)
+        public static byte FromSpeed(float metresPerSecond) =>
+            FromNormalized((metresPerSecond - MinSpeed) / (MaxSpeed - MinSpeed));
+
+        /// <summary>
+        /// Map an already-normalised 0..1 intensity onto <see cref="MinVelocity"/>..
+        /// <see cref="MaxVelocity"/>, clamped, floored at <see cref="AbsoluteFloor"/>
+        /// (ADR-0038) — the pinch-articulation counterpart of <see cref="FromSpeed"/>,
+        /// which derives its own <c>t</c> from a fingertip speed and delegates here.
+        /// </summary>
+        public static byte FromNormalized(float t)
         {
-            float t = (metresPerSecond - MinSpeed) / (MaxSpeed - MinSpeed);
             if (t < 0f)
             {
                 t = 0f;
