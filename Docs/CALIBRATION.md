@@ -106,6 +106,38 @@ harmony-side counterpart of the melody engine's fixed note sustain, above.
 | ------------------------ | -------------- | -------- | ------- | ------------------------------------------------------------------------------------------ |
 | Fixed chord ring length  | 1.5 s `[OPEN]` | —        | default | struck-piano model, mirrors `MelodyEngine.DefaultSustainSeconds`; long enough to read as sustained, short enough to have decayed before a typical re-strike. Code: `HarmonyEngine.DefaultSustainSeconds` |
 
+## Harmonic field (Design A) — `Config/HarmonicFieldConfig.asset` (ADR-0038)
+
+An alternative to the gesture-recognition table above, not yet the shipping mechanism —
+selected via `PerformanceCompositionRoot.HarmonyCommitGesture = Pinch`. Replaces the three
+discrete pose classifiers with one continuous (height, openness) space, and the velocity
+threshold strike with a pinch. **Every value below is an invented placeholder — none has
+been observed on a real hand.** The landmark coordinates and the two radii are especially
+low-confidence: they were chosen only to keep the three ii/V/I basins from overlapping
+given each other, not from any measurement. Read live `h=`/`o=` values off the console
+(`MetaXRHandPostureSource._logPosture`) during the first device session and replace the
+landmark rows *before* judging whether the mechanic works at all — the radii are derived
+from the landmark coordinates, so re-tuning one means re-checking the other.
+
+| Parameter                              | Default    | Measured | Status  | Notes                                                                                  |
+| --------------------------------------- | ---------- | -------- | ------- | --------------------------------------------------------------------------------------- |
+| ii landmark (height, openness)          | 0.80, 0.85 | —        | default | "up and open." `HarmonicFieldThresholds.IiHeight/IiOpenness`                             |
+| V landmark (height, openness)           | 0.45, 0.10 | —        | default | "mid-height, closed: closing is tension." `VHeight/VOpenness`                            |
+| I landmark (height, openness)           | 0.20, 0.85 | —        | default | "low and open." `IHeight/IOpenness`                                                      |
+| Floor height (first latch)              | 0.05       | —        | default | `FloorHeight`                                                                             |
+| Floor release height (Schmitt exit)     | −0.05      | —        | default | must stay < Floor Height. `FloorReleaseHeight`                                           |
+| Lock radius (Schmitt enter)             | 0.22       | —        | default | derived from the landmark coordinates above — re-tune together. `LockRadius`             |
+| Unlock radius (Schmitt exit)            | 0.34       | —        | default | must stay > Lock Radius. `UnlockRadius`                                                  |
+| Shoulder height offset                  | −0.25 m    | —        | default | inherited from `MelodyConfig`'s right-hand equivalent (ADR-0015), not re-guessed          |
+| Height-normalisation floor offset       | −0.35 m    | —        | default | wrist height below the shoulder anchor that maps to 0. `HarmonicFieldConfig.FloorOffsetMetres` |
+| Height-normalisation ceiling offset     | +0.15 m    | —        | default | together with the floor, sets the 0.50 m span the whole height axis rests on. `CeilingOffsetMetres` |
+| Min inter-pinch interval               | 0.12 s     | —        | default | inherited from `GestureThresholds.MinInterStrikeSeconds`'s value, not re-guessed. `PinchCommitThresholds.MinInterPinchSeconds` |
+| Pinch rate at min velocity              | 3.0 s⁻¹    | —        | default | nobody has measured how fast a pinch closes on this tracker. `PinchRateAtMinVelocityPerSecond` |
+| Pinch rate at max velocity              | 14.0 s⁻¹   | —        | default | `PinchRateAtMaxVelocityPerSecond`                                                         |
+| Pinch-rate sample window                | 3 frames   | —        | default | inherited from `MetaXRHandPoseSource._speedSampleFrames`'s precedent (ADR-0028), not re-guessed. `MetaXRHandPostureSource._pinchRateSampleFrames` |
+| Openness curl range — middle, ring      | 180°–250°  | —        | n/a     | not a tunable — copied verbatim from the SDK's own `PalmGrabAPI.CURL_RANGE`               |
+| Openness curl range — pinky             | 180°–245°  | —        | n/a     | ditto                                                                                     |
+
 ## Tension colour — `Config/TensionPalette.asset` (§3.10, ADR-0017)
 
 Asset: `Assets/Jazztures/Config/TensionPalette.asset` (`Jazztures/Config/Tension Palette`).

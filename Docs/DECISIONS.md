@@ -8,6 +8,139 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0038 — Design A: continuous (height, openness) selection, pinch articulation
+
+**Date:** 2026-09-22 · **Status:** Proposed — code lands complete and fully headless-tested;
+the Unity adapter and every numeric default are unverified on device.
+**Milestone:** M3/M4 (adds `Core/Gesture/HarmonicField*`, `PinchCommitThresholds`,
+`ChordPinchDetector`; adds `Input/MetaXRHandPostureSource`,
+`Config/HarmonicFieldConfig`; revises `PerformanceCompositionRoot`)
+**Changes the thesis:** §1.3's left-hand recognition mechanism, pending which design wins
+— see "Thesis impact" below. The taught gestures (ii/V/I) and their meaning are unchanged.
+
+**The finding.** ADR-0031 through ADR-0037 — five rounds, each a real, verified,
+individually-correct fix — did not resolve the left hand's on-device reliability. Every one
+of those bugs was in the *articulation* path (`ChordStrikeDetector`, a velocity-threshold
+downward motion); *selection* (which of ii/V/I is held, reflected in the tension-colour UI)
+was reliable throughout every round. The pattern across all five: a continuous signal's
+history (a stale velocity peak, a release quietly accumulating in the background, an
+`AudioSource`'s prior state) kept leaking into a frame where the physical situation had
+already moved on. The right hand's melody targets already solved the equivalent problem by
+moving to pinch — self-contact — as the commit signal (`Docs/DESIGN-SPACE.md` finding D1:
+"the only reliable proprioceptive click... is thumb-to-finger self-contact"). The left
+hand's strike was the last velocity-threshold commit signal left in the system.
+
+**Decision.** Pursue Design A from `Docs/DESIGN-SPACE.md` §3 for *selection* — one
+continuous 2D posture space (hand height × openness) with ii/V/I as landmarks, nearest-
+neighbour with hysteresis, replacing the three discrete pose classifiers — paired with
+**pinch** for *articulation*, which that document does not itself resolve (it predates
+ADR-0025's selection/strike split by four days). Pairing them keeps the interaction model
+consistent across both hands: a continuous signal selects, self-contact commits.
+
+**A latch, not "nothing near a landmark ⇒ release."** `HarmonicField` keeps the currently
+latched landmark until either the hand drops below a release floor of its own (a second
+Schmitt pair, `FloorHeight`/`FloorReleaseHeight`) or a different landmark comes within
+`LockRadius` while the current one has drifted past `UnlockRadius`. Nothing in mid-air
+between landmarks ever reads `HandPoseCandidate.None`. This is a *structural* version of
+what ADR-0034/ADR-0037 had to fix reactively: there, a release could confirm from ordinary
+pose noise while the hand had never actually released, because the old model treated
+"doesn't currently match a pose" as evidence toward releasing. Here, travelling between two
+landmarks is never itself evidence of anything — a release can only be produced by a
+deliberate hand-drop. The same class of bug this session spent five rounds chasing cannot
+occur in this design at all, not merely tolerated further.
+
+**No new port.** `Docs/DESIGN-SPACE.md` proposed a second port, `IHandPostureSource`, run
+alongside `IHandPoseSource`. This turned out to be unnecessary: `HarmonicField` produces the
+same `HandPoseCandidate` the discrete recognisers do, so `MetaXRHandPostureSource` simply
+implements the existing `IHandPoseSource` — which is a one-property interface — and
+`GestureInterpreter`'s confirmation hold-time, miss tolerance, tracking-loss sustain and
+release asymmetry are all reused completely unchanged. `ChordPinchDetector` mirrors
+`ChordStrikeDetector`'s shape exactly, including a `Feed(HandPoseFrame)` overload built with
+ADR-0037's commit-before-interpreter ordering from the start this time, not discovered the
+hard way again. `GestureInterpreter.NotifyStruck` is reused verbatim — a pinch is at least
+as strong evidence of continued engagement as a strike, and arguably stronger, since
+(unlike a ballistic strike) a pinch with the index excluded from the openness axis does not
+itself disturb the posture reading. Cost of skipping the second port: a recorded fixture
+now stores only the resolved candidate, not the raw (height, openness), so `HarmonicField`'s
+ten thresholds cannot be re-tuned offline against a recording the way gesture thresholds
+can — only on-device, or by re-deriving from a `_logPosture` console capture.
+
+**Openness deliberately excludes the index finger.** Pinching curls the index by roughly a
+quarter of its range; if openness averaged it in, the act of committing a chord would
+itself drag the selection point toward V. Openness averages middle/ring/pinky only.
+
+**Velocity comes from pinch-*closing rate*, not pinch strength.** Strength at the rising
+edge sits right at the SDK's own pinch threshold by construction and carries almost no
+dynamic range; the closing rate — `d(strength)/dt`, sampled with the same peak-over-window
+backward walk `ReadVerticalSpeed` already uses (ADR-0035, sign flipped: peak positive
+instead of peak negative) — is where the expressive signal actually is. This matches
+`DESIGN-SPACE.md`'s own §3 Design B: "dynamics come from pinch-closing speed."
+
+**Height reads the wrist, never a fingertip.** `HandJointId.HandWristRoot`, not
+`HandMiddleTip` (which the strike path reads for the opposite reason — ADR-0028). A
+fingertip's height co-varies with finger curl; reading it for the height axis here would
+contaminate height against openness. There is no `HandPalm` joint on this SDK.
+
+**§3.4 compliance.** "Do not hand-roll joint-angle math" is satisfied: openness is read via
+`Oculus.Interaction.PoseDetection.FingerShapes.GetCurlValue`, the SDK's own feature
+extractor — the same one `ShapeRecognizerActiveState` uses internally
+(`DefaultFingerShapes = new FingerShapes()`). The per-finger curl normalisation bounds
+(middle/ring 180°–250°, pinky 180°–245°) are copied verbatim from the SDK's own
+`PalmGrabAPI.CURL_RANGE`, not invented.
+
+**Per-finger confidence loss holds the last pinch value.** `MetaXRHandPostureSource` does
+not force the reported pinch to `false` when the pinch finger's or thumb's own confidence
+drops, even while the whole hand otherwise reads `TrackingQuality.High` — it holds whatever
+was last reported. This is ADR-0031's "sustain, do not release" principle one level down,
+at finger granularity: without it, a confidence blip mid-pinch could read as
+release-then-re-pinch and manufacture a phantom rising edge in `ChordPinchDetector`.
+
+**What stays, unchanged, behind the switch.** `MetaXRHandPoseSource`, the ii/V/I
+`ShapeRecognizer`/`TransformRecognizer` assets, and `ChordStrikeDetector` are untouched.
+`PerformanceCompositionRoot.HarmonyCommitGesture` (`Strike`/`Pinch`) picks which
+selection+articulation pair is wired; reverting is one Inspector field, matching
+`Docs/DESIGN-SPACE.md`'s own "kept behind the bake-off switch... deleted from whichever
+loses" principle. Neither system's code is deleted by this ADR.
+
+**Fully new `[TUNABLE]` values — see `Docs/CALIBRATION.md`'s Harmonic Field section for
+the complete table.** Ten values (six landmark coordinates, the floor pair, the two radii)
+are pure invention, not derived from any measurement — the least-confidence numbers in this
+codebase's history. Two pinch-rate bounds are also invented. Everything else new
+(`MinInterPinchSeconds`, the shoulder height offset, the pinch-rate sample window) is
+inherited from an existing, already-guessed value rather than re-guessed, and the curl
+normalisation bounds are not tunables at all — they are the SDK's own documented ranges.
+
+**Not yet verified.** `MetaXRHandPostureSource`, `HarmonicFieldConfig`, and the
+`PerformanceCompositionRoot` wiring are outside the `dotnet test` mirror (same status
+ADR-0033/0035/0036 already carry) — 24 new EditMode tests cover every line of
+`HarmonicField`/`ChordPinchDetector` logic headlessly (375 total, all green), but nothing
+can verify on paper whether index-pinch registers reliably from a closed fist at V, whether
+the SDK's pinch boolean is itself hysteretic or chatters, or whether excluding the index
+leaves enough openness range to separate the three landmarks on a real hand.
+`MetaXRHandPostureSource._pinchFinger` is Inspector-selectable (default `Index`) for a
+same-day fallback to `Middle` if the first proves unreliable, with no code change.
+
+**Manual in-editor setup required**, matching ADR-0026's precedent: create
+`HarmonicFieldConfig.asset`; add `MetaXRHandPostureSource` alongside the existing
+`MetaXRHandPoseSource`, wiring the same `_head`/left-hand/right-hand references
+`TouchTargetRig`/`MetaXRHandPoseSource` already use; on `PerformanceCompositionRoot`, point
+`_handPoseSource` at the new component, set `Commit Gesture` to `Pinch`, assign
+`_harmonicField`. Enable `MetaXRHandPostureSource._logPosture` for the first session and
+replace every landmark/radius default with a real measured value *before* judging whether
+the mechanic works — judging the invented defaults would be measuring the guesses, not the
+design.
+
+**Thesis impact.** §1.3's left-hand description ("hold a pose... a static shape") would
+need to describe a continuous posture space instead of three discrete classifiers if Design
+A wins the bake-off this ADR starts — the *taught* gestures and their meaning (ii/V/I,
+preparation→tension→resolution) are unchanged, which is the same defense ADR-0014 already
+established for a prior recognition-mechanism swap ("a co-designed pose... turned out to be
+physically unobservable... and had to be re-keyed on a reliable correlate while the taught
+gesture stayed identical" — `Docs/DESIGN-SPACE.md` §7 makes the same argument at length).
+No thesis prose is edited here (rule 7); record the outcome once decided.
+
+---
+
 ## ADR-0037 — A strike and a same-frame release confirmation raced; the release could win and silently swallow the strike
 
 **Date:** 2026-09-21 · **Status:** Accepted (on-device finding, confirmed against the

@@ -20,23 +20,42 @@ namespace Jazztures.App
     /// <para>
     /// input → domain → presentation:
     /// hand-pose source → <see cref="GestureInterpreter"/> (selects) +
-    /// <see cref="ChordStrikeDetector"/> (articulates, ADR-0025) → <see cref="HarmonyEngine"/>
-    /// + <see cref="MelodyEngine"/> → <see cref="SamplerNoteSink"/>. The composite sink
-    /// gains the OSC and telemetry sinks in later milestones.
+    /// <see cref="ChordStrikeDetector"/> or <see cref="ChordPinchDetector"/> (articulates,
+    /// ADR-0025 / Design A's ADR-0038 — <see cref="HarmonyCommitGesture"/> picks which) →
+    /// <see cref="HarmonyEngine"/> + <see cref="MelodyEngine"/> → <see cref="SamplerNoteSink"/>.
+    /// The composite sink gains the OSC and telemetry sinks in later milestones.
     /// </para>
     /// </summary>
     public sealed class PerformanceCompositionRoot : MonoBehaviour
     {
+        /// <summary>How a chord is articulated (Design A, ADR-0038).</summary>
+        public enum HarmonyCommitGesture
+        {
+            /// <summary>The ADR-0025 downward strike — needs a <see cref="MetaXRHandPoseSource"/>.</summary>
+            Strike,
+
+            /// <summary>An index pinch (Design A) — needs a <see cref="MetaXRHandPostureSource"/>.</summary>
+            Pinch,
+        }
+
         [SerializeField] private SamplerNoteSink _sampler;
 
-        [Tooltip("A MetaXRHandPoseSource, or leave empty to use the desktop keyboard (Z/X/C).")]
+        [Tooltip("A MetaXRHandPoseSource or MetaXRHandPostureSource, or leave empty to use the desktop keyboard (Z/X/C).")]
         [SerializeField] private MonoBehaviour _handPoseSource;
 
         [Tooltip("A recorded .jsonl fixture. If set, it is replayed instead of the live source.")]
         [SerializeField] private TextAsset _replayFixture;
 
-        [Tooltip("Gesture tuning. Leave empty for the built-in defaults.")]
+        [Tooltip("Gesture tuning for the strike path. Leave empty for the built-in defaults.")]
         [SerializeField] private GestureThresholdsConfig _gestureThresholds;
+
+        [Tooltip("How a chord is articulated. Strike = the ADR-0025 downward motion (needs "
+            + "a MetaXRHandPoseSource). Pinch = index self-contact (Design A, ADR-0038; "
+            + "needs a MetaXRHandPostureSource).")]
+        [SerializeField] private HarmonyCommitGesture _commitGesture = HarmonyCommitGesture.Strike;
+
+        [Tooltip("Tuning for the continuous harmonic field and pinch commit. Required when Commit Gesture is Pinch.")]
+        [SerializeField] private HarmonicFieldConfig _harmonicField;
 
         [Tooltip("Fixed note length for melody notes, seconds. [OPEN] — pilot-calibrated at M8.")]
         [SerializeField] private double _melodySustainSeconds = MelodyEngine.DefaultSustainSeconds;
@@ -51,6 +70,8 @@ namespace Jazztures.App
         private IHandPoseSource _poseSource;
         private GestureInterpreter _interpreter;
         private ChordStrikeDetector _strikeDetector;
+        private ChordPinchDetector _pinchDetector;
+        private System.Action<HandPoseFrame> _feedCommit;
         private ModeGatedNoteSink _gate;
         private HarmonyEngine _harmony;
         private MelodyEngine _melody;
@@ -91,17 +112,48 @@ namespace Jazztures.App
             _interpreter = new GestureInterpreter(clock, thresholds);
             _interpreter.ConfirmedFunctionChanged += function => _harmony.SetHeldFunction(function);
 
-            // ADR-0025: selection (above) and articulation (below) are separate events —
-            // the pose says which chord, the strike says when it sounds.
-            _strikeDetector = new ChordStrikeDetector(clock, _interpreter, thresholds);
-            _strikeDetector.Struck += velocity =>
+            // ADR-0025 / Design A (ADR-0038): selection (above) and articulation (below)
+            // are separate events regardless of which commit gesture is active — the
+            // pose/field says which chord, the strike/pinch says when it sounds.
+            if (_commitGesture == HarmonyCommitGesture.Pinch)
             {
-                Debug.Log($"[DIAG] STRUCK v={velocity} confirmed={_interpreter.ConfirmedFunction} t={AudioSettings.dspTime:0.000}");
-                _harmony.Strike(velocity);
-            };
+                PinchCommitThresholds pinchThresholds = _harmonicField != null
+                    ? _harmonicField.ToPinchThresholds()
+                    : PinchCommitThresholds.Default;
+
+                if (_harmonicField == null)
+                {
+                    Debug.LogWarning(
+                        $"{nameof(PerformanceCompositionRoot)}: Commit Gesture is Pinch but no "
+                        + $"{nameof(HarmonicFieldConfig)} is assigned; using engineering defaults.", this);
+                }
+
+                _pinchDetector = new ChordPinchDetector(clock, _interpreter, pinchThresholds);
+                _pinchDetector.Articulated += velocity => _harmony.Strike(velocity);
+                _feedCommit = _pinchDetector.Feed;
+            }
+            else
+            {
+                _strikeDetector = new ChordStrikeDetector(clock, _interpreter, thresholds);
+                _strikeDetector.Struck += velocity =>
+                {
+                    Debug.Log($"[DIAG] STRUCK v={velocity} confirmed={_interpreter.ConfirmedFunction} t={AudioSettings.dspTime:0.000}");
+                    _harmony.Strike(velocity);
+                };
+                _feedCommit = _strikeDetector.Feed;
+            }
 
             _poseSource = ResolvePoseSource(clock);
             _melodyKeys = new KeyboardMelodyInput();
+
+            if (_commitGesture == HarmonyCommitGesture.Pinch
+                && !(_poseSource is MetaXRHandPostureSource)
+                && !(_poseSource is ReplayHandPoseSource))
+            {
+                Debug.LogWarning(
+                    $"{nameof(PerformanceCompositionRoot)}: Commit Gesture is Pinch but the hand-pose "
+                    + $"source is not a {nameof(MetaXRHandPostureSource)} — it will never report a pinch.", this);
+            }
 
             GetComponent<DomainEventBridge>()?.Bind(_harmony, _interpreter, _poseSource);
             GetComponent<LessonRunner>()?.Bind(clock, _gate, _interpreter);
@@ -166,17 +218,18 @@ namespace Jazztures.App
             }
 
             HandPoseFrame frame = _poseSource.CurrentFrame;
-            if (Mathf.Abs(frame.LeftVerticalSpeedMetresPerSecond) > 0.05f)
+            if (_commitGesture == HarmonyCommitGesture.Strike && Mathf.Abs(frame.LeftVerticalSpeedMetresPerSecond) > 0.05f)
             {
                 Debug.Log($"[DIAG] vy={frame.LeftVerticalSpeedMetresPerSecond:0.000} candidate={frame.LeftCandidate} confirmed={_interpreter.ConfirmedFunction} phase={_interpreter.Phase} t={AudioSettings.dspTime:0.000}");
             }
 
-            // ADR-0037: ChordStrikeDetector.Feed(HandPoseFrame) internally strikes before
-            // handing the frame to the interpreter — see its doc comment. Calling it here
-            // (rather than _interpreter.Feed(frame) + _strikeDetector.Feed(velocity)
-            // separately) makes that ordering guaranteed instead of dependent on these two
-            // lines never being reordered.
-            _strikeDetector.Feed(frame);
+            // ADR-0037: both ChordStrikeDetector.Feed(HandPoseFrame) and
+            // ChordPinchDetector.Feed(HandPoseFrame) internally commit before handing the
+            // frame to the interpreter — see either's doc comment. Calling through
+            // _feedCommit (rather than _interpreter.Feed(frame) + the detector's own
+            // velocity/pinch Feed separately) makes that ordering guaranteed instead of
+            // dependent on these two lines never being reordered.
+            _feedCommit(frame);
             _harmony.Tick();
             _melodyKeys.Poll(_melody);
             _melody.Tick();

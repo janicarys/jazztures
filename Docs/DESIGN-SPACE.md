@@ -219,6 +219,17 @@ bake-off; whichever loses, its port is deleted afterward rather than left half-u
 runnable against recorded fixtures headless, matching §2.6's standing instruction not to
 iterate on thresholds by repeatedly donning the headset.
 
+**Note (ADR-0038): shipped without the second port.** `HarmonicField` produces the same
+`HandPoseCandidate` the discrete recognisers do, so `MetaXRHandPostureSource` implements
+the existing `IHandPoseSource` directly rather than a new `IHandPostureSource` — simpler,
+and it means `GestureInterpreter` is reused completely unchanged. The cost predicted above
+is real: a recorded fixture now stores only the resolved candidate, not the raw (height,
+openness), so `HarmonicField`'s thresholds cannot be re-tuned offline against a recording
+the way gesture thresholds can. Also: this document doesn't resolve how *articulation*
+should work under Design A (it predates ADR-0025's selection/strike split) — ADR-0038 pairs
+Design A's continuous selection with a pinch for articulation, extending this document's
+own §2 "separate selection from commitment" principle to the left hand as well.
+
 ---
 
 ## 5. Process finding: decide on-device, in one session, not across six
