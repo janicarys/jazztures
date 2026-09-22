@@ -64,6 +64,11 @@ namespace Jazztures.App
         [Tooltip("The virtual object the left hand must touch to sound a chord. Required when Commit Gesture is Touch.")]
         [SerializeField] private Jazztures.Presentation.ChordStrikeTarget _strikeTarget;
 
+        [Tooltip("Optional (ADR-0040). Body-anchors _strikeTarget to the left, at strike height, "
+            + "instead of leaving it at a fixed world position. Lives on the same GameObject as "
+            + "_strikeTarget; leave empty to keep the plate world-fixed.")]
+        [SerializeField] private Jazztures.Presentation.ChordStrikeTargetAnchor _strikeTargetAnchor;
+
         [Tooltip("Fixed note length for melody notes, seconds. [OPEN] — pilot-calibrated at M8.")]
         [SerializeField] private double _melodySustainSeconds = MelodyEngine.DefaultSustainSeconds;
 
@@ -260,6 +265,13 @@ namespace Jazztures.App
 
             if (_commitGesture == HarmonyCommitGesture.Touch && _strikeTarget != null)
             {
+                // ADR-0040: re-anchor before Sense(), same reasoning as Sense() itself —
+                // called explicitly rather than left to Unity's Update()/LateUpdate() order.
+                if (_strikeTargetAnchor != null)
+                {
+                    _strikeTargetAnchor.Reanchor(Time.deltaTime);
+                }
+
                 // Called explicitly, not left to the target's own Update() — Unity does
                 // not guarantee component update order, and this frame's touch state must
                 // be settled before ChordTouchDetector reads it below.

@@ -157,11 +157,22 @@ starting point of the three.
 | Fingertip joint                | Index tip | —       | default | `ChordStrikeTarget._fingertip` — matches the melody targets' primary finger                                               |
 | Hit-flash decay                | 0.18 s   | —        | default | `ChordStrikeTarget._flashDecaySeconds` — cosmetic only                                                                    |
 
-**Not yet placed in space.** The target's position is a plain `Transform`, positioned by
-hand in the Editor — there is no anchor concept for it yet (unlike melody's shoulder-arc
-pivot, ADR-0019, or the harmonic field's body-relative height axis). Where it should sit
-relative to wherever the hand naturally holds a selection pose is unverified; expect to
-reposition it after the first device session.
+**Optional body anchor — `Presentation/ChordStrikeTargetAnchor` (ADR-0040).** Assign it
+alongside `ChordStrikeTarget` (same GameObject) to make the plate follow the learner the
+way the melody arc does, instead of sitting at one fixed world position. Reuses the melody
+arc's own `LazyRecenterSettings.Default` (35°/0.6s/0.5s) unchanged — only the offsets below
+are new, and both are unmeasured guesses (a description of intended placement, not a
+measurement).
+
+| Parameter               | Default  | Measured | Status  | Notes                                                                                   |
+| ------------------------ | -------- | -------- | ------- | ----------------------------------------------------------------------------------------- |
+| Height offset from head  | −0.45 m  | —        | default | lower than melody's arc reach (−0.25 m, ADR-0015) — struck downward near waist height, not reached out to. `ChordStrikeTargetAnchor._heightOffsetMetres` |
+| Lateral offset from head | −0.20 m  | —        | default | mirrors melody's rightward bias (+0.08 m, ADR-0020) onto the other hand, at a larger magnitude since this is one plate, not a ten-target arc to keep in frame. `_lateralOffsetMetres` |
+| Forward offset from head | +0.20 m  | —        | default | how far in front of the body the plate sits. `_forwardOffsetMetres`                       |
+
+Leaving `_strikeTargetAnchor` unassigned on `PerformanceCompositionRoot` keeps
+`ChordStrikeTarget` exactly as ADR-0039 shipped it — a plain, world-fixed `Transform`
+positioned by hand in the Editor.
 
 ## Tension colour — `Config/TensionPalette.asset` (§3.10, ADR-0017)
 

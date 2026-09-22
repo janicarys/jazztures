@@ -8,6 +8,61 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0040 — Body-anchor the strike plate, reusing the melody arc's own follow logic verbatim
+
+**Date:** 2026-09-22 · **Status:** Proposed — code lands complete; no automated coverage
+possible for a MonoBehaviour anchor, and it is unverified on device.
+**Milestone:** M4 (adds `Presentation/ChordStrikeTargetAnchor`; extends
+`PerformanceCompositionRoot`)
+**Changes the thesis:** none — refines ADR-0039's placement, not the taught gesture.
+
+**The finding.** `ChordStrikeTarget` (ADR-0039) shipped as a plain, world-fixed `Transform`
+positioned by hand in the Editor — asked directly, the student described wanting a flat
+plane you strike down onto that, like the right hand's melody arc (ADR-0015), follows the
+learner rather than sitting at one fixed point in the room.
+
+**Decision.** Reuse `Core.Melody.LazyRecenter`/`LazyRecenterSettings` — the pure, headlessly
+tested yaw-follow logic the melody arc already relies on — unchanged, including its exact
+default thresholds (`LazyRecenterSettings.Default`: 35°/0.6s/0.5s). This is the same body,
+answering the same "how much yaw drift before the rig should follow" question the melody
+arc already answered; nothing about a left-hand plate justifies re-deriving it. Only the
+anchor *offsets* are new — mirrored to the left (`_lateralOffsetMetres = −0.20`) and lower
+than melody's arc reach (`_heightOffsetMetres = −0.45` vs. melody's −0.25), since this plate
+is struck downward near waist height rather than reached out to at shoulder height. Both are
+new, undemonstrated guesses.
+
+**A flat disc doesn't need to face the learner.** `TargetVolume`'s local Z is always the
+approach axis (ADR-0016/0018) and the containment test is a circular cylinder — rotationally
+symmetric about that axis. `ChordStrikeTargetAnchor.ApplyAnchor` fixes rotation to
+`Quaternion.Euler(-90, 0, 0)` (local Z pointing straight up, so the disc lies horizontal,
+struck from above) and never touches it again. Unlike the melody arc, which must rotate its
+whole ring to keep each target's approach axis pointed at the learner as they turn, the
+plate's *position* needs to follow head yaw (so it stays in front of the body) but its
+*orientation* never does. This is a direct, checkable consequence of one already-tested
+piece of code (`TargetVolume.Contains`), not a new claim.
+
+**Explicit call, not `LateUpdate` ordering — following ADR-0039's own precedent.**
+`TouchTargetRig` anchors itself in `LateUpdate()` at `DefaultExecutionOrder(-10)`, relying on
+Unity's phase ordering to land before whatever reads the target transforms. ADR-0039 already
+rejected that pattern for `ChordStrikeTarget.Sense()` in favour of an explicit call from
+`PerformanceCompositionRoot.Update()`; `ChordStrikeTargetAnchor.Reanchor()` follows the same
+rule for the same reason — the composition root calls it immediately before `Sense()`, so
+there is no frame where sensing runs against a stale anchor.
+
+**Optional, not required.** `PerformanceCompositionRoot._strikeTargetAnchor` may be left
+unassigned — Touch mode then behaves exactly as ADR-0039 shipped it, a fixed plate. Assigning
+it (on the same GameObject as `_strikeTarget`, enforced by `[RequireComponent]`) switches on
+the follow.
+
+**Not yet verified.** Both offset guesses are unmeasured — the "waist height, close in"
+description is a description of intent, not a measurement. First device session should
+check whether the plate physically ends up in a strikeable spot at all before judging
+anything about the touch mechanism itself.
+
+**Thesis impact:** none beyond ADR-0039's existing note.
+
+---
+
 ## ADR-0039 — A third articulation commit: touching a virtual object, reusing the melody targets' own proven volume test
 
 **Date:** 2026-09-22 · **Status:** Proposed — code lands complete and fully headless-tested;
