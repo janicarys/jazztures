@@ -8,6 +8,93 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0039 — A third articulation commit: touching a virtual object, reusing the melody targets' own proven volume test
+
+**Date:** 2026-09-22 · **Status:** Proposed — code lands complete and fully headless-tested;
+the Unity components and scene wiring are unverified on device.
+**Milestone:** M3/M4 (adds `Core/Gesture/TouchCommitThresholds`, `ChordTouchDetector`;
+adds `Presentation/ChordStrikeTarget`; extends `HandPoseFrame`/`HandPoseRecording`; revises
+`PerformanceCompositionRoot`)
+**Changes the thesis:** none beyond what ADR-0038 already flags — this changes which
+articulation mechanism is behind the same switch, not the taught gestures.
+
+**The finding.** After ADR-0038 shipped, on-device testing reported no change — traced to
+the scene never actually being switched to it (`PerformanceCompositionRoot._commitGesture`
+was still `Strike`, `_handPoseSource` still pointed at the discrete
+`MetaXRHandPoseSource`, and neither `_harmonicField` nor the new
+`MetaXRHandPostureSource._config` were assigned): the new components existed in the scene
+but were never wired live. Separately, and independently of that wiring gap, the student
+proposed a third articulation mechanism: a virtual object the left hand must touch to sound
+the chord, using the same hand that performs selection.
+
+**Decision.** Reuse `Core/Melody/TargetVolume.cs` — the exact cylinder-containment struct
+the right hand's ten melody targets already use (ADR-0016/0018) — for the left hand's
+single strike target, rather than a velocity threshold (ADR-0025) or the SDK's pinch flag
+(ADR-0038). This is the first articulation mechanism in this project's history built from a
+piece that has already worked reliably on this hardware — melody's touch targets have not
+had a single reliability report in this entire session, unlike every left-hand mechanism
+tried. `ChordTouchDetector` mirrors `ChordPinchDetector`'s shape exactly (the ADR-0037
+`Feed(HandPoseFrame)` ordering built in from the start again), differing in two ways: it
+adds an entry-velocity gate (`TouchCommitThresholds.EntryVelocityGateMetresPerSecond`,
+rejecting a resting hand that drifts in rather than deliberately approaches), and its
+velocity comes directly from `VelocityCurve.FromSpeed` against a real m/s entry speed
+rather than a normalised 0..1 value, since containment naturally carries a physical speed
+the way pinch strength does not.
+
+**Both new thresholds are inherited, not guessed.** `MinInterTouchSeconds` (120 ms) is the
+same value as `MinInterStrikeSeconds`. `EntryVelocityGateMetresPerSecond` (0.08 m/s) is
+`MelodyConfig`'s own entry gate, verbatim — the one commit-signal default in this project's
+history that has already been on-device pressure-tested (ADR-0018 fixed the exact "careful
+aiming... dropped silently" failure this same gate answers), just for the other hand. This
+is a meaningfully higher-confidence starting point than either ADR-0038's ten invented
+landmark/radius values or its two invented pinch-rate bounds.
+
+**Self-contained sensing, called explicitly, not left to `Update()` ordering.**
+`ChordStrikeTarget` senses its own containment and peak entry speed (mirroring
+`TouchTargetBinder`'s exact fingertip-speed algorithm — unsigned `Vector3.Distance`/dt, peak
+over a window, no direction-reversal concern the way ADR-0035's signed derivative had,
+since containment is a boolean "inside right now"), but `PerformanceCompositionRoot.Update()`
+calls `Sense()` explicitly before reading its results, rather than relying on the target's
+own `Update()` having already run this frame — Unity does not guarantee component update
+order, and `MetaXRHandPoseSource`/`MetaXRHandPostureSource` already solve the identical
+problem for their own `CurrentFrame` via per-`Time.frameCount` memoization.
+
+**Orthogonal to selection.** `ChordTouchDetector` and `ChordStrikeTarget` do not care
+whether the discrete pose recognisers or `HarmonicField` produced the confirmed function —
+`HarmonyCommitGesture.Touch` composes with either hand-pose source. `PerformanceCompositionRoot.Update()`
+merges the target's sensed state into the frame it already has before feeding it to
+whichever detector is active.
+
+**What stays, unchanged, behind the switch.** All of ADR-0025's and ADR-0038's code is
+untouched; `HarmonyCommitGesture` gains a third value (`Touch`) alongside `Strike`/`Pinch`.
+
+**Not yet verified.** `ChordStrikeTarget` and the `PerformanceCompositionRoot` wiring are
+outside the `dotnet test` mirror; 14 new EditMode tests cover every line of
+`ChordTouchDetector`'s logic headlessly (389 total, all green). Unverified on device: where
+in space the target should sit relative to wherever the hand naturally holds a pose (no
+existing anchor concept — the target is a plain placed `Transform`, positioned by hand in
+the Editor); whether the fixed target position works across ii/V/I or needs to move with
+the selected function; and whether one shared target for all three functions is confusing
+compared to one per function (deferred — start with one, per the student's request).
+
+**Manual in-editor setup required.** Create a GameObject with `ChordStrikeTarget`
+(optionally a child sphere mesh for a visual, wired to its `_renderer` field), position it
+somewhere reachable while holding a left-hand pose, assign its `_leftHand` reference (the
+same `IHand` component the other adapters use); on `PerformanceCompositionRoot`, set
+`Commit Gesture` to `Touch` and assign `_strikeTarget`. Works with the existing
+`_handPoseSource` unchanged (either `MetaXRHandPoseSource` or `MetaXRHandPostureSource`) —
+this mechanism does not require switching selection mechanisms at all.
+
+**Also fixed while here: the ADR-0038 wiring gap.** Documented above as "the finding" — no
+code change was needed, only correcting the scene: pointing `_handPoseSource` at
+`MetaXRHandPostureSource`, assigning `_harmonicField` in two places, and setting
+`_commitGesture` to `Pinch`, if Design A's pinch path is still worth testing on its own
+terms later.
+
+**Thesis impact:** none beyond ADR-0038's existing note.
+
+---
+
 ## ADR-0038 — Design A: continuous (height, openness) selection, pinch articulation
 
 **Date:** 2026-09-22 · **Status:** Proposed — code lands complete and fully headless-tested;

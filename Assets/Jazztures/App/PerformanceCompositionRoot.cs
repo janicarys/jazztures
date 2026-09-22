@@ -20,15 +20,16 @@ namespace Jazztures.App
     /// <para>
     /// input → domain → presentation:
     /// hand-pose source → <see cref="GestureInterpreter"/> (selects) +
-    /// <see cref="ChordStrikeDetector"/> or <see cref="ChordPinchDetector"/> (articulates,
-    /// ADR-0025 / Design A's ADR-0038 — <see cref="HarmonyCommitGesture"/> picks which) →
+    /// <see cref="ChordStrikeDetector"/>, <see cref="ChordPinchDetector"/> or
+    /// <see cref="ChordTouchDetector"/> (articulates — ADR-0025, Design A's ADR-0038, or
+    /// ADR-0039; <see cref="HarmonyCommitGesture"/> picks which) →
     /// <see cref="HarmonyEngine"/> + <see cref="MelodyEngine"/> → <see cref="SamplerNoteSink"/>.
     /// The composite sink gains the OSC and telemetry sinks in later milestones.
     /// </para>
     /// </summary>
     public sealed class PerformanceCompositionRoot : MonoBehaviour
     {
-        /// <summary>How a chord is articulated (Design A, ADR-0038).</summary>
+        /// <summary>How a chord is articulated (Design A ADR-0038 / ADR-0039).</summary>
         public enum HarmonyCommitGesture
         {
             /// <summary>The ADR-0025 downward strike — needs a <see cref="MetaXRHandPoseSource"/>.</summary>
@@ -36,6 +37,9 @@ namespace Jazztures.App
 
             /// <summary>An index pinch (Design A) — needs a <see cref="MetaXRHandPostureSource"/>.</summary>
             Pinch,
+
+            /// <summary>Touching a virtual object (ADR-0039) — needs a <see cref="Jazztures.Presentation.ChordStrikeTarget"/>, works with either hand-pose source.</summary>
+            Touch,
         }
 
         [SerializeField] private SamplerNoteSink _sampler;
@@ -57,6 +61,9 @@ namespace Jazztures.App
         [Tooltip("Tuning for the continuous harmonic field and pinch commit. Required when Commit Gesture is Pinch.")]
         [SerializeField] private HarmonicFieldConfig _harmonicField;
 
+        [Tooltip("The virtual object the left hand must touch to sound a chord. Required when Commit Gesture is Touch.")]
+        [SerializeField] private Jazztures.Presentation.ChordStrikeTarget _strikeTarget;
+
         [Tooltip("Fixed note length for melody notes, seconds. [OPEN] — pilot-calibrated at M8.")]
         [SerializeField] private double _melodySustainSeconds = MelodyEngine.DefaultSustainSeconds;
 
@@ -71,6 +78,7 @@ namespace Jazztures.App
         private GestureInterpreter _interpreter;
         private ChordStrikeDetector _strikeDetector;
         private ChordPinchDetector _pinchDetector;
+        private ChordTouchDetector _touchDetector;
         private System.Action<HandPoseFrame> _feedCommit;
         private ModeGatedNoteSink _gate;
         private HarmonyEngine _harmony;
@@ -112,35 +120,62 @@ namespace Jazztures.App
             _interpreter = new GestureInterpreter(clock, thresholds);
             _interpreter.ConfirmedFunctionChanged += function => _harmony.SetHeldFunction(function);
 
-            // ADR-0025 / Design A (ADR-0038): selection (above) and articulation (below)
-            // are separate events regardless of which commit gesture is active — the
-            // pose/field says which chord, the strike/pinch says when it sounds.
-            if (_commitGesture == HarmonyCommitGesture.Pinch)
+            // ADR-0025 / Design A (ADR-0038) / ADR-0039: selection (above) and
+            // articulation (below) are separate events regardless of which commit gesture
+            // is active — the pose/field says which chord, the strike/pinch/touch says
+            // when it sounds.
+            switch (_commitGesture)
             {
-                PinchCommitThresholds pinchThresholds = _harmonicField != null
-                    ? _harmonicField.ToPinchThresholds()
-                    : PinchCommitThresholds.Default;
-
-                if (_harmonicField == null)
+                case HarmonyCommitGesture.Pinch:
                 {
-                    Debug.LogWarning(
-                        $"{nameof(PerformanceCompositionRoot)}: Commit Gesture is Pinch but no "
-                        + $"{nameof(HarmonicFieldConfig)} is assigned; using engineering defaults.", this);
+                    PinchCommitThresholds pinchThresholds = _harmonicField != null
+                        ? _harmonicField.ToPinchThresholds()
+                        : PinchCommitThresholds.Default;
+
+                    if (_harmonicField == null)
+                    {
+                        Debug.LogWarning(
+                            $"{nameof(PerformanceCompositionRoot)}: Commit Gesture is Pinch but no "
+                            + $"{nameof(HarmonicFieldConfig)} is assigned; using engineering defaults.", this);
+                    }
+
+                    _pinchDetector = new ChordPinchDetector(clock, _interpreter, pinchThresholds);
+                    _pinchDetector.Articulated += velocity => _harmony.Strike(velocity);
+                    _feedCommit = _pinchDetector.Feed;
+                    break;
                 }
 
-                _pinchDetector = new ChordPinchDetector(clock, _interpreter, pinchThresholds);
-                _pinchDetector.Articulated += velocity => _harmony.Strike(velocity);
-                _feedCommit = _pinchDetector.Feed;
-            }
-            else
-            {
-                _strikeDetector = new ChordStrikeDetector(clock, _interpreter, thresholds);
-                _strikeDetector.Struck += velocity =>
+                case HarmonyCommitGesture.Touch:
                 {
-                    Debug.Log($"[DIAG] STRUCK v={velocity} confirmed={_interpreter.ConfirmedFunction} t={AudioSettings.dspTime:0.000}");
-                    _harmony.Strike(velocity);
-                };
-                _feedCommit = _strikeDetector.Feed;
+                    if (_strikeTarget == null)
+                    {
+                        Debug.LogError(
+                            $"{nameof(PerformanceCompositionRoot)}: Commit Gesture is Touch but no "
+                            + $"{nameof(Jazztures.Presentation.ChordStrikeTarget)} is assigned — no chord will ever sound.", this);
+                    }
+
+                    _touchDetector = new ChordTouchDetector(clock, _interpreter, TouchCommitThresholds.Default);
+                    _touchDetector.Articulated += velocity =>
+                    {
+                        _harmony.Strike(velocity);
+                        if (_strikeTarget != null)
+                        {
+                            _strikeTarget.Flash();
+                        }
+                    };
+                    _feedCommit = _touchDetector.Feed;
+                    break;
+                }
+
+                default:
+                    _strikeDetector = new ChordStrikeDetector(clock, _interpreter, thresholds);
+                    _strikeDetector.Struck += velocity =>
+                    {
+                        Debug.Log($"[DIAG] STRUCK v={velocity} confirmed={_interpreter.ConfirmedFunction} t={AudioSettings.dspTime:0.000}");
+                        _harmony.Strike(velocity);
+                    };
+                    _feedCommit = _strikeDetector.Feed;
+                    break;
             }
 
             _poseSource = ResolvePoseSource(clock);
@@ -223,12 +258,24 @@ namespace Jazztures.App
                 Debug.Log($"[DIAG] vy={frame.LeftVerticalSpeedMetresPerSecond:0.000} candidate={frame.LeftCandidate} confirmed={_interpreter.ConfirmedFunction} phase={_interpreter.Phase} t={AudioSettings.dspTime:0.000}");
             }
 
-            // ADR-0037: both ChordStrikeDetector.Feed(HandPoseFrame) and
-            // ChordPinchDetector.Feed(HandPoseFrame) internally commit before handing the
-            // frame to the interpreter — see either's doc comment. Calling through
-            // _feedCommit (rather than _interpreter.Feed(frame) + the detector's own
-            // velocity/pinch Feed separately) makes that ordering guaranteed instead of
-            // dependent on these two lines never being reordered.
+            if (_commitGesture == HarmonyCommitGesture.Touch && _strikeTarget != null)
+            {
+                // Called explicitly, not left to the target's own Update() — Unity does
+                // not guarantee component update order, and this frame's touch state must
+                // be settled before ChordTouchDetector reads it below.
+                _strikeTarget.Sense();
+                frame = new HandPoseFrame(
+                    frame.LeftCandidate, frame.LeftTracking, frame.RightTracking,
+                    frame.LeftVerticalSpeedMetresPerSecond, frame.LeftIsPinching, frame.LeftPinchClosingRatePerSecond,
+                    _strikeTarget.CurrentlyInside, _strikeTarget.CurrentEntrySpeed);
+            }
+
+            // ADR-0037: ChordStrikeDetector/ChordPinchDetector/ChordTouchDetector's
+            // Feed(HandPoseFrame) overloads all internally commit before handing the frame
+            // to the interpreter — see any one's doc comment. Calling through _feedCommit
+            // (rather than _interpreter.Feed(frame) + the detector's own velocity/pinch/
+            // touch Feed separately) makes that ordering guaranteed instead of dependent on
+            // these two lines never being reordered.
             _feedCommit(frame);
             _harmony.Tick();
             _melodyKeys.Poll(_melody);

@@ -13,11 +13,14 @@ namespace Jazztures.Tests.EditMode.TestSupport
             TrackingQuality rightTracking = TrackingQuality.High,
             float leftVerticalSpeedMetresPerSecond = 0f,
             bool leftIsPinching = false,
-            float leftPinchClosingRatePerSecond = 0f)
+            float leftPinchClosingRatePerSecond = 0f,
+            bool leftIsTouchingTarget = false,
+            float leftTouchEntrySpeedMetresPerSecond = 0f)
         {
             CurrentFrame = new HandPoseFrame(
                 leftCandidate, leftTracking, rightTracking,
-                leftVerticalSpeedMetresPerSecond, leftIsPinching, leftPinchClosingRatePerSecond);
+                leftVerticalSpeedMetresPerSecond, leftIsPinching, leftPinchClosingRatePerSecond,
+                leftIsTouchingTarget, leftTouchEntrySpeedMetresPerSecond);
         }
     }
 }

@@ -16,7 +16,9 @@ namespace Jazztures.Core.Ports
             TrackingQuality rightTracking,
             float leftVerticalSpeedMetresPerSecond = 0f,
             bool leftIsPinching = false,
-            float leftPinchClosingRatePerSecond = 0f)
+            float leftPinchClosingRatePerSecond = 0f,
+            bool leftIsTouchingTarget = false,
+            float leftTouchEntrySpeedMetresPerSecond = 0f)
         {
             LeftCandidate = leftCandidate;
             LeftTracking = leftTracking;
@@ -24,6 +26,8 @@ namespace Jazztures.Core.Ports
             LeftVerticalSpeedMetresPerSecond = leftVerticalSpeedMetresPerSecond;
             LeftIsPinching = leftIsPinching;
             LeftPinchClosingRatePerSecond = leftPinchClosingRatePerSecond;
+            LeftIsTouchingTarget = leftIsTouchingTarget;
+            LeftTouchEntrySpeedMetresPerSecond = leftTouchEntrySpeedMetresPerSecond;
         }
 
         public HandPoseCandidate LeftCandidate { get; }
@@ -60,6 +64,28 @@ namespace Jazztures.Core.Ports
         /// </summary>
         public float LeftPinchClosingRatePerSecond { get; }
 
+        /// <summary>
+        /// Whether the left hand's fingertip is inside the virtual
+        /// <c>ChordStrikeTarget</c>'s volume this frame (ADR-0039) — a third articulation
+        /// commit, alongside the strike (ADR-0025) and the pinch (ADR-0038), using the
+        /// exact volume-containment test the right hand's ten melody targets already use
+        /// (<see cref="Jazztures.Core.Melody.TargetVolume"/>, ADR-0016/0018) rather than a
+        /// velocity threshold or the SDK's own pinch flag. Drives
+        /// <see cref="Jazztures.Core.Gesture.ChordTouchDetector"/>.
+        /// </summary>
+        public bool LeftIsTouchingTarget { get; }
+
+        /// <summary>
+        /// The fingertip's peak speed, metres per second, over the adapter's sample window
+        /// as it entered the target volume (ADR-0039) — the touch-commit counterpart of the
+        /// strike path's fingertip speed and the pinch path's closing rate. Unsigned (a
+        /// plain approach speed, mirroring the right hand's own entry-speed sampling,
+        /// ADR-0018), not a signed derivative: containment is a boolean "inside right now",
+        /// so there is no direction-reversal concern to guard against the way ADR-0035 did.
+        /// Feeds <see cref="Jazztures.Core.Melody.VelocityCurve.FromSpeed"/> directly.
+        /// </summary>
+        public float LeftTouchEntrySpeedMetresPerSecond { get; }
+
         /// <summary>A frame with nothing tracked — the safe default before input arrives.</summary>
         public static HandPoseFrame Untracked =>
             new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.NotTracked, TrackingQuality.NotTracked);
@@ -70,7 +96,9 @@ namespace Jazztures.Core.Ports
             && RightTracking == other.RightTracking
             && LeftVerticalSpeedMetresPerSecond.Equals(other.LeftVerticalSpeedMetresPerSecond)
             && LeftIsPinching == other.LeftIsPinching
-            && LeftPinchClosingRatePerSecond.Equals(other.LeftPinchClosingRatePerSecond);
+            && LeftPinchClosingRatePerSecond.Equals(other.LeftPinchClosingRatePerSecond)
+            && LeftIsTouchingTarget == other.LeftIsTouchingTarget
+            && LeftTouchEntrySpeedMetresPerSecond.Equals(other.LeftTouchEntrySpeedMetresPerSecond);
 
         public override bool Equals(object? obj) => obj is HandPoseFrame other && Equals(other);
 
@@ -84,13 +112,16 @@ namespace Jazztures.Core.Ports
                 hash = (hash * 397) ^ LeftVerticalSpeedMetresPerSecond.GetHashCode();
                 hash = (hash * 397) ^ LeftIsPinching.GetHashCode();
                 hash = (hash * 397) ^ LeftPinchClosingRatePerSecond.GetHashCode();
+                hash = (hash * 397) ^ LeftIsTouchingTarget.GetHashCode();
+                hash = (hash * 397) ^ LeftTouchEntrySpeedMetresPerSecond.GetHashCode();
                 return hash;
             }
         }
 
         public override string ToString() =>
             $"{LeftCandidate} (L:{LeftTracking} R:{RightTracking} vy:{LeftVerticalSpeedMetresPerSecond:0.00} " +
-            $"pinch:{LeftIsPinching} pinchRate:{LeftPinchClosingRatePerSecond:0.00})";
+            $"pinch:{LeftIsPinching} pinchRate:{LeftPinchClosingRatePerSecond:0.00} " +
+            $"touch:{LeftIsTouchingTarget} entrySpeed:{LeftTouchEntrySpeedMetresPerSecond:0.00})";
 
         public static bool operator ==(HandPoseFrame left, HandPoseFrame right) => left.Equals(right);
 

@@ -79,6 +79,33 @@ namespace Jazztures.Tests.EditMode.Gesture
         }
 
         [Test]
+        public void Jsonl_RoundTrips_TheTouchFields()
+        {
+            var original = new HandPoseRecording(new[]
+            {
+                new HandPoseSample(0.0, new HandPoseFrame(
+                    HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High,
+                    leftIsTouchingTarget: true, leftTouchEntrySpeedMetresPerSecond: 0.35f)),
+            });
+
+            string jsonl = original.ToJsonl();
+
+            Assert.That(HandPoseRecording.TryParseJsonl(jsonl, out HandPoseRecording parsed), Is.True);
+            Assert.That(parsed.Samples[0].Frame.LeftIsTouchingTarget, Is.True);
+            Assert.That(parsed.Samples[0].Frame.LeftTouchEntrySpeedMetresPerSecond, Is.EqualTo(0.35f).Within(1e-6f));
+        }
+
+        [Test]
+        public void Parse_ALineWithNoTouchFields_DefaultsToNotTouching_ForPreADR0039Fixtures()
+        {
+            string jsonl = "{\"t\":0,\"c\":\"Ii\",\"lt\":\"High\",\"rt\":\"High\"}\n";
+
+            Assert.That(HandPoseRecording.TryParseJsonl(jsonl, out HandPoseRecording parsed), Is.True);
+            Assert.That(parsed.Samples[0].Frame.LeftIsTouchingTarget, Is.False);
+            Assert.That(parsed.Samples[0].Frame.LeftTouchEntrySpeedMetresPerSecond, Is.EqualTo(0f));
+        }
+
+        [Test]
         public void Parse_IgnoresBlankLinesAndComments()
         {
             string jsonl =

@@ -50,11 +50,13 @@ namespace Jazztures.Core.Gesture
 
         /// <summary>
         /// One JSON object per line:
-        /// <c>{"t":1.234,"c":"Ii","lt":"High","rt":"High","vy":-0.4,"lp":true,"pr":5.2}</c>.
+        /// <c>{"t":1.234,"c":"Ii","lt":"High","rt":"High","vy":-0.4,"lp":true,"pr":5.2,"it":true,"es":0.3}</c>.
         /// <c>"vy"</c> (ADR-0025) is the left hand's signed vertical speed, m/s, negative =
         /// downward. <c>"lp"</c>/<c>"pr"</c> (ADR-0038, Design A) are the left hand's pinch
-        /// state and closing rate. All three are omitted when at their default (zero /
-        /// false), so every fixture recorded before ADR-0025 or ADR-0038 still round-trips.
+        /// state and closing rate. <c>"it"</c>/<c>"es"</c> (ADR-0039) are the left hand's
+        /// virtual-target touch state and entry speed. All five are omitted when at their
+        /// default (zero / false), so every fixture recorded before ADR-0025, ADR-0038 or
+        /// ADR-0039 still round-trips.
         /// </summary>
         public string ToJsonl()
         {
@@ -83,6 +85,17 @@ namespace Jazztures.Core.Gesture
                 if (pinchRate != 0f)
                 {
                     builder.Append(",\"pr\":").Append(pinchRate.ToString("0.#########", CultureInfo.InvariantCulture));
+                }
+
+                if (sample.Frame.LeftIsTouchingTarget)
+                {
+                    builder.Append(",\"it\":true");
+                }
+
+                float entrySpeed = sample.Frame.LeftTouchEntrySpeedMetresPerSecond;
+                if (entrySpeed != 0f)
+                {
+                    builder.Append(",\"es\":").Append(entrySpeed.ToString("0.#########", CultureInfo.InvariantCulture));
                 }
 
                 builder.Append("}\n");
@@ -146,6 +159,8 @@ namespace Jazztures.Core.Gesture
             float verticalSpeed = 0f; // absent "vy" (pre-ADR-0025 fixtures) means "not moving"
             bool isPinching = false; // absent "lp" (pre-ADR-0038 fixtures) means "not pinching"
             float pinchRate = 0f; // absent "pr" means "not closing"
+            bool isTouching = false; // absent "it" (pre-ADR-0039 fixtures) means "not touching"
+            float entrySpeed = 0f; // absent "es" means "no entry this frame"
 
             foreach (string pair in line.Substring(1, line.Length - 2).Split(','))
             {
@@ -201,6 +216,22 @@ namespace Jazztures.Core.Gesture
 
                         pinchRate = pr;
                         break;
+                    case "it":
+                        if (!bool.TryParse(value, out bool it))
+                        {
+                            return false;
+                        }
+
+                        isTouching = it;
+                        break;
+                    case "es":
+                        if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float es))
+                        {
+                            return false;
+                        }
+
+                        entrySpeed = es;
+                        break;
                 }
             }
 
@@ -215,7 +246,7 @@ namespace Jazztures.Core.Gesture
                     time.Value,
                     new HandPoseFrame(
                         candidate.Value, leftTracking.Value, rightTracking.Value,
-                        verticalSpeed, isPinching, pinchRate));
+                        verticalSpeed, isPinching, pinchRate, isTouching, entrySpeed));
                 return true;
             }
             catch (ArgumentOutOfRangeException)
