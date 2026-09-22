@@ -8,6 +8,423 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0037 — A strike and a same-frame release confirmation raced; the release could win and silently swallow the strike
+
+**Date:** 2026-09-21 · **Status:** Accepted (on-device finding, confirmed against the
+`[DIAG]` log from the reporting session) · **Milestone:** M3 (revises
+`ChordStrikeDetector`, `PerformanceCompositionRoot`; landed in ADR-0025, revised in
+ADR-0034)
+**Changes the thesis:** none — closes a gap ADR-0034 left open, not a policy change.
+
+**The finding.** After ADR-0034/-0035/-0036, double-hits stopped reproducing, but a new,
+consistent symptom appeared: a pose reads correctly (confirmed, reflected in the tension
+colour), but striking it produces no sound — the chord only sounds later, on an unrelated
+event. The per-frame `[DIAG]` log (velocity, candidate, `ConfirmedFunction`, `Phase`) made
+this exact and reproducible: at the frame where the log showed a clean, strong,
+strike-shaped downward velocity (`-1.541` decelerating toward zero) with `confirmed=Five`
+and `phase=Detecting`, no `STRUCK` line was ever emitted, and the very next entries showed
+`confirmed=` (released).
+
+**Root cause.** `PerformanceCompositionRoot.Update()` called `_interpreter.Feed(frame)`
+*before* `_strikeDetector.Feed(velocity)`. ADR-0034's `NotifyStruck()` cancels a pending
+release, but only *after* a strike has actually fired — it has no effect on a release that
+finishes confirming *before* the strike ever gets to run. A release that had been pending
+in the background (exactly ADR-0034's own scenario) can cross
+`GestureThresholds.ReleaseHoldSeconds` on the identical frame a genuine strike occurs, not
+only on a frame after it. With the interpreter fed first, that frame's own candidate
+processing could confirm the release and clear `ConfirmedFunction` to `null` *before*
+`ChordStrikeDetector.Feed` ever checked it — so the strike found nothing selected to sound,
+silently. This is the same underlying defect ADR-0034 fixed (a pending release unaware a
+strike is happening), surfacing through a different door: same-frame ordering rather than
+next-frame timing.
+
+**Decision.** `ChordStrikeDetector` gains `Feed(HandPoseFrame frame)`: it strikes first
+(using `Feed(float)`, unchanged), *then* hands the frame to
+`GestureInterpreter.Feed(frame)`. This guarantees a strike is always evaluated against
+whatever `ConfirmedFunction` the interpreter was holding at the end of the *previous*
+frame — before this frame's own candidate can invalidate it — so `NotifyStruck` always gets
+its chance to cancel a same-frame pending release. `PerformanceCompositionRoot.Update()`
+now calls this single overload instead of feeding the interpreter and detector separately.
+The original `Feed(float)` stays, unchanged, for existing tests and for any caller that
+manages the interpreter itself.
+
+**Why encapsulate the order here, not just reorder the two calls in `Update()`.** The
+original bug was two independently-reasonable-looking lines in the wrong order — exactly
+the kind of thing a future edit could silently reorder back, since nothing about
+`_interpreter.Feed(frame); _strikeDetector.Feed(velocity);` looks wrong on its own. Making
+`ChordStrikeDetector.Feed(HandPoseFrame)` own the ordering internally means the composition
+root cannot get this wrong by construction — there is only one call to make.
+
+**Test.** `ChordStrikeDetectorTests` gains
+`FeedingAWholeFrame_LetsAStrikeClaimTheSameFrameAReleaseWouldOtherwiseConfirmOn` (builds a
+release-pending attempt to the same near-threshold state as ADR-0034's test, then feeds one
+frame carrying both the release-confirming candidate and a strike-speed velocity — the
+strike must fire and the function must stay held) and, made explicit as a named test rather
+than left implicit,
+`FeedingSeparately_InterpreterFirst_LetsTheReleaseSwallowTheStrike` (the identical
+setup, fed the old way — interpreter, then detector — reproduces the bug exactly: release
+confirms, strike finds nothing to sound). Both pass against the current code.
+
+**`[DIAG]` logging left in place again.** Given this is the fourth fix in this chain
+(ADR-0034/-0035/-0036/-0037), the per-frame velocity/candidate/confirmed/phase log and the
+`Send`/`StartNote` logs are staying in `PerformanceCompositionRoot` and `SamplerNoteSink`
+for one more on-device round rather than being removed pre-emptively.
+
+**Thesis impact:** none.
+
+---
+
+## ADR-0036 — `CutVoiceIfSounding` (ADR-0033) freed a slot before acquiring, so the fresh attack usually reused the source it had just stopped
+
+**Date:** 2026-09-21 · **Status:** Accepted — confirmed by the `[DIAG] StartNote` log in
+the ADR-0037 reporting session: every acquired slot now shows `wasPlaying=False
+wasActive=False`, i.e. genuinely idle before reuse, in every sample of that session.
+**Milestone:** M2/M3 (revises `SamplerNoteSink.StartNote`, landed in ADR-0025, revised in
+ADR-0033)
+**Changes the thesis:** none — an audio-implementation correction, not a policy change.
+
+**The finding.** After ADR-0034 and ADR-0035, the repeated/silent-strike symptoms
+persisted. The student's own diagnostic observation was the key one: the right hand's
+tension colour (driven by `ChordChangedChannel`, i.e. *selection*) tracked chord changes
+reliably, while the *sound* did not — pointing away from gesture detection (already
+verified clean twice, ADR-0034/-0035) and squarely at the audio path, and noting this
+never happened before the strike system (ADR-0025) existed at all.
+
+**Root cause.** `StartNote` called `CutVoiceIfSounding` — which sets the old voice's slot
+`_voices[i] = default` — *before* calling `AcquireVoice()`. `AcquireVoice`'s scan returns
+the first `!Active` slot, low index first. Freeing the old slot before acquiring meant it
+was very often the lowest-indexed free slot available, so the fresh attack's
+`AcquireVoice()` call picked that exact same slot straight back — meaning
+`_sources[i].Stop()` was followed, within the same call frame, by reconfiguring that same
+`AudioSource`'s clip/pitch/volume and calling `PlayScheduled` on it again. Before ADR-0033,
+this same-frame stop-then-immediately-reuse pattern only happened in the rare
+voice-pool-exhaustion path (`AcquireVoice`'s own stealing branch); ADR-0033's fix made it
+the *common* case for every re-comp and every shared-tone chord change, which is exactly
+the class of change the student correctly identified as the difference from before the
+strike system existed. Re-using one `AudioSource` this way — stop, then immediately
+reconfigure and schedule again in the same frame — is a well-known category of Unity audio
+reliability risk (the source's internal/scheduling state is not guaranteed to settle
+synchronously within one frame), which would plausibly explain both directions of the
+reported symptom: an unreliable restart could silently fail to produce audible output
+(reads as "didn't fire"), or interact with the still-draining old schedule in a way that
+produces more than one audible attack (reads as "repeated").
+
+**Decision.** Reorder: call `AcquireVoice()` first, while the old same-pitch voice is
+still `Active` (so it can never be the slot the scan selects), then call
+`CutVoiceIfSounding` on the old slot afterward. The fresh attack now always lands on a
+genuinely idle `AudioSource` that has not been touched this frame; the old voice is simply
+stopped on its own slot, with no new `PlayScheduled` call touching that same object.
+
+**Known residual edge case, not fixed.** If the voice pool is exhausted and the stolen
+"oldest" voice happens to already be the same pitch/channel being started, `AcquireVoice`'s
+own stealing branch (`_sources[oldest].Stop()`, same slot returned) still produces the
+same same-frame stop-then-reuse pattern this ADR otherwise removes. Left as is: it is the
+pre-existing, already-logged (`SamplerNoteSink` voice-pool-exhaustion warning) exceptional
+path, not the common case the student is hitting, and 32 voices against this session's
+polyphony makes it unlikely to be reached at all.
+
+**Not yet verified.** This is a confirmed *code-level* pattern (the call order and its
+consequence for which slot gets selected are provable by reading `AcquireVoice`), not a
+confirmed *audio-engine-level* one — whether Unity's `AudioSource` actually misbehaves
+when reused this way cannot be verified from source alone. Diagnostic logging
+(`SamplerNoteSink.Send`, and a new one-line log at `StartNote`'s acquire point recording
+the acquired slot and its prior `isPlaying`/`Active` state) has been left **in place**
+this time, rather than removed, specifically so that if this does not fully resolve the
+symptom, the next on-device session already has the data needed rather than requiring
+another blind round.
+
+**Thesis impact:** none.
+
+---
+
+## ADR-0035 — A stale downward peak could outlive the hand's own direction reversal
+
+**Date:** 2026-09-21 · **Status:** Accepted (on-device finding, reported by the student) ·
+**Milestone:** M3 (revises `MetaXRHandPoseSource.ReadVerticalSpeed`, landed in ADR-0025,
+revised in ADR-0028)
+**Changes the thesis:** none — an instrumentation correction, not a policy change.
+
+**The finding.** After ADR-0034, striking felt improved but the student reported a chord
+sometimes triggering while the hand was moving *up* — the recovery/rebound after a strike,
+not the strike itself. Expected: only a downward motion should ever articulate a chord.
+
+**Root cause.** `ReadVerticalSpeed`'s peak-over-window search (ADR-0028) scanned all
+`_speedSampleFrames` (default 3) ring-buffer slots unconditionally and took the minimum
+(most downward) value found *anywhere* in that window, with no regard for whether the
+window's samples were still part of one continuous motion. A strong downward sample from
+an already-finished strike could keep winning that comparison for up to two more frames
+after the hand's own newest sample had turned positive (moving up) — so
+`ChordStrikeDetector` could see a reported "downward speed" that crossed
+`StrikeEnterSpeedMetresPerSecond` on a frame where the hand was demonstrably already
+reversing. The same staleness also worked against `StrikeSettleFrames` (ADR-0030): a
+lingering stale peak could keep the reported speed above `StrikeExitSpeedMetresPerSecond`
+for a frame or two after the hand had genuinely already begun to settle, delaying re-arm
+past when the physical motion had actually stopped. Both are the same root defect —
+"peak anywhere in the window" carries no notion of *when* the peak happened relative to
+now — surfacing as two different symptoms of the reported double-hit.
+
+**Decision.** Walk the window backward from the newest sample and stop at the first
+non-downward (`>= 0`) one, tracking the minimum only across that unbroken run. This still
+finds the true peak of a decelerating strike within one continuous downward motion —
+ADR-0028's original concern, since the newest sample is included in the walk and older
+samples are only consulted while every sample since them has stayed downward — but a frame
+whose own instantaneous sample has already turned non-negative reports 0 immediately,
+never reaching back past its own direction reversal to a finished motion's peak. No
+existing threshold or `[TUNABLE]` value changes; this corrects the search algorithm, not a
+calibration number.
+
+**Not yet verified in Unity.** `MetaXRHandPoseSource` is a `MonoBehaviour`
+(`Oculus.Interaction` dependency) outside the `dotnet test` mirror, so — like ADR-0031's
+`ChordStrikeDetector` fix and ADR-0033's `SamplerNoteSink` fix before Unity confirmed
+them — this has no automated coverage. Hand-traced against a constructed
+down-then-up sample sequence (`-1.5, -0.5, +0.8`) to confirm the ring-buffer indexing:
+frame 3 (the direction reversal) now reports `0`, where it previously reported the stale
+`-1.5` from frame 1. Verify on-device: a strike followed by an ordinary upward hand
+recovery should never itself sound a second hit, and settling after a strike should feel
+at least as responsive as before, not slower.
+
+**Thesis impact:** none.
+
+---
+
+## ADR-0034 — A strike must cancel a release that happens to be pending
+
+**Date:** 2026-09-21 · **Status:** Accepted (on-device finding, confirmed via `[DIAG]`
+console logging against a live session, since this path is real-time and could not be
+reproduced from a recorded hand-pose fixture) · **Milestone:** M3 (revises
+`GestureInterpreter`, `ChordStrikeDetector`, landed in ADR-0025, revised in ADR-0027/-0031)
+**Changes the thesis:** none — closes a gap the ADR-0025 split left open, not a policy change.
+
+**The finding.** ADR-0033's fix did not resolve the reported repeated-hit / silent-strike
+symptoms. Temporary logging of every `Struck` event and every note `Send` (kind, pitch,
+channel, timestamp) showed the domain layer calling `HarmonyEngine.Strike()` exactly once
+per physical gesture, with clean, correctly-ordered Off/On pairs — ruling out a
+double-invocation bug. But the same logging surfaced a different, recurring pattern: an
+unstruck `Send Off` (a release, not a strike-triggered cut) landing 43–150 ms after a
+`Struck` line, over and over through the session — far too fast to be the learner
+deliberately relaxing their hand.
+
+**Root cause.** `GestureThresholds.ReleaseHoldSeconds` (400 ms) is measured from
+`GestureInterpreter._pendingSince` — set once, when a release attempt first starts pending
+— not from a continuous run of matching frames. `RegisterMiss`'s tolerance (ADR-0027/-0029)
+forgives an individual miss without resetting `_pendingSince`, so a release can accumulate
+wall-clock progress in the background from ordinary pose noise (a None blip here, a
+tolerated bounce-back there) for a long stretch before ever reaching its
+`ConfirmingFrames`/`heldLongEnough` conditions. Nothing about a successful strike tells the
+interpreter "the hand is still here" — `ChordStrikeDetector` only reads
+`ConfirmedFunction`/`TrackingUsable` from it, and a strike's own disruption of the pose
+reading is exactly the kind of weak evidence ADR-0027 built the release tolerance to
+absorb, not to clear. So a release that had been silently ticking since well before a
+strike could cross its threshold moments after that strike sounded a chord, cutting it —
+audible either as a stutter (if the learner re-struck to compensate, producing two real,
+individually-correct strikes in quick succession) or as a near-silent misfire (if the cut
+landed within tens of milliseconds).
+
+**Decision.** `GestureInterpreter.NotifyStruck()` (new, public): if a release is currently
+pending, cancel it outright (`ResetPending`) rather than let it merely tolerate the strike
+as one more miss. `ChordStrikeDetector` calls it on every successful strike, right where
+`Struck` fires — it already holds the `_interpreter` reference this needs. Scoped
+narrowly, matching ADR-0027's own precedent: only a *pending release* is cancelled: a
+pending switch to a different concrete pose is untouched, since a strike happening mid
+pose-to-pose switch is a different, unevidenced scenario.
+
+**Why ADR-0025/-0027/-0029 did not already cover this.** Those fixed the confirmation and
+release *thresholds and tolerances* — how noisy a reading can be before it stops counting
+as the same attempt. This gap is different in kind: it is about one gesture-detection
+subsystem (`ChordStrikeDetector`) having no way to inform another
+(`GestureInterpreter`'s release-pending state) that a strong, independent confirming event
+just happened. No threshold tuning closes it; the two subsystems needed a line of
+communication that did not exist before.
+
+**Verification.** `GestureInterpreterTests.NotifyStruck_CancelsAPendingRelease_...` and
+`ChordStrikeDetectorTests.AStrike_CancelsAReleaseThatIsPendingAtThatMoment` reproduce the
+exact log pattern headlessly: build a release-pending attempt via alternating None/bounce
+frames without yet reaching `ReleaseHoldSeconds`, strike, then continue the identical
+pattern for long enough that, without the fix, the *original* pending-release's elapsed
+wall-clock time would already have crossed the threshold. Confirmed both tests fail with
+the fix temporarily disabled (`ConfirmedFunction` came back `null` where `Two` was
+expected) before re-enabling it — the same negative-control check used to validate
+ADR-0031's tests.
+
+**Thesis impact:** none. Worth citing alongside ADR-0025 if Chapter 7 discusses the
+left-hand articulation work as a single body of findings — this is the same class of
+"strike disrupts pose reading" issue ADR-0027/-0028 already document, discovered one layer
+deeper.
+
+---
+
+## ADR-0033 — A shared chord tone between the outgoing and incoming voicing double-attacks
+
+**Date:** 2026-09-21 · **Status:** Accepted (on-device finding, reported by the student) ·
+**Milestone:** M2/M3 (revises `SamplerNoteSink`, predates ADR-0025 but only became audible
+through repeated re-articulation)
+**Changes the thesis:** none — an audio-implementation correction, not a policy change.
+
+**The finding.** Switching the left hand between V and I produced an audible double-hit;
+switching between ii and V, or ii and I, did not. Re-striking the *same* held function
+(comping) sounded fine.
+
+**Root cause.** `Voicing.Close()` for the three chords (verified by direct computation,
+`DefaultRootFloorMidi`/`CeilingMidi` = 48/60):
+
+| Function | Voicing |
+|---|---|
+| ii — Dm7 | D3, F3, A3, C4 |
+| V — G7 | **G3, B3**, D4, F4 |
+| I — Cmaj7 | C3, E3, **G3, B3** |
+
+V and I share two exact MIDI pitches (G3, B3) — a direct consequence of Dm7/G7/Cmaj7's
+real voice-leading (G7 and Cmaj7 share the pitch classes G and B); ii shares no pitch with
+either. `HarmonyEngine.Strike()` (ADR-0025) sends Off for every outgoing pitch, then On for
+every incoming one. For a shared pitch, that is an Off immediately followed by an On for
+the *identical* MIDI note. `SamplerNoteSink.ReleaseNote` answers the Off by starting an
+`_releaseSeconds` (80 ms default) fade-out on the existing voice — correct for a note
+ending on its own, so its tail does not click — but `StartNote` then acquires a **different**
+free voice slot and begins a brand-new, full-volume attack for the same pitch on top of
+it. For ~80 ms, two voices sound the same note: one fading out, one freshly attacking. Two
+overlapping attack transients on an identical pitch is audible as the note hitting twice.
+This is why full re-comping (all 4 notes shared) sounded fine — everything refreshes
+coherently — while V↔I's *partial* overlap (2 notes change cleanly, 2 get a redundant
+fade-plus-reattack) stands out against the two notes around it that changed cleanly.
+
+**Decision.** `SamplerNoteSink.StartNote` now calls `CutVoiceIfSounding(midi, channel)`
+before acquiring a voice: if a voice is already active for that exact (pitch, channel), it
+is hard-stopped immediately rather than left to fade. The `_releaseSeconds` fade remains
+exactly as before for the case it exists for — a note ending on its own decays without a
+click — but a fresh re-attack on the same pitch now always gets a clean cut first, whether
+that pitch is being deliberately re-struck (comping) or happens to be a shared tone across
+a chord change. This is a strict improvement for every re-strike, not a V/I-specific patch:
+the fix is keyed on (pitch, channel) equality, not on which chord functions are involved.
+
+**Why this predates ADR-0025 but was only just found.** The double-attack condition exists
+whenever two Send calls for the same pitch land close together, which was structurally
+impossible for harmony before ADR-0025 (a chord only ever sounded once, on
+`ProgressionState.Changed`) — ADR-0025 is what made re-articulating harmony ordinary, and
+therefore what made this reachable at all.
+
+**Not yet verified in Unity.** `SamplerNoteSink` is a `MonoBehaviour` (`Jazztures.Audio`,
+references `UnityEngine.AudioSource`) and outside the `dotnet test` mirror, so this fix has
+no automated coverage — the same status as `LatencyProbe` and other thin Unity audio/adapter
+code in this codebase. Verify on-device: V↔I switches, and comping the same chord, should
+both now sound like a single clean attack per strike with no overlap.
+
+**Update — "a few gestures did not fire at all" resolved separately.** This fix alone did
+not resolve the reported symptoms; see ADR-0034. The likely explanation for silent
+misfires: a chord cut by a stale pending release (ADR-0034) within tens of milliseconds of
+being struck would barely register as having sounded at all.
+
+**Thesis impact:** none.
+
+---
+
+## ADR-0032 — `LatencyProbe` must not record a release's hold time as a confirmation
+
+**Date:** 2026-09-21 · **Status:** Accepted (code-review finding) · **Milestone:** M3/M7
+(revises `LatencyProbe`, `LatencyStage`)
+**Changes the thesis:** none — an instrumentation correction, not a policy change.
+
+**The finding.** `LatencyProbe.OnConfirmed` recorded the hold time of *every*
+`GestureInterpreter.ConfirmedFunctionChanged` event — releases included — into the single
+`LatencyStage.PoseToConfirm` bucket.
+
+**Root cause.** ADR-0027 deliberately gave releasing its own, larger hold requirement
+(`ReleaseHoldSeconds`, default 400 ms) than confirming a selection (`PoseHoldSeconds`,
+default 150 ms) — a false release is audible, a late one is not, so releasing is held to a
+more conservative bar on purpose. `GestureInterpreter.LastConfirmationHoldSeconds`
+faithfully reports whichever hold time actually applied, but `LatencyProbe` never
+distinguished the two cases downstream, so every release folds a ~400 ms sample into a
+metric CLAUDE.md §4.3 defines as "pose confirmation (hold + frames)" and specifically asks
+to be reported in the thesis as the segment "you currently control." Once releases happen
+at any real frequency, the recorded `PoseToConfirm` percentiles (p90/p95 especially) stop
+describing selection responsiveness and instead describe a mixture of two populations with
+deliberately different floors.
+
+**Decision.** Split the stage by what the interpreter just reported. `LatencyStage` gains
+`PoseToRelease` alongside the existing `PoseToConfirm`. `LatencyProbe.OnConfirmed` now
+routes on whether the newly confirmed function has a value: a value means a fresh
+selection or a pose-to-pose switch (`PoseToConfirm`, the §4.3 number); `null` means a
+release (`PoseToRelease`, tracked separately). `LatencyRecorder` needed no change — it is
+already generic over `LatencyStage` and sizes its ring buffers from `Enum.GetValues`, so
+the new stage is tracked and reported (`LatencyProbe.Report`'s `Enum.GetValues` loop) with
+no other wiring.
+
+**Thesis impact:** none directly, but this is the fix that makes the §4.3 numbers
+trustworthy once they're gathered on-device — if `PoseToConfirm` was ever sampled before
+this change, those samples are the pre-fix, conflated kind and should be discarded.
+
+---
+
+## ADR-0031 — Tracking loss during a strike must not force a re-arm
+
+**Date:** 2026-09-21 · **Status:** Accepted (code-review finding, not yet reproduced
+on-device) · **Milestone:** M3 (revises `ChordStrikeDetector`, landed in ADR-0025, revised
+in ADR-0030)
+**Changes the thesis:** none — an instrumentation correction, not a policy change.
+
+**The finding.** `ChordStrikeDetector.Feed` forced `_armed = true` (and reset
+`_settleFrames`) whenever `GestureInterpreter.TrackingUsable` was false — the same branch
+used for "nothing is selected." This reopens the exact failure ADR-0030 closed, through a
+different trigger.
+
+**Root cause.** `GestureInterpreter.TrackingUsable` drops to `false` on a single
+Low/NotTracked frame — no hysteresis on the way down; only the climb back up needs
+`HighFramesToResumeAfterLoss` consecutive High frames (§3.5). A strike is fast, ballistic
+motion (ADR-0025/-0028) — exactly the kind of motion most likely to degrade optical hand
+tracking for a frame or two. If a tracking blip lands mid-strike, every frame of the blip
+*and* the following recovery climb forced `_armed = true`; by the time tracking is usable
+again, the detector is unconditionally re-armed regardless of whether the hand is still
+moving. If it is still fast on the first good frame back — the common case, since the
+physical strike hasn't actually finished — `Struck` fires a second time for what the
+learner experiences as one motion. This is ADR-0030's double-fire (a rebound re-arming
+early) reproduced via a tracking gap instead of a rebound; the existing test suite had a
+test (`AfterTrackingLoss_TheFirstGoodFrameCanStillStrike_ButOnlyOnceReArmed`) that
+constructed this exact scenario and asserted the resulting double-fire as *correct* — the
+same "bug encoded as a passing test" pattern ADR-0025's own postmortem names for the
+pre-ADR-0025 confirmation-reset bug.
+
+**Not yet observed on-device.** Unlike ADR-0026 through -0030, this was found by
+re-reading the ADR-0030 fix against the tracking-loss path, not by a fresh on-device
+symptom, and reproduced deterministically in a unit test (`VirtualClock`, no headset). It
+should still be treated as live risk, not a theoretical one — §1.4 names fast motion and
+occlusion as the system's acknowledged tracking-reliability limitation, and a strike is
+the fastest motion the left hand makes.
+
+**Decision.** Split the two conditions in `ChordStrikeDetector.Feed`. "Nothing selected"
+(`!ConfirmedFunction.HasValue`) still forces an immediate re-arm — there is nothing to
+strike, so nothing is lost, and a fresh selection should be able to strike right away.
+"Tracking unusable" (`!TrackingUsable`) now leaves `_armed`/`_settleFrames` untouched and
+simply skips the frame — the same "sustain, do not release" policy §3.5 already applies to
+the confirmed chord itself, now applied to this detector's own internal state. A strike in
+progress when tracking drops stays in progress when tracking resumes, and still needs a
+genuine `StrikeSettleFrames`-frame settle before it can fire again. A detector that was
+already armed (idle, no strike in flight) before a blip is unaffected — it was already
+`_armed = true` and stays that way, so ordinary responsiveness right after a blip is
+unchanged.
+
+**Alternatives considered and rejected:**
+- *Leave tracking-loss handling as-is and rely on `MinInterStrikeSeconds` to absorb a
+  double-fire* — the cooldown (120 ms default) is shorter than a plausible
+  blip-plus-recovery window (a Low frame plus `HighFramesToResumeAfterLoss` High frames),
+  so it cannot be relied on to suppress this case, and conflating "debounce" with "re-arm
+  correctness" was exactly ADR-0030's objection to the pre-fix behaviour.
+- *Give the detector its own tracking-quality hysteresis, separate from the interpreter's*
+  — would work, but duplicates a policy §3.5 already owns at the interpreter level; freezing
+  on `!TrackingUsable` reuses that policy instead of re-deriving it.
+
+**Test.** `ChordStrikeDetectorTests.cs` replaces the old test with
+`TrackingLossMidStrike_DoesNotReArm_UntilTheHandActuallySettles` (no second strike on the
+first good frame back while still fast; a genuine settle afterward still re-arms normally)
+and `TrackingLossWhileAlreadyArmed_DoesNotBlockTheNextStrike` (a blip while idle costs the
+next strike nothing).
+
+**Calibration note.** No new parameters. Recommend adding a rhythmic on-device fixture
+that includes a tracking dropout mid-strike once one exists (§7's still-open item), so this
+path is exercised by replay, not only by a hand-constructed unit test.
+
+**Thesis impact:** none.
+
+---
+
 ## ADR-0030 — A strike's own rebound could re-arm and fire a second, unintended strike
 
 **Date:** 2026-09-19 · **Status:** Accepted (on-device finding, same session as ADR-0028/-0029)

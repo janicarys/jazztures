@@ -134,11 +134,28 @@ namespace Jazztures.Input
         /// </para>
         ///
         /// <para>
+        /// The peak search walks backward from the newest sample and stops at the first
+        /// non-downward one (ADR-0035) — it never looks past a direction reversal. A plain
+        /// "minimum anywhere in the window" let a strong downward sample from an
+        /// already-finished motion keep winning the comparison for up to
+        /// <see cref="_speedSampleFrames"/> more frames even after the hand had reversed to
+        /// moving up, which could fire — or delay <see cref="GestureThresholds.StrikeSettleFrames"/>
+        /// settling for — a strike on a frame where the hand was demonstrably no longer
+        /// moving down. Walking backward only through the <i>current, unbroken</i> downward
+        /// run still finds the true peak of a decelerating strike (ADR-0028's original
+        /// concern), but a frame whose own instantaneous sample is already non-negative
+        /// reports 0 immediately, regardless of what a finished motion did one or two
+        /// frames earlier.
+        /// </para>
+        ///
+        /// <para>
         /// Only accumulates while tracking is High: the baseline resets on any dip, so the
         /// first frame after regaining tracking always reports 0 rather than a spurious
         /// spike computed against a stale position (§3.5 — degrade gracefully). A stale
         /// sample left in the window during a brief dip is harmless — every consumer already
-        /// gates on <see cref="Jazztures.Core.Gesture.GestureInterpreter.TrackingUsable"/>.
+        /// gates on <see cref="Jazztures.Core.Gesture.GestureInterpreter.TrackingUsable"/>,
+        /// and the backward walk above would stop at that dip's own non-negative sample
+        /// before ever reaching it regardless.
         /// </para>
         /// </summary>
         private float ReadVerticalSpeed(TrackingQuality left)
@@ -162,12 +179,20 @@ namespace Jazztures.Input
             _speedCursor = (_speedCursor + 1) % _verticalSpeedSamples.Length;
             _verticalSpeedSamples[_speedCursor] = instant;
 
-            float peakDownward = 0f; // 0 = "no downward motion in this window" is the safe neutral value
-            for (int i = 0; i < _verticalSpeedSamples.Length; i++)
+            float peakDownward = 0f; // 0 = "no downward motion right now" is the safe neutral value
+            int sampleCount = _verticalSpeedSamples.Length;
+            for (int steps = 0; steps < sampleCount; steps++)
             {
-                if (_verticalSpeedSamples[i] < peakDownward)
+                int index = (_speedCursor - steps + sampleCount) % sampleCount;
+                float sample = _verticalSpeedSamples[index];
+                if (sample >= 0f)
                 {
-                    peakDownward = _verticalSpeedSamples[i];
+                    break; // direction has reversed (or this is a never-written slot) — stop
+                }
+
+                if (sample < peakDownward)
+                {
+                    peakDownward = sample;
                 }
             }
 

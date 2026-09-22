@@ -362,6 +362,66 @@ namespace Jazztures.Tests.EditMode.Gesture
                 "switching to V must not be held hostage by the stale None release-pending");
         }
 
+        // ADR-0034: reported symptom — a chord would sometimes cut itself moments after
+        // being freshly (re-)struck. ReleaseHoldSeconds is measured from when a release
+        // attempt first started pending, not from a continuous run of matching frames, so
+        // a release that had been quietly accumulating wall-clock progress from ordinary
+        // pose noise (tolerated misses that bounce back to the still-held pose) could cross
+        // its threshold shortly after a strike, unaware the strike had just happened.
+        [Test]
+        public void NotifyStruck_CancelsAPendingRelease_SoAStrikeCannotBeFollowedByAStaleCut()
+        {
+            Feed(3, HandPoseCandidate.None);
+            Feed(10, HandPoseCandidate.Ii, dt: 0.05);
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+
+            _changes.Clear();
+
+            // Build a release-pending attempt via ordinary noisy-but-still-held frames —
+            // None starts it, Ii is tolerated as a bounce back to the still-held pose —
+            // without yet reaching ReleaseHoldSeconds (400 ms default).
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            for (int i = 0; i < 3; i++)
+            {
+                _clock.Advance(0.05);
+                _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+                _clock.Advance(0.05);
+                _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            }
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two), "not yet released");
+
+            // A strike happens now — definitive proof the hand is still holding ii.
+            _interpreter.NotifyStruck();
+
+            // Continue the identical pattern for one more cycle. Without the fix, elapsed
+            // time since the ORIGINAL pending-release start (0.35 s so far) plus this cycle
+            // would already clear ReleaseHoldSeconds on the next None match, releasing ii
+            // moments after it was just struck.
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two),
+                "the strike must have cancelled the stale pending release");
+            Assert.That(_changes, Is.Empty, "no release should have fired");
+        }
+
+        [Test]
+        public void NotifyStruck_WithNoPendingRelease_IsANoOp()
+        {
+            Feed(3, HandPoseCandidate.None);
+            Feed(10, HandPoseCandidate.Ii, dt: 0.05);
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+
+            _interpreter.NotifyStruck();
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+            Assert.That(_interpreter.Phase, Is.EqualTo(GesturePhase.Confirmed));
+        }
+
         [Test]
         public void ResumeCounter_ResetsOnANonHighFrame()
         {

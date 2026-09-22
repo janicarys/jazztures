@@ -66,6 +66,8 @@ namespace Jazztures.Audio
 
         public void Send(in NoteEvent note)
         {
+            Debug.Log($"[DIAG] Send {note.Kind} midi={note.Pitch.Midi} ch={note.Channel} vel={note.Velocity} now={AudioSettings.dspTime:0.000}");
+
             if (!_ready)
             {
                 return;
@@ -96,7 +98,25 @@ namespace Jazztures.Audio
                 return;
             }
 
+            // ADR-0036: acquire the new voice's slot BEFORE cutting any existing voice on
+            // this exact pitch — while the old voice is still Active, AcquireVoice's scan
+            // can never select its slot, so the fresh attack always lands on a genuinely
+            // idle AudioSource. Cutting first (ADR-0033's original order) freed the old
+            // slot before acquiring, and AcquireVoice's low-to-high scan then very often
+            // picked that same just-freed slot straight back — stopping an AudioSource and
+            // reconfiguring/PlayScheduled-ing it again within the same frame, which is an
+            // unreliable pattern for Unity's audio source rather than a clean re-attack.
             int slot = AcquireVoice();
+            Debug.Log($"[DIAG] StartNote midi={note.Pitch.Midi} ch={note.Channel} acquiredSlot={slot} wasPlaying={_sources[slot].isPlaying} wasActive={_voices[slot].Active}");
+
+            // ADR-0033: a fresh strike on a pitch that is already sounding — its own
+            // re-comp, or a chord tone shared between the outgoing and incoming voicing
+            // (e.g. G3/B3 between V and I) — must cut that voice immediately rather than
+            // let it ring through the normal release fade. Otherwise a dying tail
+            // overlaps a brand-new attack transient on the identical pitch, which is
+            // audible as the note hitting twice.
+            CutVoiceIfSounding(note.Pitch.Midi, note.Channel);
+
             AudioSource src = _sources[slot];
             float gain = _masterGain * Mathf.Lerp(0.35f, 1f, note.Velocity / 127f);
 
@@ -134,6 +154,27 @@ namespace Jazztures.Audio
             }
         }
 
+        /// <summary>
+        /// Hard-stops the active voice (if any) already sounding this exact pitch on this
+        /// channel, ahead of starting a new one for it (ADR-0033). Distinct from the
+        /// normal release path (<see cref="ReleaseNote"/>'s <see cref="_releaseSeconds"/>
+        /// fade): that fade exists so a note ending on its own does not click, not to
+        /// smooth over a same-pitch re-attack — a re-attack should be a clean cut, not a
+        /// fade overlapping a fresh onset.
+        /// </summary>
+        private void CutVoiceIfSounding(int midi, int channel)
+        {
+            for (int i = 0; i < _voices.Length; i++)
+            {
+                if (_voices[i].Active && _voices[i].Midi == midi && _voices[i].Channel == channel)
+                {
+                    _sources[i].Stop();
+                    _voices[i] = default;
+                    return;
+                }
+            }
+        }
+
         private int AcquireVoice()
         {
             int oldest = 0;
@@ -150,6 +191,9 @@ namespace Jazztures.Audio
                 }
             }
 
+            Debug.LogWarning(
+                $"{nameof(SamplerNoteSink)}: voice pool exhausted ({_voices.Length} voices), " +
+                $"stealing the oldest (slot {oldest}, midi {_voices[oldest].Midi}).", this);
             _sources[oldest].Stop();
             return oldest;
         }

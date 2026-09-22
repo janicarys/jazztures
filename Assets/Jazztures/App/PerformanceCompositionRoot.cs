@@ -94,7 +94,11 @@ namespace Jazztures.App
             // ADR-0025: selection (above) and articulation (below) are separate events —
             // the pose says which chord, the strike says when it sounds.
             _strikeDetector = new ChordStrikeDetector(clock, _interpreter, thresholds);
-            _strikeDetector.Struck += velocity => _harmony.Strike(velocity);
+            _strikeDetector.Struck += velocity =>
+            {
+                Debug.Log($"[DIAG] STRUCK v={velocity} confirmed={_interpreter.ConfirmedFunction} t={AudioSettings.dspTime:0.000}");
+                _harmony.Strike(velocity);
+            };
 
             _poseSource = ResolvePoseSource(clock);
             _melodyKeys = new KeyboardMelodyInput();
@@ -162,8 +166,17 @@ namespace Jazztures.App
             }
 
             HandPoseFrame frame = _poseSource.CurrentFrame;
-            _interpreter.Feed(frame);
-            _strikeDetector.Feed(frame.LeftVerticalSpeedMetresPerSecond);
+            if (Mathf.Abs(frame.LeftVerticalSpeedMetresPerSecond) > 0.05f)
+            {
+                Debug.Log($"[DIAG] vy={frame.LeftVerticalSpeedMetresPerSecond:0.000} candidate={frame.LeftCandidate} confirmed={_interpreter.ConfirmedFunction} phase={_interpreter.Phase} t={AudioSettings.dspTime:0.000}");
+            }
+
+            // ADR-0037: ChordStrikeDetector.Feed(HandPoseFrame) internally strikes before
+            // handing the frame to the interpreter — see its doc comment. Calling it here
+            // (rather than _interpreter.Feed(frame) + _strikeDetector.Feed(velocity)
+            // separately) makes that ordering guaranteed instead of dependent on these two
+            // lines never being reordered.
+            _strikeDetector.Feed(frame);
             _harmony.Tick();
             _melodyKeys.Poll(_melody);
             _melody.Tick();

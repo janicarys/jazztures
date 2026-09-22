@@ -174,6 +174,105 @@ namespace Jazztures.Tests.EditMode.Gesture
             }
         }
 
+        // ADR-0037: feeding one HandPoseFrame through Feed(HandPoseFrame) must let a
+        // genuine strike claim the frame before that same frame's own candidate can
+        // confirm a pending release out from under it — the failure NotifyStruck
+        // (ADR-0034) cannot prevent on its own, since it only cancels a release once a
+        // strike has already fired.
+        [Test]
+        public void FeedingAWholeFrame_LetsAStrikeClaimTheSameFrameAReleaseWouldOtherwiseConfirmOn()
+        {
+            // SetUp already confirmed ii (Two).
+
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            for (int i = 0; i < 3; i++)
+            {
+                _clock.Advance(0.05);
+                _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+                _clock.Advance(0.05);
+                _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            }
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two), "not yet released");
+
+            // This next None frame would cross ReleaseHoldSeconds if the interpreter
+            // processed it on its own — but it also carries a genuine strike-speed
+            // downward velocity. Feeding it as one frame must let the strike claim it.
+            _clock.Advance(0.1);
+            var frame = new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High, -1.0f);
+            _detector.Feed(frame);
+
+            Assert.That(_strikes, Has.Count.EqualTo(1), "the strike must have fired");
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two),
+                "the strike must have claimed this frame before the pending release could confirm on it");
+        }
+
+        // The failure ADR-0037 fixes, made explicit: feeding the same two objects
+        // separately, interpreter first, lets the release win the race and the strike
+        // finds nothing left to sound. This is exactly the bug reported on device — a
+        // pose reads correctly but striking it produces no sound.
+        [Test]
+        public void FeedingSeparately_InterpreterFirst_LetsTheReleaseSwallowTheStrike()
+        {
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            for (int i = 0; i < 3; i++)
+            {
+                _clock.Advance(0.05);
+                _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+                _clock.Advance(0.05);
+                _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            }
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+
+            _clock.Advance(0.1);
+            var frame = new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High, -1.0f);
+
+            _interpreter.Feed(frame); // interpreter first: confirms the release right here
+            _detector.Feed(frame.LeftVerticalSpeedMetresPerSecond); // too late: nothing to strike
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.Null, "this ordering lets the release win");
+            Assert.That(_strikes, Is.Empty, "the strike had nothing left to sound");
+        }
+
+        // ADR-0034: a real strike, through the real detector, must reach into the
+        // interpreter and cancel a release that happens to be pending — see
+        // GestureInterpreterTests.NotifyStruck_CancelsAPendingRelease_... for the isolated
+        // interpreter-level scenario this reproduces end to end.
+        [Test]
+        public void AStrike_CancelsAReleaseThatIsPendingAtThatMoment()
+        {
+            // SetUp already confirmed ii (Two).
+
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            for (int i = 0; i < 3; i++)
+            {
+                _clock.Advance(0.05);
+                _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+                _clock.Advance(0.05);
+                _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            }
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two), "not yet released");
+
+            _clock.Advance(GestureThresholds.Default.MinInterStrikeSeconds + 0.01);
+            _detector.Feed(-1.0f);
+            Assert.That(_strikes, Has.Count.EqualTo(1));
+
+            // Without the strike cancelling it, the next None match would cross
+            // ReleaseHoldSeconds (elapsed since the original pending start) and release ii.
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+            _clock.Advance(0.05);
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+
+            Assert.That(_interpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two),
+                "the strike must have cancelled the stale pending release");
+        }
+
         [Test]
         public void TrackingLoss_SuppressesTheStrike_EvenWithFastDownwardMotion()
         {
@@ -185,16 +284,22 @@ namespace Jazztures.Tests.EditMode.Gesture
             Assert.That(_strikes, Is.Empty, "a tracking glitch must never manufacture a strike (ADR-0025 / §3.5)");
         }
 
+        // ADR-0031: reported symptom (by code review, not yet on device) — a tracking blip
+        // landing mid-strike used to force an immediate re-arm, exactly like this test used
+        // to assert. Fast motion (a strike) is exactly what degrades optical tracking, so
+        // the blip is realistic; forcing a re-arm reopened ADR-0030's double-fire through a
+        // different door — the strike never physically stopped, so the first good frame
+        // back was often still fast enough to cross the enter threshold again.
         [Test]
-        public void AfterTrackingLoss_TheFirstGoodFrameCanStillStrike_ButOnlyOnceReArmed()
+        public void TrackingLossMidStrike_DoesNotReArm_UntilTheHandActuallySettles()
         {
-            _detector.Feed(-1.0f); // arm state consumed — 1st strike
-            Assume.That(_strikes, Has.Count.EqualTo(1));
+            _detector.Feed(-1.0f); // first strike
+            Assert.That(_strikes, Has.Count.EqualTo(1));
 
             _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.Low, TrackingQuality.High));
             _detector.Feed(-5.0f); // ignored: tracking unusable
 
-            // Regain tracking (3 High frames) and confirm ii is still held (sustained through the loss).
+            // Regain tracking (3 High frames); ii is still held (sustained through the loss).
             for (int i = 0; i < 3; i++)
             {
                 _clock.Advance(0.05);
@@ -204,9 +309,36 @@ namespace Jazztures.Tests.EditMode.Gesture
             Assume.That(_interpreter.TrackingUsable, Is.True);
             _clock.Advance(GestureThresholds.Default.MinInterStrikeSeconds + 0.01);
 
-            _detector.Feed(-1.0f); // 2nd strike — tracking loss forced a re-arm
+            // The strike never physically stopped — the hand is still fast on the first
+            // good frame back. Without a genuine settle, this must not re-fire.
+            _detector.Feed(-1.0f);
+            Assert.That(_strikes, Has.Count.EqualTo(1), "a tracking blip mid-strike must not force a re-arm");
 
-            Assert.That(_strikes, Has.Count.EqualTo(2), "tracking loss forces a re-arm, so this is a fresh strike");
+            // Once the hand genuinely settles, a fresh strike still works normally.
+            SettleBelowExit();
+            _detector.Feed(-1.0f);
+            Assert.That(_strikes, Has.Count.EqualTo(2), "a genuine settle after the loss still re-arms normally");
+        }
+
+        // The flip side of the fix above: a blip that happens while the detector was
+        // already armed (no strike in flight) must not cost the next strike anything —
+        // only a strike-in-progress's arm/settle state is being protected.
+        [Test]
+        public void TrackingLossWhileAlreadyArmed_DoesNotBlockTheNextStrike()
+        {
+            _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.Low, TrackingQuality.High));
+            _detector.Feed(-5.0f); // ignored: tracking unusable
+
+            for (int i = 0; i < 3; i++)
+            {
+                _clock.Advance(0.05);
+                _interpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+            }
+
+            Assume.That(_interpreter.TrackingUsable, Is.True);
+
+            _detector.Feed(-1.0f);
+            Assert.That(_strikes, Has.Count.EqualTo(1), "a blip while already armed must not block the next strike");
         }
     }
 }

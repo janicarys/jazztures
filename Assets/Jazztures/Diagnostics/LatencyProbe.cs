@@ -10,10 +10,12 @@ namespace Jazztures.Diagnostics
     /// "Report these numbers in the thesis"). Bound by the composition root.
     ///
     /// <para>
-    /// Currently wired: <see cref="LatencyStage.PoseToConfirm"/> (from the interpreter's
-    /// hold time) and <see cref="LatencyStage.NoteEventToScheduled"/> (from the sampler,
-    /// which shares this probe's <see cref="Recorder"/>). The remaining stages fill in
-    /// once the real gesture path exists.
+    /// Currently wired: <see cref="LatencyStage.PoseToConfirm"/> and
+    /// <see cref="LatencyStage.PoseToRelease"/> (both from the interpreter's hold time —
+    /// split by ADR-0032, since a release's hold requirement is deliberately larger than a
+    /// selection's, ADR-0027) and <see cref="LatencyStage.NoteEventToScheduled"/> (from the
+    /// sampler, which shares this probe's <see cref="Recorder"/>). The remaining stages
+    /// fill in once the real gesture path exists.
     /// </para>
     ///
     /// <para>Press <see cref="_reportKey"/> to log a summary; it also logs on quit.</para>
@@ -35,13 +37,22 @@ namespace Jazztures.Diagnostics
             }
         }
 
-        private void OnConfirmed(Core.Harmony.ChordFunction? _)
+        private void OnConfirmed(Core.Harmony.ChordFunction? confirmedFunction)
         {
             double holdSeconds = _interpreter.LastConfirmationHoldSeconds;
-            if (!double.IsNaN(holdSeconds))
+            if (double.IsNaN(holdSeconds))
             {
-                Recorder.Record(LatencyStage.PoseToConfirm, holdSeconds * 1000.0);
+                return;
             }
+
+            // ADR-0032: a release (confirmedFunction is null) was held to
+            // ReleaseHoldSeconds, not PoseHoldSeconds (ADR-0027) — recording it under
+            // PoseToConfirm would bury the §4.3 selection-latency percentiles under the
+            // release path's much larger, deliberately different floor.
+            LatencyStage stage = confirmedFunction.HasValue
+                ? LatencyStage.PoseToConfirm
+                : LatencyStage.PoseToRelease;
+            Recorder.Record(stage, holdSeconds * 1000.0);
         }
 
         private void Update()

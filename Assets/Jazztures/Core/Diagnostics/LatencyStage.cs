@@ -10,6 +10,14 @@ namespace Jazztures.Core.Diagnostics
         /// <summary>Hand-tracking pose available → gesture confirmed (hold + frames).</summary>
         PoseToConfirm,
 
+        /// <summary>
+        /// Hand-tracking pose available → an explicit release confirmed. Kept separate
+        /// from <see cref="PoseToConfirm"/> (ADR-0032) because <c>ReleaseHoldSeconds</c>
+        /// (ADR-0027) is deliberately larger than <c>PoseHoldSeconds</c> — releases and
+        /// selections are not the same population and must not share one percentile.
+        /// </summary>
+        PoseToRelease,
+
         /// <summary>Gesture confirmed → the resulting note event emitted by the domain.</summary>
         ConfirmToNoteEvent,
 

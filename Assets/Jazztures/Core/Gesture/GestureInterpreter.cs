@@ -121,6 +121,35 @@ namespace Jazztures.Core.Gesture
         /// <summary>Raised only when <see cref="Phase"/> actually changes.</summary>
         public event Action<GesturePhase>? PhaseChanged;
 
+        /// <summary>
+        /// A downward strike was just detected and articulated the currently-confirmed
+        /// chord (ADR-0034). If a release happens to be pending at that moment, this
+        /// cancels it outright rather than letting it merely tolerate the strike as one
+        /// more weak-evidence miss: successfully striking a pose is definitive proof the
+        /// hand is still engaged with it, stronger evidence than <see cref="RegisterMiss"/>
+        /// alone can express.
+        ///
+        /// <para>
+        /// Without this, <see cref="GestureThresholds.ReleaseHoldSeconds"/> is measured
+        /// from when the release attempt first started pending, not from a continuous run
+        /// of matching frames — so a release that had been silently accumulating
+        /// wall-clock progress (ordinary pose noise, or the strike's own disruption, which
+        /// is exactly what <see cref="GestureThresholds.ReleaseMissTolerance"/> is built to
+        /// absorb) could still cross its threshold moments after a successful strike,
+        /// cutting the chord that was just deliberately re-articulated.
+        /// </para>
+        ///
+        /// <para>Call from <see cref="ChordStrikeDetector"/> whenever <c>Struck</c> fires.</para>
+        /// </summary>
+        public void NotifyStruck()
+        {
+            if (_hasPending && IsPendingRelease)
+            {
+                ResetPending();
+                SetPhase(_confirmed.HasValue ? GesturePhase.Confirmed : GesturePhase.Idle);
+            }
+        }
+
         public void Feed(HandPoseFrame frame)
         {
             double now = _clock.Now;
