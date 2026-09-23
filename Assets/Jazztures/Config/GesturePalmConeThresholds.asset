@@ -16,7 +16,7 @@ MonoBehaviour:
   - _feature: 0
     _thresholds:
     - _thresholdMidpoint: 40
-      _thresholdWidth: 20
+      _thresholdWidth: 30
       _firstState: 0
       _secondState: 2
     _minTimeInState: 0

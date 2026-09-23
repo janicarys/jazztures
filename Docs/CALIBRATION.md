@@ -39,7 +39,7 @@ widen it if ii is hard to trigger.
 | Finger "curled" curl                                 | > 0.75    | —        | default | SDK ShapeRecognizer (`Poses/Fist.asset`)                                                               |
 | Palm-down cone — enter (I pose)                      | 35°       | —        | default | `GesturePalmConeThresholds.asset` → SDK TransformRecognizer (midpoint 42.5 − width/2)                  |
 | Palm-down cone — exit (I pose)                       | 50°       | —        | default | `GesturePalmConeThresholds.asset` → SDK TransformRecognizer (midpoint 42.5 + width/2; wider — Schmitt) |
-| Wrist-up cone — enter/exit (ii pose)                 | 30° / 50° | —        | default | `GesturePalmConeThresholds.asset` feature `WristUp` (SDK default; ADR-0026, was `FingersUp` per ADR-0014) |
+| Wrist-up cone — enter/exit (ii pose)                 | 25° / 55° | —        | default | `GesturePalmConeThresholds.asset` feature `WristUp` (widened from the SDK default 30°/50° — ADR-0041; was `FingersUp` per ADR-0014, moved to `WristUp` per ADR-0026) |
 | Pose hold to confirm                                 | 150 ms    | —        | default | `GestureInterpreter` (also the latency-budget lever, §4.3). Was 120 ms; raised in ADR-0025 now that selection no longer gates musical timing |
 | Minimum inter-chord interval                         | 100 ms    | —        | default | `GestureInterpreter` (debounce)                                                                        |
 | Consecutive confirming frames                        | 3         | —        | default | `GestureInterpreter` (~60 Hz hand update; need not be consecutive — see miss tolerance below, ADR-0025) |
@@ -166,7 +166,7 @@ measurement).
 
 | Parameter               | Default  | Measured | Status  | Notes                                                                                   |
 | ------------------------ | -------- | -------- | ------- | ----------------------------------------------------------------------------------------- |
-| Height offset from head  | −0.45 m  | —        | default | lower than melody's arc reach (−0.25 m, ADR-0015) — struck downward near waist height, not reached out to. `ChordStrikeTargetAnchor._heightOffsetMetres` |
+| Height offset from head  | −0.25 m  | —        | default | matches `MelodyConfig.ShoulderHeightOffsetMetres` (ADR-0015) so both hands' target objects sit at the same level — revised from an initial guess of −0.45 m before any device test (ADR-0040). `ChordStrikeTargetAnchor._heightOffsetMetres` |
 | Lateral offset from head | −0.20 m  | —        | default | mirrors melody's rightward bias (+0.08 m, ADR-0020) onto the other hand, at a larger magnitude since this is one plate, not a ten-target arc to keep in frame. `_lateralOffsetMetres` |
 | Forward offset from head | +0.20 m  | —        | default | how far in front of the body the plate sits. `_forwardOffsetMetres`                       |
 

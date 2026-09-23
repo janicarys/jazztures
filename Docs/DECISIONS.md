@@ -8,6 +8,52 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0041 — Widen the `WristUp` cone: ii is the one pose built on a roll signal, and roll is noisier
+
+**Date:** 2026-09-22 · **Status:** Proposed — unverified on device.
+**Milestone:** M3 (edits `Config/GesturePalmConeThresholds.asset` only — no code change)
+**Changes the thesis:** none — a recognition-tolerance tweak, not a gesture or chord change.
+
+**The finding.** On-device testing found ii's selection and (downstream) its Touch
+articulation both noticeably less reliable than V or I's — reported as "the ii chord is the
+most inconsistent," with V and I "relatively more consistent" by comparison, and both a
+selection-side failure (the pose won't confirm) and an articulation-side failure (touching
+the plate sounds nothing) observed for ii specifically.
+
+**Root cause (by elimination, not yet log-confirmed).** ii, V, and I each key off a
+different SDK signal, and the three are not equally noisy. V is pure finger curl (`Fist`).
+I is `PalmDown`, an orientation check against palm-forward direction. ii, per ADR-0014/0026,
+has no clean palm-orientation signal available and is instead built on `WristUp` — a
+wrist-*roll* check (rotation about the forearm's own long axis). Roll is generally the
+weakest-constrained axis for camera-based hand tracking (there is much less visual signal
+for twist-about-the-bone than for the bend/pitch the other two poses use), and it is also
+harder for a person to hold at a precise, steady angle than a curl or a forward-facing
+direction. A roll reading that wanders outside the `WristUp` cone for more than the ordinary
+2-frame confirmation miss tolerance (§3.4) restarts the whole 150 ms hold — explaining the
+selection-side symptom directly. The articulation-side symptom follows from the same noise:
+if `ConfirmedFunction` drops to null right as the plate is touched, `ChordTouchDetector`
+correctly declines to fire (nothing selected) — which reads, from the outside, as "I touched
+it and nothing happened," even though the detector did the right thing with no function
+selected.
+
+**Decision.** Widen the `WristUp` feature's Schmitt cone in
+`Config/GesturePalmConeThresholds.asset` (feature index 0): `_thresholdWidth` `20° → 30°`,
+midpoint unchanged at 40° — enter `30° → 25°`, exit `50° → 55°`. A data-only asset edit, no
+code change. Low risk: ii/I ambiguity (both `OpenPalm`) already falls back to "hold whatever
+was last confirmed" when both cones match (§3.4's ambiguity rule) — so a wider WristUp cone
+can only produce more frequent ambiguity holds, never a wrong chord.
+
+**Not yet verified.** No log-based confirmation that roll noise is actually the mechanism —
+this is a diagnosis by elimination (the one pose on a different, harder-to-hold signal is
+the one pose that's flaky) rather than one read off `[DIAG]` output, unlike this session's
+earlier strike-path bugs. If widening the cone doesn't resolve it, the next step is adding
+live candidate/confirmed logging to the discrete-pose path (currently there is none active
+while `_commitGesture == Touch`) to read the actual sequence around a failed attempt.
+
+**Thesis impact:** none.
+
+---
+
 ## ADR-0040 — Body-anchor the strike plate, reusing the melody arc's own follow logic verbatim
 
 **Date:** 2026-09-22 · **Status:** Proposed — code lands complete; no automated coverage
@@ -26,10 +72,12 @@ tested yaw-follow logic the melody arc already relies on — unchanged, includin
 default thresholds (`LazyRecenterSettings.Default`: 35°/0.6s/0.5s). This is the same body,
 answering the same "how much yaw drift before the rig should follow" question the melody
 arc already answered; nothing about a left-hand plate justifies re-deriving it. Only the
-anchor *offsets* are new — mirrored to the left (`_lateralOffsetMetres = −0.20`) and lower
-than melody's arc reach (`_heightOffsetMetres = −0.45` vs. melody's −0.25), since this plate
-is struck downward near waist height rather than reached out to at shoulder height. Both are
-new, undemonstrated guesses.
+anchor *offsets* are new — mirrored to the left (`_lateralOffsetMetres = −0.20`). Height was
+revised during the same session, before any device test: shipped first at `−0.45` (a fresh
+guess, reasoned as "struck downward near waist height, not reached out to"), then moved to
+`−0.25` — the same value as `MelodyConfig.ShoulderHeightOffsetMetres` (ADR-0015) — on direct
+instruction, so both hands' target objects sit at the same level rather than the left plate
+inventing its own. The lateral offset remains a new, undemonstrated guess.
 
 **A flat disc doesn't need to face the learner.** `TargetVolume`'s local Z is always the
 approach axis (ADR-0016/0018) and the containment test is a circular cylinder — rotationally

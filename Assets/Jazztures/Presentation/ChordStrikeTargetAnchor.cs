@@ -13,9 +13,9 @@ namespace Jazztures.Presentation
     /// the melody arc already answered; nothing here justifies a second guess.
     ///
     /// <para>
-    /// Mirrored to the left and lower than melody's arc: the plate sits where a downward
-    /// strike naturally lands (roughly waist height, close in), not at melody's shoulder-arc
-    /// reach.
+    /// Mirrored to the left, at the same height as melody's shoulder-arc (ADR-0040 revision:
+    /// shipped lower at first, moved up to match melody's level so both hands operate at the
+    /// same height).
     /// </para>
     ///
     /// <para>
@@ -43,10 +43,10 @@ namespace Jazztures.Presentation
         [Tooltip("The centre-eye / head transform to anchor against.")]
         [SerializeField] private Transform _head;
 
-        [Tooltip("Vertical offset from head height, metres (negative = below). Lower than "
-            + "melody's arc reach (-0.25 m, ADR-0015) — this plate is struck downward, not "
-            + "reached out to.")]
-        [SerializeField] private float _heightOffsetMetres = -0.45f;
+        [Tooltip("Vertical offset from head height, metres (negative = below). Matches "
+            + "melody's own shoulder-arc height (MelodyConfig.ShoulderHeightOffsetMetres, "
+            + "-0.25 m, ADR-0015) so both hands operate at the same level — see ADR-0040.")]
+        [SerializeField] private float _heightOffsetMetres = -0.25f;
 
         [Tooltip("Lateral offset from head, metres (negative = the learner's left) — "
             + "mirrors melody's rightward bias (ADR-0020) onto the other hand.")]
