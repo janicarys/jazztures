@@ -6,22 +6,28 @@ namespace Jazztures.Core.Gesture
     /// The parameters <see cref="ChordTouchDetector"/> uses (ADR-0039). Kept separate from
     /// <see cref="GestureThresholds"/> (the strike path) and <see cref="PinchCommitThresholds"/>
     /// (the pinch path) so all three articulation mechanisms stay independently tunable and
-    /// none is disturbed by the others. Unlike either of those, both values here are
-    /// <b>inherited</b> from an existing, already-established default rather than newly
-    /// guessed — the entry-velocity gate in particular has already been on-device validated
-    /// once, for the right hand's own melody targets (ADR-0018). The Unity
-    /// <c>Config/HarmonicFieldConfig.asset</c> mirrors these. Immutable value type
-    /// (ADR-0007).
+    /// none is disturbed by the others. Unlike either of those, the retrigger cooldown and
+    /// entry-velocity gate are <b>inherited</b> from an existing, already-established
+    /// default rather than newly guessed — the entry-velocity gate in particular has
+    /// already been on-device validated once, for the right hand's own melody targets
+    /// (ADR-0018). Wired directly from <see cref="Default"/> in
+    /// <c>PerformanceCompositionRoot</c> — there is no config asset for this path yet.
+    /// Immutable value type (ADR-0007).
     /// </summary>
     public readonly struct TouchCommitThresholds
     {
-        public TouchCommitThresholds(double minInterTouchSeconds, float entryVelocityGateMetresPerSecond)
+        public TouchCommitThresholds(
+            double minInterTouchSeconds,
+            float entryVelocityGateMetresPerSecond,
+            double maxAwaitingConfirmationSeconds)
         {
             Require(minInterTouchSeconds >= 0.0, nameof(minInterTouchSeconds));
             Require(entryVelocityGateMetresPerSecond >= 0f, nameof(entryVelocityGateMetresPerSecond));
+            Require(maxAwaitingConfirmationSeconds > 0.0, nameof(maxAwaitingConfirmationSeconds));
 
             MinInterTouchSeconds = minInterTouchSeconds;
             EntryVelocityGateMetresPerSecond = entryVelocityGateMetresPerSecond;
+            MaxAwaitingConfirmationSeconds = maxAwaitingConfirmationSeconds;
         }
 
         /// <summary>
@@ -43,10 +49,26 @@ namespace Jazztures.Core.Gesture
         /// </summary>
         public float EntryVelocityGateMetresPerSecond { get; }
 
-        /// <summary>The ADR-0039 defaults — both inherited, neither a fresh guess.</summary>
+        /// <summary>
+        /// How long a rising edge that arrived before <c>GestureInterpreter.ConfirmedFunction</c>
+        /// was set is still allowed to articulate once confirmation lands, provided the
+        /// fingertip is still resting inside the target the whole time (ADR-0042). Bounded,
+        /// not indefinite, so a touch attempted long before any function is ever confirmed
+        /// again doesn't fire on some much-later, unrelated confirmation. Default 350 ms —
+        /// a fresh guess, sized to comfortably cover <see cref="GestureThresholds.PoseHoldSeconds"/>
+        /// (150 ms) plus its own miss-tolerance retries, not measured on-device.
+        /// </summary>
+        public double MaxAwaitingConfirmationSeconds { get; }
+
+        /// <summary>
+        /// The ADR-0039 defaults (cooldown, velocity gate — both inherited, neither a fresh
+        /// guess) plus ADR-0042's grace window (a fresh guess; see
+        /// <see cref="MaxAwaitingConfirmationSeconds"/>).
+        /// </summary>
         public static TouchCommitThresholds Default => new TouchCommitThresholds(
             minInterTouchSeconds: 0.12,
-            entryVelocityGateMetresPerSecond: 0.08f);
+            entryVelocityGateMetresPerSecond: 0.08f,
+            maxAwaitingConfirmationSeconds: 0.35);
 
         private static void Require(bool condition, string name)
         {

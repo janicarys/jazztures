@@ -143,14 +143,16 @@ from the landmark coordinates, so re-tuning one means re-checking the other.
 A third articulation mechanism, alongside the strike (§Gesture recognition, above) and the
 pinch (Harmonic field, above) — selected via `PerformanceCompositionRoot.HarmonyCommitGesture
 = Touch`. Composes with either selection mechanism (discrete poses or the harmonic field);
-only the commit event changes. Unlike the other two, its two thresholds are **inherited**
+only the commit event changes. Its cooldown and entry-velocity gate are **inherited**
 values, not new guesses — see ADR-0039 for why that makes this the highest-confidence
-starting point of the three.
+starting point of the three. The grace window below (ADR-0042) is a fresh guess, added
+after an on-device report of touches that registered nothing.
 
 | Parameter                    | Default  | Measured | Status  | Notes                                                                                                                     |
 | ----------------------------- | -------- | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Minimum inter-touch interval   | 0.12 s   | —        | default | inherited from `GestureThresholds.MinInterStrikeSeconds`, not re-guessed. `TouchCommitThresholds.MinInterTouchSeconds`     |
 | Entry velocity gate            | 0.08 m/s | —        | default | inherited verbatim from `MelodyConfig`'s own entry gate (ADR-0018) — the one commit threshold in this project's history already on-device validated, just for the other hand. `TouchCommitThresholds.EntryVelocityGateMetresPerSecond` |
+| Max awaiting-confirmation window | 0.35 s | —      | default | ADR-0042 — how long a touch that arrived before selection confirmed keeps waiting (fingertip still resting inside) before being given up on. Sized to cover `GestureThresholds.PoseHoldSeconds` (150 ms) plus margin, not measured. `TouchCommitThresholds.MaxAwaitingConfirmationSeconds` |
 | Target face radius             | 6 cm     | —        | default | `ChordStrikeTarget._radiusMetres` — larger than a melody target (3 cm) since there is only one, not ten crowded together  |
 | Target half-depth              | 8 cm     | —        | default | `ChordStrikeTarget._halfDepthMetres` — depth is unaimable in mid-air VR (ADR-0018), same reasoning as melody              |
 | Speed sample window            | 3 frames | —        | default | `ChordStrikeTarget._speedSampleFrames` — peak entry speed, mirrors `MelodyConfig`'s window (ADR-0018)                     |

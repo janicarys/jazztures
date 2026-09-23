@@ -225,6 +225,106 @@ namespace Jazztures.Tests.EditMode.Gesture
             Assert.That(_articulated, Is.Empty, "the touch had nothing left to sound");
         }
 
+        // ADR-0042: a rising edge that arrives before selection confirms must not be
+        // discarded outright — the reach that carries the fingertip into the target is
+        // exactly the motion most likely to still be mid-confirmation when it arrives.
+        // Each of these builds its own fresh clock/interpreter/detector (rather than reusing
+        // this fixture's already-confirmed one) and, like ATouchWithNothingSelected_DoesNotArticulate,
+        // warms tracking up with three High-quality None frames first — TrackingUsable
+        // gates every path in ChordTouchDetector, including the pending-entry retry itself.
+        [Test]
+        public void AnEntryBeforeConfirmation_ArticulatesOnceConfirmationLandsWhileStillInside()
+        {
+            var freshClock = new VirtualClock();
+            var freshInterpreter = new GestureInterpreter(freshClock, GestureThresholds.Default);
+            var freshDetector = new ChordTouchDetector(freshClock, freshInterpreter, TouchCommitThresholds.Default);
+            var freshArticulated = new List<byte>();
+            freshDetector.Articulated += freshArticulated.Add;
+
+            for (int i = 0; i < 3; i++)
+            {
+                freshClock.Advance(0.02);
+                freshInterpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            }
+
+            // Nothing selected yet — the fingertip arrives first.
+            freshDetector.Feed(true, 0.5f);
+            Assert.That(freshArticulated, Is.Empty, "nothing to articulate yet");
+
+            // Selection confirms afterward while the fingertip is still resting inside —
+            // no new rising edge, just a fresh interpreter Feed each frame.
+            for (int i = 0; i < 10; i++)
+            {
+                freshClock.Advance(0.05);
+                freshInterpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+                freshDetector.Feed(true, 0f); // still resting: live entry speed has decayed to 0
+            }
+
+            Assume.That(freshInterpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+            Assert.That(freshArticulated, Has.Count.EqualTo(1),
+                "the pending entry must fire once confirmation lands, using its captured speed");
+        }
+
+        [Test]
+        public void AnEntryBeforeConfirmation_ThatLeavesBeforeConfirming_DoesNotArticulate()
+        {
+            var freshClock = new VirtualClock();
+            var freshInterpreter = new GestureInterpreter(freshClock, GestureThresholds.Default);
+            var freshDetector = new ChordTouchDetector(freshClock, freshInterpreter, TouchCommitThresholds.Default);
+            var freshArticulated = new List<byte>();
+            freshDetector.Articulated += freshArticulated.Add;
+
+            for (int i = 0; i < 3; i++)
+            {
+                freshClock.Advance(0.02);
+                freshInterpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            }
+
+            freshDetector.Feed(true, 0.5f); // pending
+            freshDetector.Feed(false, 0f); // leaves before anything confirms — cancelled
+
+            for (int i = 0; i < 10; i++)
+            {
+                freshClock.Advance(0.05);
+                freshInterpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+                freshDetector.Feed(false, 0f); // still outside
+            }
+
+            Assume.That(freshInterpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+            Assert.That(freshArticulated, Is.Empty, "leaving the target must cancel the pending entry");
+        }
+
+        [Test]
+        public void AnEntryBeforeConfirmation_PastTheGraceWindow_DoesNotArticulate()
+        {
+            var freshClock = new VirtualClock();
+            var freshInterpreter = new GestureInterpreter(freshClock, GestureThresholds.Default);
+            var freshDetector = new ChordTouchDetector(freshClock, freshInterpreter, TouchCommitThresholds.Default);
+            var freshArticulated = new List<byte>();
+            freshDetector.Articulated += freshArticulated.Add;
+
+            for (int i = 0; i < 3; i++)
+            {
+                freshClock.Advance(0.02);
+                freshInterpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            }
+
+            freshDetector.Feed(true, 0.5f); // pending
+
+            freshClock.Advance(TouchCommitThresholds.Default.MaxAwaitingConfirmationSeconds + 0.01);
+            freshDetector.Feed(true, 0f); // grace window has elapsed — gives up
+
+            for (int i = 0; i < 10; i++)
+            {
+                freshClock.Advance(0.05);
+                freshInterpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+                freshDetector.Feed(true, 0f); // still resting, but the entry was already given up on
+            }
+
+            Assume.That(freshInterpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+            Assert.That(freshArticulated, Is.Empty, "a confirmation past the grace window must not resurrect a spent entry");
+        }
+
         [Test]
         public void AFasterEntry_ProducesAHigherVelocityThanASlowerOne()
         {

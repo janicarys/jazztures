@@ -8,6 +8,85 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0042 — A touch that arrives before selection confirms was discarded outright; give it a bounded grace window instead
+
+**Date:** 2026-09-23 · **Status:** Proposed — headless-tested; unverified on device.
+**Milestone:** M3 (revises `Core/Gesture/ChordTouchDetector`, `TouchCommitThresholds`)
+**Changes the thesis:** none — a reliability fix within ADR-0039's existing mechanism, not
+a gesture or chord change.
+
+**The finding.** Reported on-device: touching the strike plate (ADR-0039) while a chord is
+selected sometimes produces nothing at all — not a wrong chord, no sound. Reproducible by
+reading, not just by report: `ChordTouchDetector.Feed` (pre-fix) required a *rising edge*
+(fingertip outside → inside on the same frame) to even consider articulating, and treated
+any rising edge that arrived before `GestureInterpreter.ConfirmedFunction` had a value as
+simply spent — `_wasInside` was still latched `true` on that frame, so once selection
+*did* confirm a moment later, there was no fresh rising edge left to key off. The fingertip
+would have to leave the volume and re-enter to fire at all.
+
+**Root cause.** ADR-0039's own reasoning — "with nothing selected, an entry here is simply
+spent, no re-arm budget needed... a deliberate approach into a fixed volume is
+unambiguous" — implicitly assumed selection would already be settled *before* the hand
+reached the plate. That doesn't hold for a single continuous reach-and-touch motion: the
+arm travel that carries the fingertip into the target is exactly the motion most likely to
+still be inside `GestureThresholds.PoseHoldSeconds`'s confirmation window (150 ms, plus its
+own miss-tolerance retries) when it arrives — more so for ii specifically, whose `WristUp`
+selection is already the least reliable to confirm quickly (ADR-0041). `ChordTouchDetectorTests`
+had a test for "touch with nothing selected → no articulation" in isolation
+(`ATouchWithNothingSelected_DoesNotArticulate`) but nothing exercising what happens if
+selection *then* confirms while the fingertip is still resting inside — the exact sequence
+a real reach produces, and structurally impossible to pass before this fix.
+
+**Decision.** A rising edge with no confirmed function no longer discards its entry speed —
+it goes *pending* (`ChordTouchDetector._awaitingConfirmation` / `_awaitingEntrySpeed`,
+`_awaitingSince`) and is retried every frame the fingertip stays inside the target, from
+both `Feed` overloads (once at the top of `Feed(bool, float)`, for the plain call-then-feed
+style the tests use and to catch a confirmation that landed on a prior frame; once more
+after `_interpreter.Feed(frame)` inside `Feed(HandPoseFrame)`, to catch a confirmation that
+lands on the *same* frame at zero added latency — the same reasoning ADR-0037 already
+established for the strike/pinch/touch ordering). A pending entry resolves one of three
+ways: confirmation lands → fires immediately using the *originally captured* entry speed
+(the fingertip is stationary by then, so re-reading its live speed would fail the velocity
+gate); the fingertip leaves the volume → cancelled, the next approach starts fresh; neither
+happens within `TouchCommitThresholds.MaxAwaitingConfirmationSeconds` (350 ms, new,
+ADR-0042's own guess, sized to comfortably cover the 150 ms confirmation window plus
+margin) → given up on, matching the original "simply spent" behaviour as the fallback.
+
+**Why bounded, not indefinite.** Without the grace window, a touch attempted while nothing
+is selected would remain pending forever, and could fire on some unrelated, much-later
+confirmation if the fingertip happened to still be resting on the plate when the learner
+next held a pose — using stale entry-speed data from a completely different attempt. Every
+other tolerance window in this codebase (confirmation miss tolerance, release miss
+tolerance, strike settle frames) is similarly bounded rather than open-ended; this follows
+the same pattern.
+
+**What stays unchanged.** The already-confirmed path (rising edge, `ConfirmedFunction`
+already set) is untouched and still fires within the same call, preserving ADR-0037's
+same-frame race guarantee (`ATouch_CancelsAReleaseThatIsPendingAtThatMoment`,
+`FeedingAWholeFrame_LetsATouchClaimTheSameFrameAReleaseWouldOtherwiseConfirmOn`,
+`FeedingSeparately_InterpreterFirst_LetsTheReleaseSwallowTheTouch` all still pass
+unmodified). The velocity gate and retrigger cooldown are unaffected and still spend an
+entry outright on failure — only the "nothing selected yet" case now waits.
+
+**Test.** `ChordTouchDetectorTests` gains
+`AnEntryBeforeConfirmation_ArticulatesOnceConfirmationLandsWhileStillInside` (the bug's
+exact repro: touch while unconfirmed, confirm afterward, still inside → fires, using the
+captured entry speed even though the live speed has since dropped to zero),
+`AnEntryBeforeConfirmation_ThatLeavesBeforeConfirming_DoesNotArticulate` (cancels
+correctly on exit), and
+`AnEntryBeforeConfirmation_PastTheGraceWindow_DoesNotArticulate` (the bound actually
+bounds). All pre-existing tests pass unmodified.
+
+**Not yet verified.** Whether 350 ms is the right grace window, and whether this actually
+resolves the on-device symptom rather than merely one plausible mechanism for it — the
+plate-touch failure could still have a second, unrelated cause. Read `[DIAG]`-style
+candidate/confirmed logging on the `Touch` path (still absent — ADR-0041's own open item)
+before concluding this alone fixes it.
+
+**Thesis impact:** none.
+
+---
+
 ## ADR-0041 — Widen the `WristUp` cone: ii is the one pose built on a roll signal, and roll is noisier
 
 **Date:** 2026-09-22 · **Status:** Proposed — unverified on device.
