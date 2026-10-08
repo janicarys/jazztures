@@ -453,5 +453,5 @@ Run 1–2 pilot users. Replace `[TUNABLE]` defaults with measured values in `Doc
 | Q&A phrase generation (L8) | `[OPEN]` — pre-authored bank vs. generated. Prefer pre-authored; generation is a second thesis. |
 | Chord voicing register | `[TUNABLE]` — needs a pianist's ear, not a developer's. |
 | Left-hand articulation split (selection vs. strike) | Resolved in ADR-0025 — see §3.2. Fixes a measured on-device timing/fluidity problem; changes the §1.3 interaction description. |
-| `MetronomeVoice` (audible in-app click) | `[OPEN]` — `LessonRunner.DrainMetronome` still discards clicks; L2's metronome is silent. ADR-0024 already assumed this exists by L2. Resolve before any L2 pilot session. |
+| `MetronomeVoice` (audible in-app click) | Resolved in ADR-0043 (steps 1–2) — `MetronomeVoice` schedules clicks on the DSP timeline; `LessonRunner` hands it the lesson's metronome; free play has its own pulse. Settings in `Config/MetronomeSettings.asset` (`[TUNABLE]`). Needs a listen on device before an L2 pilot session. |
 | Rhythmic hand-pose fixture (fast re-articulation) | `[OPEN]` — the only recorded fixture (`HandPoseFixture_M3.txt`) is a clean happy-path recording with zero `Ambiguous` frames; it cannot exercise ADR-0025's fix. Needs an actual on-device recording session. |

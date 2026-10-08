@@ -63,6 +63,19 @@ namespace Jazztures.Presentation
         [SerializeField] private Color _rayColor = new Color(0.55f, 0.70f, 1f, 0.5f);
         [SerializeField] private Color _rayFocusColor = new Color(1f, 0.95f, 0.7f, 0.95f);
 
+        [Header("Side control — optional +/- stepper beside the rows")]
+        [Tooltip("Side length of each +/- button's square plate, metres.")]
+        [Min(0.04f)] [SerializeField] private float _sideButtonSizeMetres = 0.09f;
+        [Tooltip("Clear gap between the row band and the buttons, metres.")]
+        [Min(0f)] [SerializeField] private float _sideGapMetres = 0.05f;
+        [Tooltip("Vertical distance from the readout to the centre of each button, metres.")]
+        [Min(0.04f)] [SerializeField] private float _sideButtonPitchMetres = 0.11f;
+        [Tooltip("Extra reach around each button where the ray still counts as on it, metres.")]
+        [Min(0f)] [SerializeField] private float _sideHitMarginMetres = 0.015f;
+        [Tooltip("Readout text size relative to a row's.")]
+        [Range(0.2f, 1f)] [SerializeField] private float _sideReadoutScale = 0.45f;
+        [SerializeField] private Color _sideDisabledColor = new Color(0.45f, 0.45f, 0.48f, 0.6f);
+
         [Header("Visual")]
         [Tooltip("Optional. A translucent material for the plate behind each row. Left empty, " +
                  "a plain translucent plate is generated so the ray still has something to read against.")]
@@ -79,6 +92,12 @@ namespace Jazztures.Presentation
 
         /// <summary>The row index the learner chose. Row order matches the strings passed to <see cref="Show"/>.</summary>
         public event Action<int> Chosen;
+
+        /// <summary>
+        /// The learner pinched a side button: −1 for the lower ("-") one, +1 for the upper
+        /// ("+") one. What it steps is the caller's business — this is a dumb view.
+        /// </summary>
+        public event Action<int> SideStepped;
 
         public bool IsShown { get; private set; }
 
@@ -99,6 +118,19 @@ namespace Jazztures.Presentation
         private float _lastHoverTime = -999f;
         private float _lastSelectTime = -999f;
         private bool _wasPinching;
+
+        // Side stepper: built on first use, so a scene that never calls SetSideControl pays nothing.
+        private Renderer _sidePlusPlate;
+        private Renderer _sideMinusPlate;
+        private TextMesh _sidePlusText;
+        private TextMesh _sideMinusText;
+        private TextMesh _sideReadout;
+        private bool _sideEnabled;
+        private bool _canStepDown = true;
+        private bool _canStepUp = true;
+        private int _sideFocused;       // 0 none, −1 the "-" button, +1 the "+" button
+        private int _lastSideHover;
+        private float _lastSideHoverTime = -999f;
 
         private Vector3 _targetPosition;
         private bool _hasTargetPosition;
@@ -155,6 +187,8 @@ namespace Jazztures.Presentation
             _rowCount = rows.Count;
             _focused = -1;
             _lastHoverRow = -1;
+            _sideFocused = 0;
+            _lastSideHover = 0;
             _wasPinching = false;
             _hasTargetPosition = false;
             _shownWithoutHandSeconds = 0f;
@@ -165,6 +199,33 @@ namespace Jazztures.Presentation
         }
 
         public void Hide() => SetShown(false);
+
+        /// <summary>
+        /// Show a "+" / "-" pair with a <paramref name="readout"/> between them, to the right
+        /// of the rows (multi-line text is fine). Pinching a button raises <see cref="SideStepped"/>;
+        /// a button whose direction is unavailable is dimmed and ignored. Safe to call again to
+        /// update the readout. Stays until <see cref="ClearSideControl"/>.
+        /// </summary>
+        public void SetSideControl(string readout, bool canStepDown = true, bool canStepUp = true)
+        {
+            EnsureSideControl();
+            _sideEnabled = true;
+            _canStepDown = canStepDown;
+            _canStepUp = canStepUp;
+            _sideReadout.text = readout ?? string.Empty;
+            SetShown(IsShown);
+            LayoutSide();
+            Repaint();
+        }
+
+        /// <summary>Remove the side control (e.g. on a screen where it does not apply).</summary>
+        public void ClearSideControl()
+        {
+            _sideEnabled = false;
+            _sideFocused = 0;
+            _lastSideHover = 0;
+            SetShown(IsShown);
+        }
 
         /// <summary>Choose a row directly (a test hook / editor shortcut).</summary>
         public void SelectRow(int index)
@@ -192,6 +253,7 @@ namespace Jazztures.Presentation
             WarnIfHandMissing(tracked);
 
             int hover = -1;
+            int sideHover = 0;
             if (tracked && TryPointer(out Vector3 origin, out Vector3 direction))
             {
                 Vector3 localOrigin = transform.InverseTransformPoint(origin);
@@ -199,7 +261,17 @@ namespace Jazztures.Presentation
                 hover = RowUnderRay(localOrigin, localDir, _rowCount,
                     _rowSpacingMetres, _rowWidthMetres * 0.5f, out Vector3 localHit);
 
-                DrawRay(origin, direction, hover, localHit);
+                // The side buttons sit outside the row band, so the ray is on a row or a button, never both.
+                if (hover < 0 && _sideEnabled && TryPanelPoint(localOrigin, localDir, out Vector3 panelHit))
+                {
+                    sideHover = SideButtonAt(panelHit);
+                    if (sideHover != 0)
+                    {
+                        localHit = panelHit;
+                    }
+                }
+
+                DrawRay(origin, direction, hover >= 0 || sideHover != 0, localHit);
 
                 if (hover >= 0)
                 {
@@ -207,7 +279,13 @@ namespace Jazztures.Presentation
                     _lastHoverTime = Time.unscaledTime;
                 }
 
-                if (PinchChose(hover))
+                if (sideHover != 0)
+                {
+                    _lastSideHover = sideHover;
+                    _lastSideHoverTime = Time.unscaledTime;
+                }
+
+                if (PinchChose(hover, sideHover))
                 {
                     return;
                 }
@@ -219,6 +297,7 @@ namespace Jazztures.Presentation
             }
 
             _focused = hover;
+            _sideFocused = sideHover;
             Repaint();
         }
 
@@ -243,7 +322,7 @@ namespace Jazztures.Presentation
             return false;
         }
 
-        private bool PinchChose(int hover)
+        private bool PinchChose(int hover, int sideHover)
         {
             bool confident = _hand.GetFingerIsHighConfidence(HandFinger.Index)
                           && _hand.GetFingerIsHighConfidence(HandFinger.Thumb);
@@ -257,21 +336,43 @@ namespace Jazztures.Presentation
             }
 
             int row = hover;
-            if (row < 0 && Time.unscaledTime - _lastHoverTime <= _hoverGraceSeconds)
+            int side = sideHover;
+            if (row < 0 && side == 0)
             {
-                row = _lastHoverRow; // the pinch tugged the ray off — take the row it left
+                // The pinch tugged the ray off its target — take whichever one it left most recently.
+                bool rowRecent = Time.unscaledTime - _lastHoverTime <= _hoverGraceSeconds;
+                bool sideRecent = _sideEnabled && Time.unscaledTime - _lastSideHoverTime <= _hoverGraceSeconds;
+                if (rowRecent && (!sideRecent || _lastHoverTime >= _lastSideHoverTime))
+                {
+                    row = _lastHoverRow;
+                }
+                else if (sideRecent)
+                {
+                    side = _lastSideHover;
+                }
             }
 
-            if (row < 0 || row >= _rowCount
-                || Time.unscaledTime - _lastSelectTime < _selectCooldownSeconds)
+            if (Time.unscaledTime - _lastSelectTime < _selectCooldownSeconds)
             {
                 return false;
             }
 
-            _lastSelectTime = Time.unscaledTime;
-            ResetFocus();
-            Chosen?.Invoke(row);
-            return true;
+            if (row >= 0 && row < _rowCount)
+            {
+                _lastSelectTime = Time.unscaledTime;
+                ResetFocus();
+                Chosen?.Invoke(row);
+                return true;
+            }
+
+            if (_sideEnabled && ((side < 0 && _canStepDown) || (side > 0 && _canStepUp)))
+            {
+                _lastSelectTime = Time.unscaledTime;
+                SideStepped?.Invoke(side);
+                return true;
+            }
+
+            return false;
         }
 
         private void WarnIfHandMissing(bool tracked)
@@ -364,9 +465,57 @@ namespace Jazztures.Presentation
             return -1;
         }
 
-        private void DrawRay(Vector3 origin, Vector3 direction, int hover, Vector3 localHit)
+        /// <summary>
+        /// Where the ray crosses the panel plane (local z = 0), in panel space — or false when
+        /// the ray is parallel to it or the panel is behind. The same intersection
+        /// <see cref="RowUnderRay"/> does, without the row banding.
+        /// </summary>
+        private static bool TryPanelPoint(Vector3 localOrigin, Vector3 localDir, out Vector3 localHit)
         {
-            Vector3 end = hover >= 0
+            localHit = default;
+            if (Mathf.Abs(localDir.z) < 1e-5f)
+            {
+                return false;
+            }
+
+            float t = -localOrigin.z / localDir.z;
+            if (t <= 0f)
+            {
+                return false;
+            }
+
+            localHit = localOrigin + t * localDir;
+            return true;
+        }
+
+        /// <summary>Panel-space x of the side buttons' centre line.</summary>
+        private float SideX => _rowWidthMetres * 0.5f + _sideGapMetres + _sideButtonSizeMetres * 0.5f;
+
+        /// <summary>+1 over the "+" button, −1 over the "-" button, 0 over neither.</summary>
+        private int SideButtonAt(Vector3 localHit)
+        {
+            float half = _sideButtonSizeMetres * 0.5f + _sideHitMarginMetres;
+            if (Mathf.Abs(localHit.x - SideX) > half)
+            {
+                return 0;
+            }
+
+            if (Mathf.Abs(localHit.y - _sideButtonPitchMetres) <= half)
+            {
+                return 1;
+            }
+
+            if (Mathf.Abs(localHit.y + _sideButtonPitchMetres) <= half)
+            {
+                return -1;
+            }
+
+            return 0;
+        }
+
+        private void DrawRay(Vector3 origin, Vector3 direction, bool onTarget, Vector3 localHit)
+        {
+            Vector3 end = onTarget
                 ? transform.TransformPoint(localHit + Vector3.back * 0.006f) // sit just in front of the text
                 : origin + direction * _rayLengthMetres;
 
@@ -375,7 +524,7 @@ namespace Jazztures.Presentation
             _ray.SetPosition(0, origin);
             _ray.SetPosition(1, end);
 
-            Color near = hover >= 0 ? _rayFocusColor : _rayColor;
+            Color near = onTarget ? _rayFocusColor : _rayColor;
             Color far = near;
             far.a *= 0.25f;
             _ray.startColor = near;
@@ -394,6 +543,20 @@ namespace Jazztures.Presentation
                     Write(_plates[i], Color.Lerp(_plateIdleColor, _plateFocusColor, k));
                 }
             }
+
+            if (_sideEnabled && _sidePlusPlate != null)
+            {
+                PaintSideButton(_sidePlusPlate, _sidePlusText, 1, _canStepUp);
+                PaintSideButton(_sideMinusPlate, _sideMinusText, -1, _canStepDown);
+                _sideReadout.color = _titleColor;
+            }
+        }
+
+        private void PaintSideButton(Renderer plate, TextMesh glyph, int direction, bool available)
+        {
+            float k = available && _sideFocused == direction ? 1f : 0f;
+            Write(plate, available ? Color.Lerp(_plateIdleColor, _plateFocusColor, k) : _plateIdleColor);
+            glyph.color = available ? Color.Lerp(_idleColor, _focusColor, k) : _sideDisabledColor;
         }
 
         private void LateUpdate()
@@ -443,6 +606,44 @@ namespace Jazztures.Presentation
                     _plates[i].transform.localScale = new Vector3(_rowWidthMetres, _rowSpacingMetres * 0.9f, 1f);
                 }
             }
+
+            LayoutSide();
+        }
+
+        private void LayoutSide()
+        {
+            if (_sidePlusPlate == null)
+            {
+                return;
+            }
+
+            float x = SideX;
+            var plateScale = new Vector3(_sideButtonSizeMetres, _sideButtonSizeMetres, 1f);
+
+            _sidePlusPlate.transform.localPosition = new Vector3(x, _sideButtonPitchMetres, 0.01f);
+            _sidePlusPlate.transform.localScale = plateScale;
+            _sideMinusPlate.transform.localPosition = new Vector3(x, -_sideButtonPitchMetres, 0.01f);
+            _sideMinusPlate.transform.localScale = plateScale;
+
+            _sidePlusText.transform.localPosition = new Vector3(x, _sideButtonPitchMetres, 0f);
+            _sideMinusText.transform.localPosition = new Vector3(x, -_sideButtonPitchMetres, 0f);
+            _sideReadout.transform.localPosition = new Vector3(x, 0f, 0f);
+        }
+
+        private void EnsureSideControl()
+        {
+            if (_sidePlusPlate != null)
+            {
+                return;
+            }
+
+            _sidePlusPlate = CreatePlate("SidePlusPlate");
+            _sideMinusPlate = CreatePlate("SideMinusPlate");
+            _sidePlusText = CreateLine("SidePlus", 1.3f, _idleColor);
+            _sidePlusText.text = "+";
+            _sideMinusText = CreateLine("SideMinus", 1.3f, _idleColor);
+            _sideMinusText.text = "-";
+            _sideReadout = CreateLine("SideReadout", _sideReadoutScale, _titleColor);
         }
 
         private void EnsureRows(int count)
@@ -472,6 +673,16 @@ namespace Jazztures.Presentation
                 {
                     _plates[i].gameObject.SetActive(on);
                 }
+            }
+
+            if (_sidePlusPlate != null)
+            {
+                bool sideOn = shown && _sideEnabled;
+                _sidePlusPlate.gameObject.SetActive(sideOn);
+                _sideMinusPlate.gameObject.SetActive(sideOn);
+                _sidePlusText.gameObject.SetActive(sideOn);
+                _sideMinusText.gameObject.SetActive(sideOn);
+                _sideReadout.gameObject.SetActive(sideOn);
             }
 
             if (_ray != null && !shown)
@@ -507,10 +718,12 @@ namespace Jazztures.Presentation
             return line;
         }
 
-        private Renderer CreatePlate(int index)
+        private Renderer CreatePlate(int index) => CreatePlate($"Plate{index}");
+
+        private Renderer CreatePlate(string plateName)
         {
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            go.name = $"Plate{index}";
+            go.name = plateName;
             if (go.TryGetComponent(out Collider collider))
             {
                 Destroy(collider);

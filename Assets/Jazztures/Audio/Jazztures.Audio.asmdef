@@ -2,7 +2,9 @@
     "name": "Jazztures.Audio",
     "rootNamespace": "Jazztures.Audio",
     "references": [
-        "Jazztures.Core"
+        "Jazztures.Core",
+        "Jazztures.Config",
+        "Jazztures.Diagnostics"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

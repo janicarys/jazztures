@@ -59,13 +59,29 @@ namespace Jazztures.Core.Lessons
         /// <summary>Offset of the last event from the start, in seconds.</summary>
         public double TotalSeconds { get; }
 
-        /// <summary>Seconds since <see cref="Start"/>, or 0 when not playing.</summary>
+        /// <summary>
+        /// Seconds since the start time, or 0 when not playing. Negative while a start
+        /// scheduled with <see cref="Start(double)"/> has not arrived yet.
+        /// </summary>
         public double PositionSeconds => _playing ? _clock.Now - _startDsp : 0.0;
 
         /// <summary>Begin (or restart) playback, anchored at the current clock time.</summary>
-        public void Start()
+        public void Start() => Start(_clock.Now);
+
+        /// <summary>
+        /// Begin (or restart) playback anchored at <paramref name="atDspTime"/>, which may be
+        /// in the future: nothing is emitted until the clock reaches it. This is how a
+        /// lesson shares one start time with the metronome (ADR-0043) — the first click
+        /// has to be scheduled ahead, so everything is anchored a pre-roll after "now".
+        /// </summary>
+        public void Start(double atDspTime)
         {
-            _startDsp = _clock.Now;
+            if (double.IsNaN(atDspTime) || double.IsInfinity(atDspTime))
+            {
+                throw new ArgumentOutOfRangeException(nameof(atDspTime), atDspTime, "Must be finite.");
+            }
+
+            _startDsp = atDspTime;
             _cursor = 0;
             _sounding.Clear();
             _playing = _events.Length > 0;

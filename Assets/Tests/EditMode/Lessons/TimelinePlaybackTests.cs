@@ -138,6 +138,68 @@ namespace Jazztures.Tests.EditMode.Lessons
         }
 
         [Test]
+        public void StartingAtAFutureTime_EmitsNothingUntilThen_AndOffsetsFromIt()
+        {
+            TimelinePlayback playback = Playback(TwoChordPhrase());
+            playback.Start(atDspTime: 1.0);
+
+            _clock.Advance(0.9);
+            playback.Tick();
+            Assert.That(_sink.Events, Is.Empty, "still inside the pre-roll");
+            Assert.That(playback.IsPlaying, Is.True);
+            Assert.That(playback.PositionSeconds, Is.EqualTo(-0.1).Within(1e-9));
+
+            _clock.Advance(0.15); // 1.05 s — past the start, before the second melody note (1.5 s)
+            playback.Tick();
+
+            Assert.That(MelodyOns(), Has.Count.EqualTo(1));
+            Assert.That(MelodyOns()[0].DspTime, Is.EqualTo(1.0).Within(1e-9),
+                "the first note lands exactly on the shared start, not when Tick noticed it");
+        }
+
+        [Test]
+        public void StartingAtAFutureTime_HasTheSameShapeAsStartingNow()
+        {
+            TimelinePlayback now = Playback(TwoChordPhrase());
+            RunToCompletion(now);
+            double[] straight = _sink.Events.ConvertAll(e => e.DspTime).ToArray();
+
+            SetUp();
+            TimelinePlayback later = Playback(TwoChordPhrase());
+            later.Start(atDspTime: 5.0);
+            _clock.Advance(5.0);
+            for (int i = 0; i < 200 && !later.HasEnded; i++)
+            {
+                _clock.Advance(0.05);
+                later.Tick();
+            }
+
+            double[] shifted = _sink.Events.ConvertAll(e => e.DspTime - 5.0).ToArray();
+            Assert.That(shifted, Is.EqualTo(straight).Within(1e-9));
+        }
+
+        [Test]
+        public void StoppingBeforeAScheduledStart_SendsNothing()
+        {
+            TimelinePlayback playback = Playback(TwoChordPhrase());
+            playback.Start(atDspTime: 1.0);
+
+            playback.Stop();
+
+            Assert.That(_sink.Events, Is.Empty, "nothing had sounded, so nothing to release");
+            Assert.That(playback.HasEnded, Is.True);
+        }
+
+        [Test]
+        public void StartAt_RejectsANonFiniteTime()
+        {
+            TimelinePlayback playback = Playback(TwoChordPhrase());
+
+            Assert.Throws<System.ArgumentOutOfRangeException>(() => playback.Start(double.NaN));
+            Assert.Throws<System.ArgumentOutOfRangeException>(() => playback.Start(double.PositiveInfinity));
+        }
+
+        [Test]
         public void EmptyTimeline_EndsImmediately_AndSoundsNothing()
         {
             LessonTimeline empty = new LessonTimelineBuilder().Build();

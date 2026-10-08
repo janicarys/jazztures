@@ -43,6 +43,15 @@ namespace Jazztures.App
                  "pinch on it returns to the selector.")]
         [SerializeField] private ExitButton _exitButton;
 
+        [Tooltip("The free-play metronome (ADR-0043). Optional — leave empty for a silent free " +
+                 "play. Lessons run their own metronome through LessonRunner.")]
+        [SerializeField] private FreePlayMetronome _freePlayMetronome;
+
+        [Tooltip("Show the free-play click's +/- tempo buttons beside the session menu. A testing " +
+                 "affordance (ADR-0043), not part of the learner's task — untick to remove it " +
+                 "from the menu, e.g. in a study build (§3.10: visual restraint).")]
+        [SerializeField] private bool _showTempoControl = true;
+
         private const string BackRow = "←  Back";
         private const string FreePlayRow = "Free play";
 
@@ -52,6 +61,7 @@ namespace Jazztures.App
         private void Awake()
         {
             if (_selector != null) _selector.Chosen += OnChosen;
+            if (_selector != null) _selector.SideStepped += OnTempoStepped;
             if (_runner != null) _runner.Completed += OnLessonCompleted;
             if (_exitButton != null) _exitButton.Exited += OnExitPressed;
         }
@@ -71,6 +81,7 @@ namespace Jazztures.App
         private void OnDestroy()
         {
             if (_selector != null) _selector.Chosen -= OnChosen;
+            if (_selector != null) _selector.SideStepped -= OnTempoStepped;
             if (_runner != null) _runner.Completed -= OnLessonCompleted;
             if (_exitButton != null) _exitButton.Exited -= OnExitPressed;
         }
@@ -89,6 +100,38 @@ namespace Jazztures.App
             rows.Add(FreePlayRow); // last, after the numbered sessions
 
             _selector.Show(rows, "Choose a session");
+            RefreshTempoControl();
+        }
+
+        /// <summary>
+        /// The free-play click's tempo stepper, beside the session menu. Only here: it sets
+        /// free play's pulse, and a lesson carries its own tempo (§3.9), so it would mislead
+        /// on a lesson list.
+        /// </summary>
+        private void RefreshTempoControl()
+        {
+            if (!_showTempoControl || _freePlayMetronome == null || !_freePlayMetronome.IsConfigured)
+            {
+                _selector.ClearSideControl();
+                return;
+            }
+
+            _selector.SetSideControl(
+                $"Free-play\nclick\n{_freePlayMetronome.TempoBpm:0} BPM",
+                _freePlayMetronome.CanStepTempo(-1),
+                _freePlayMetronome.CanStepTempo(1));
+        }
+
+        private void OnTempoStepped(int direction)
+        {
+            // Only offered on the session menu; ignore a stray event from anywhere else.
+            if (_session >= 0 || _freePlayMetronome == null)
+            {
+                return;
+            }
+
+            _freePlayMetronome.StepTempo(direction);
+            RefreshTempoControl();
         }
 
         private void ShowLessons(int session)
@@ -105,6 +148,7 @@ namespace Jazztures.App
             rows.Add(BackRow); // last, so the lesson numbers line up with the number keys
 
             _selector.Show(rows, _catalog.Sessions[session].title);
+            _selector.ClearSideControl();
         }
 
         private void OnChosen(int index)
@@ -139,6 +183,9 @@ namespace Jazztures.App
             _freePlay = false;
             _selector.Hide();
 
+            // Cut any tempo preview still ringing from the menu before the lesson starts.
+            if (_freePlayMetronome != null) _freePlayMetronome.End();
+
             // HUD + performance on first, so they catch the lesson's opening phase/cue events.
             if (_hud != null) _hud.enabled = true;
             if (_performance != null) _performance.enabled = true;
@@ -167,6 +214,7 @@ namespace Jazztures.App
             if (_performance != null) _performance.enabled = true;
             if (_melodyInput != null) _melodyInput.enabled = true; // both hands
             if (_exitButton != null) _exitButton.Show();
+            if (_freePlayMetronome != null) _freePlayMetronome.Begin();
         }
 
         private void OnLessonCompleted() => ReturnToSelector();
@@ -193,6 +241,7 @@ namespace Jazztures.App
             if (_melodyInput != null) _melodyInput.enabled = false; // also hides the target markers
             if (_performance != null) _performance.enabled = false;
             if (_exitButton != null) _exitButton.Hide();
+            if (_freePlayMetronome != null) _freePlayMetronome.End();
         }
     }
 }

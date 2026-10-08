@@ -1,6 +1,7 @@
 using Jazztures.Config;
 using Jazztures.Core.Gesture;
 using Jazztures.Core.Ports;
+using Jazztures.Diagnostics;
 using Oculus.Interaction.Input;
 using Oculus.Interaction.PoseDetection;
 using UnityEngine;
@@ -50,7 +51,8 @@ namespace Jazztures.Input
         [Min(1)] [SerializeField] private int _pinchRateSampleFrames = 3;
 
         [Tooltip("Log height/openness/candidate/pinch every frame — essential for the first "
-            + "device session, since every landmark and radius is an unmeasured guess.")]
+            + "device session, since every landmark and radius is an unmeasured guess. Only "
+            + "has an effect in a build with the JAZZTURES_DIAG scripting define (ADR-0043).")]
         [SerializeField] private bool _logPosture;
 
         private IHand _left;
@@ -133,7 +135,7 @@ namespace Jazztures.Input
 
             if (_logPosture)
             {
-                Debug.Log($"[POSTURE] h={height:0.00} o={openness:0.00} → {candidate} pinch={_reportedPinch} rate={pinchRate:0.0}", this);
+                DiagLog.Log($"[POSTURE] h={height:0.00} o={openness:0.00} → {candidate} pinch={_reportedPinch} rate={pinchRate:0.0}");
             }
 
             return new HandPoseFrame(candidate, left, right, 0f, _reportedPinch, pinchRate);

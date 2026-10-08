@@ -74,6 +74,7 @@ namespace Jazztures.Lessons
         private LessonCuePlayer _cuePlayer;
         private TimelinePlayback _playback;
         private Metronome _metronome;
+        private IMetronomeOutput _metronomeOutput;
 
         private readonly List<double> _capturedOnsets = new List<double>();
         private double _phaseStartDsp;
@@ -104,12 +105,21 @@ namespace Jazztures.Lessons
         /// <summary>The lesson currently loaded, or null before <see cref="Bind"/> / <see cref="LoadLesson"/>.</summary>
         public LessonDefinition CurrentLesson => _lesson;
 
-        /// <summary>Wire the domain in. Call once from the composition root's <c>Awake</c>.</summary>
-        public void Bind(IMusicalClock clock, ModeGatedNoteSink gate, GestureInterpreter interpreter)
+        /// <summary>
+        /// Wire the domain in. Call once from the composition root's <c>Awake</c>.
+        /// <paramref name="metronomeOutput"/> is where a lesson's metronome becomes sound
+        /// (ADR-0043); without one a lesson that asks for a metronome runs it silently.
+        /// </summary>
+        public void Bind(
+            IMusicalClock clock,
+            ModeGatedNoteSink gate,
+            GestureInterpreter interpreter,
+            IMetronomeOutput metronomeOutput = null)
         {
             _clock = clock;
             _gate = gate;
             _interpreter = interpreter;
+            _metronomeOutput = metronomeOutput;
 
             if (_interpreter != null)
             {
@@ -146,9 +156,17 @@ namespace Jazztures.Lessons
             _stateMachine.PhaseChanged += OnPhaseChanged;
             _stateMachine.Completed += OnLessonCompleted;
 
+            _metronome = null;
             if (_lesson.UseMetronome)
             {
                 _metronome = new Metronome(_plan.Tempo, _timeline.BeatsPerBar);
+
+                if (_metronomeOutput == null)
+                {
+                    Debug.LogWarning(
+                        $"{nameof(LessonRunner)}: lesson '{_plan.Id}' uses a metronome but no " +
+                        $"{nameof(IMetronomeOutput)} was bound — it will be silent.", this);
+                }
             }
 
             if (_noteChannel != null && !_noteChannelRegistered)
@@ -209,7 +227,8 @@ namespace Jazztures.Lessons
                 _playback = null;
             }
 
-            _metronome?.Stop();
+            StopMetronome();
+            _metronome = null;
             _ghostChannel?.Raise(GhostFrame.Hidden);
 
             // A stopped lesson is the free instrument again: don't leave the note gate in
@@ -223,7 +242,14 @@ namespace Jazztures.Lessons
 
         private void OnPhaseChanged(LessonPhase phase)
         {
-            _phaseStartDsp = _clock.Now;
+            // ADR-0043: one start time for the phrase clock, the system playback and the
+            // metronome. A click can only be scheduled ahead of "now", so when the lesson has
+            // an audible pulse everything is anchored a pre-roll later — otherwise beat 0's
+            // click would already be late. Lessons without a pulse start immediately.
+            double preRoll = _metronome != null && _metronomeOutput != null
+                ? _metronomeOutput.PreRollSeconds
+                : 0.0;
+            _phaseStartDsp = _clock.Now + preRoll;
             _lessonBeat = 0.0;
             _lastRealBeat = 0.0;
             _waitingForInput = false;
@@ -252,7 +278,7 @@ namespace Jazztures.Lessons
             if (policy.SystemPlayback == SystemPlayback.Full)
             {
                 _playback = new TimelinePlayback(_timeline, _clock, _gate);
-                _playback.Start();
+                _playback.Start(_phaseStartDsp);
             }
             else if (policy.SystemPlayback == SystemPlayback.BackingOnly && _logCues)
             {
@@ -260,7 +286,11 @@ namespace Jazztures.Lessons
                 Debug.Log($"[{name}] {phase.Mode}: backing track not available yet — running dry.", this);
             }
 
-            _metronome?.Start(_phaseStartDsp);
+            if (_metronome != null)
+            {
+                _metronome.Start(_phaseStartDsp);
+                _metronomeOutput?.Begin(_metronome);
+            }
 
             _cuePlayer.Notify(LearnerAction.PhraseStarted);
         }
@@ -287,13 +317,14 @@ namespace Jazztures.Lessons
 
             // The phrase position. Normally it tracks real time; in a gesture-gated mode it
             // holds on each demonstrated pose until the learner confirms that pose (§3.8).
-            double realBeat = _plan.Tempo.SecondsToBeats(_clock.Now - _phaseStartDsp);
+            // Clamped at 0: during the pre-roll before a shared start time (ADR-0043) the
+            // phrase has not begun, so the cursor must not creep forward.
+            double realBeat = System.Math.Max(0.0, _plan.Tempo.SecondsToBeats(_clock.Now - _phaseStartDsp));
             double advanced = realBeat - _lastRealBeat;
             _lastRealBeat = realBeat;
             _lessonBeat = NextLessonBeat(phase, _lessonBeat + (advanced > 0.0 ? advanced : 0.0));
 
             _playback?.Tick();
-            DrainMetronome();
 
             _cuePlayer.AdvanceTo(_lessonBeat < 0.0 ? 0.0 : _lessonBeat);
             PublishGhostFrame(phase, _lessonBeat);
@@ -440,7 +471,7 @@ namespace Jazztures.Lessons
 
             _playback?.Stop();
             _playback = null;
-            _metronome?.Stop();
+            StopMetronome();
 
             if (phase.Policy.DeferFeedback)
             {
@@ -466,17 +497,19 @@ namespace Jazztures.Lessons
             }
         }
 
-        private void DrainMetronome()
+        /// <summary>
+        /// Halt this lesson's pulse. Only touches the output when the lesson owns a metronome,
+        /// so a lesson without one never silences a free-play pulse that is not its own.
+        /// </summary>
+        private void StopMetronome()
         {
             if (_metronome == null)
             {
                 return;
             }
 
-            // M5: dequeue so the cursor keeps up; audio (MetronomeVoice) is not built yet.
-            while (_metronome.TryDequeueClick(_clock.Now, out _))
-            {
-            }
+            _metronome.Stop();
+            _metronomeOutput?.Stop();
         }
 
         private void OnConfirmedFunctionChanged(ChordFunction? function)

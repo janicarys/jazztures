@@ -8,6 +8,434 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0043 — Right hand: a fixed pitch ladder with a swappable trigger; an audible, configurable metronome and timing drill to measure it
+
+**Date:** 2026-10-08 · **Status:** Proposed — order-of-work steps 1–2 built (see
+*Implementation notes — steps 1–2* below; compiles, headless tests green, **not yet listened to
+on device**); nothing else built. Part 2 has no thesis conflict and
+can be accepted and built now. Part 1 is cleared for prototyping behind the mechanic switch
+(decision 4); adopting it still depends on the bake-off.
+**Decided by the student, 2026-10-08** (referred to below as decisions 1–4):
+(1) ladder rungs show **note names**; (2) **one column of 10 rungs (C5–E6)** is accepted in
+place of §3.1's two octaves; (3) right-hand lessons keep the **chords audible** in Try
+Yourself and Test Yourself; (4) **§3.1's degree-map rule may be broken** — the ladder maps
+pitch, not degree, and may be prototyped, and adopted if it wins the bake-off.
+**Milestone:** Part 1 — M4 (right hand). Part 2 — M5/M6 (L2's metronome) and M7/M8 prep
+(timing instrumentation).
+**Changes the thesis:** Part 1 — yes: §1.3's right-hand interaction, §3.1's degree map and
+two-octave span, §3.3's note-on trigger. Part 2 — no: it builds the metronome §3.6 and L2
+already assume.
+**Builds on:** `Docs/DESIGN-SPACE.md` (§2 findings D1–D7, §5 bake-off harness);
+ADR-0028/0030/0031/0035 (the strike detector's fixes, reused); ADR-0019/0020 (the arc this
+would replace).
+
+### Context
+
+- **The right hand is still unsettled.** Six redesigns in three weeks (`DESIGN-SPACE.md`,
+  "Why now"). The 19 Sep consultation (Doc Raffy) demo showed touching targets is finicky
+  (spare fingers bump neighbouring targets), the pinch plays one note at a time, and finger
+  curls would cap the hand at one octave and may not be recognisable. In the music-teacher
+  co-design session the objection was to **the pinch itself: too complicated a motion in
+  practice, especially for repeated notes in sequence.** The teacher's larger concern was
+  what makes the system sound jazz-specific rather than generic ii-V-I.
+- **The team proposed two directions:** (1) solfege-style hand signs, one sign per note;
+  (2) "melody shift" — a wave up moves the melody up, a wave down moves it down.
+- **There is no way to test either hand against a beat in-app.** `Core/Timing/Metronome`
+  exists and is tested, but nothing makes it audible (`LessonRunner.DrainMetronome`
+  dequeues clicks at `now` and discards them). ADR-0025 measured its finding against an
+  external metronome and deferred `MetronomeVoice` as a fast-follow; ADR-0024 assumed it
+  exists by L2.
+
+### Considered and not built
+
+**Solfege hand signs (Curwen/Kodály), one sign per note.**
+
+- Selection by static hand shape is D4's weakest signal: 5–7 shapes, several differing only
+  by tilt (re, mi, la) or by one finger (fa is thumb-down, ti is a pointed index), on the
+  hand that has to keep time — while the left hand's three shapes are still not reliable
+  (ii runs on wrist roll, ADR-0041).
+- Every sign pays the confirmation cost (150 ms hold plus confirming frames, §3.4) before
+  it can sound — already outside the 80 ms on-time window (§3.7) — and a repeated note needs
+  the sign dropped and re-formed. In Kodály teaching the voice keeps time and the sign only
+  reinforces pitch; the signs were never a trigger.
+- Collides with the left hand: Curwen "do" (home, at rest) is a fist, which is this
+  system's V (peak tension); "mi" is a flat palm-down hand, which is I.
+- Changes L3's concept from place-in-the-chord (R/3/5/7/9) to place-in-the-key (do–ti), and
+  several signs are the single-finger shapes co-design rejected (Set 1).
+- Kept as: a video option in the right-hand design session. Rungs are labelled with note
+  names, not solfege (decision 1).
+
+**Melody shift as a wave gesture.**
+
+- A bidirectional speed-threshold gesture: every wave up has to come back down, and that
+  return must not read as a deliberate wave down. The left hand's strike went in one
+  direction only and still needed ADR-0025 through ADR-0037 before it was set aside.
+- One wave is one step (low root to high 9th is nine waves); a repeated note needs a third
+  gesture.
+- If the system decides where "up" lands, it can read as the algorithmic melody co-design
+  rejected. Only defensible if strictly deterministic.
+- Its idea is kept: Part 1 makes "up = higher" a matter of hand position, not motion.
+
+---
+
+### Part 1 — Right hand: a fixed pitch ladder, selection separate from the trigger
+
+**Selection: a pitch ladder.**
+
+- One rung per C-major note, stacked vertically in front of the right shoulder, lowest at
+  the bottom: **one column of 10 rungs, C5–E6** (MIDI 72–88; decision 2), which keeps
+  §3.1's ≥ MIDI 72 floor. Every chord's root to ninth is reachable at least once in that
+  window; G7 has the fewest lit rungs (6 of 10). **Rungs never move** — a chord change only
+  changes which ones are lit.
+- **Labels: note names** (decision 1) — letters only (C D E F G A B C D E), no octave
+  numbers, which would be unexplained notation for a novice (§1.5). Because rungs never
+  move, each letter always lives in the same place; a dim rung keeps its label, dimmed.
+- **Legal rungs** come from a melody *vocabulary*: `ChordTones` (the active chord's
+  R/3/5/7/9 pitch classes — L3) or `Scale` (every C Ionian rung — L4 on). A dim rung
+  **rounds to the nearest lit rung** by semitone distance (ties go lower; `[TUNABLE]`).
+  This is `DESIGN-SPACE.md` §2's "position picks, system quantises": there is no miss
+  state, and the system never chooses a pitch, it only rounds the learner's choice to the
+  nearest legal one. The current 5×2 arc (`ChordToneSet`) cannot hold L4's seven scale
+  notes; the ladder needs no new mechanism for them.
+- **Wrist height** picks the rung — the wrist, not a fingertip, for ADR-0038's reason (a
+  fingertip's height moves with the finger). Nearest rung with a Schmitt band (§3.4:
+  hysteresis is mandatory). The picked rung glows before anything sounds. Dropping the hand
+  below the ladder disarms it (rest position).
+- **Guide tones fall out of the geometry.** With the hand still, a chord change re-resolves
+  to the nearest tone of the new chord. Held on the F rung, ii–V–I plays F–F–E; held on the
+  B rung, it plays C–B–B. Those are the two standard guide-tone lines (the 7th of one chord
+  moves a half step to the 3rd of the next; the 3rd stays as the next 7th). This is the
+  jazz-specific behaviour to point to, and it becomes a unit test.
+- **Why vertical:** people associate high pitch with "up" whether or not they have musical
+  training; the left-to-right association (what the arc encodes within a row) is weaker and
+  shows up mainly in trained musicians (Rusconi et al., 2006). The up-and-down shape of a
+  melody is what untrained listeners retain from it (Dowling, 1978).
+- Aiming becomes one-dimensional: only height matters, so each rung is a full-width band,
+  and the elbow can rest at the side (the 19 Sep consultation's fatigue point).
+
+**Trigger: swappable, independent of selection.** Each trigger emits a commit (time,
+velocity); selection never knows which one is active. Bake-off candidates:
+
+1. **Wrist tap (primary).** The hand drops from the wrist and springs back, like tapping a
+   table.
+   - Signal: the middle fingertip's downward speed **relative to the wrist**, in the
+     head/gravity frame. Moving the whole arm to change rungs moves wrist and fingertip
+     together, so it never fires; only the flick does. A flick barely moves the wrist
+     (ADR-0028's finding, used the other way round), so selection holds still through the
+     tap — and the rung is **latched at stroke start** regardless.
+   - Reuses `ChordStrikeDetector`'s logic: Schmitt enter/exit, settle frames before re-arm
+     (ADR-0030), freeze through tracking loss (ADR-0031), no stale peaks (ADR-0035). The
+     right hand has no held pose and no release, so the strike/release races (ADR-0034,
+     ADR-0037) have no counterpart here.
+   - **Which instant fires the note is measured, not guessed.** Dahl (2014) found that in
+     air drumming the end of the stroke (direction reversal) lands after the intended beat
+     and drifts with tempo, while sharp acceleration peaks land just before it and don't.
+     The detector records four landmarks per stroke — threshold crossing, speed peak,
+     braking peak, reversal — and fires on a configurable one (default: speed peak). The
+     timing drill (Part 2) logs all four against the click, so the default is chosen from
+     data.
+   - Loudness from peak relative speed via `VelocityCurve.FromSpeed`.
+2. **Pinch (baseline).** The current `_pinchSpike` rising edge, promoted into `Core`
+   (shaped like `ChordPinchDetector`), kept so the bake-off measures against what the
+   teacher objected to. With the ladder, selection reads the wrist, not the thumb–index
+   midpoint the spike uses (which moves every time you pinch — part of why repeats felt
+   bad).
+3. **Thumb microgesture tap (spike only, ≈ ½ day).** The Meta XR Core SDK (v74 on) detects
+   a thumb tap and thumb swipes on the side of the curled index finger — already installed,
+   no new dependency. The hand must be held sideways with the fingers curled; Meta built it
+   for discrete commands (teleport, snap turn) and publishes no latency or reliability
+   figures. Wire the event and run the drill; drop it if latency or misses aren't
+   competitive. If it is competitive, its forward/back swipes are the melody shift in
+   miniature (step up/down) and earn one extra drill.
+
+**What stays.** The arc (`TouchTargetRig`/`TouchTargetBinder`, ADR-0019/0020) and
+`MelodyEngine.TriggerTarget` are untouched and remain the default until the bake-off
+decides (`DESIGN-SPACE.md` §8: the current mechanic stays runnable throughout). Whatever
+loses is deleted afterwards (CLAUDE.md rule 9).
+
+**If the ladder is adopted, lessons change with it.** Melody notes are authored as pitches
+(e.g. `F5`) instead of degree slots (`targetIndex`, 0–9); L3's seven notes are re-authored;
+`TimelinePlayback` and the ghost target highlight resolve through the ladder. Until the
+bake-off decides, lessons stay on the arc and the ladder runs in the timing drills.
+
+**Not yet verified.** All of it — in particular: rung spacing against hand-tracking jitter;
+whether relative fingertip speed separates a flick from arm motion cleanly on Quest;
+whether a novice can hold a height steady while tapping; whether the latch is early enough.
+
+---
+
+### Part 2 — An audible, configurable metronome and a timing drill
+
+**Found while drafting** (each checked against the code):
+
+- **No audible click anywhere.** `LessonRunner.DrainMetronome` discards clicks; free play
+  has no pulse at all.
+- **L2's Test Yourself has nothing to score.** `LessonRunner.OnNoteTriggered` keeps only
+  right-hand melody notes, and `ScoreAttempt` scores against
+  `LessonTimeline.ExpectedOnsetSeconds()` — the authored melody notes. L2 is a left-hand
+  lesson with no notes, so every attempt is empty. Also, one chord strike emits one note-on
+  per voicing pitch (`HarmonyEngine.Strike`), so left-hand onsets need de-duplicating
+  before they can be scored.
+- **Right-hand-only exercises have no harmony.** The only caller of
+  `HarmonyEngine.SetHeldFunction` is the left-hand interpreter (`PerformanceCompositionRoot`).
+  In L3's Try Yourself (no system playback, §3.8) the melody only sounds if the learner's
+  left hand happens to hold a chord — but L3 is "chord tones over system-played changes"
+  (§3.9). A right-hand timing drill has the same problem.
+- **Per-frame `[DIAG]` logging** in `PerformanceCompositionRoot.Update` (every frame with
+  |vy| > 0.05) and `SamplerNoteSink.Send`/`StartNote` (every note): string interpolation
+  plus `Debug.Log` on the gesture/audio path (§2.4). That is GC and log-I/O jitter in
+  exactly the timings a drill measures.
+
+**2a. `MetronomeSettings` asset** (`Config/`; every value `[TUNABLE]`, mirrored into
+`CALIBRATION.md` when built):
+
+| Setting | Default | Notes |
+|---|---|---|
+| Tempo | 80 BPM | 40–100; above 100 needs an explicit `AllowUnvalidatedTempo` flag (§3.6) |
+| Beats per bar | 4 | `Metronome.DefaultBeatsPerBar` |
+| Accent downbeat | on | separate click sound |
+| Subdivision | none | none / eighths / swung eighths. The quarter pulse is never swung (§3.6, and `Metronome`'s own contract) |
+| Swing ratio (subdivision only) | 0.66 | `SwingRatio.Default` |
+| Count-in | 1 bar | drills only; lessons unchanged |
+| Click volume | 0.6 | `AudioSource` volume; balance against the piano by ear |
+| Click sound | ~2 kHz tick, ~20 ms | generated at start-up (no asset, no licence); sits above the ladder's register (C5–E6, fundamentals ≈ 523–1319 Hz) so it doesn't mask the learner's notes |
+| Look-ahead | 100 ms | scheduling horizon only |
+
+**2b. Core.**
+
+- `Metronome`: optional subdivision — off-beat clicks at
+  `SwingQuantizer.Swing(beat + 0.5, ratio)`, quarter grid unchanged. `MetronomeClick` gains
+  a kind (downbeat / beat / off-beat) and its fractional beat position. Still
+  allocation-free.
+- `TimingDrill` (pure plan): tempo, bars, count-in, expected-onset pattern (every beat /
+  every 2nd beat / every eighth / an authored list of beat positions), swing, scored hand,
+  harmony (a fixed chord or a chord timeline), and optionally an expected pitch per onset
+  (the target rung, highlighted on the ladder) so wrong notes are counted separately from
+  timing → `ExpectedOnsetSeconds()` relative to the shared start. Scoring is
+  `OnsetScorer.Evaluate`, unchanged.
+- `OnsetCapture`: collects the **learner's** onsets from the note stream, filtered by hand
+  and by channel — `Melody` or `Harmony`, never `Accompaniment` (system playback). Left-hand
+  note-ons sharing a timestamp (one strike's voicing) count as one onset.
+- `ScriptedHarmony`: drives `HarmonyEngine.SetHeldFunction` from a timeline or a fixed
+  function — silent by construction (ADR-0025) — so a right-hand-only drill or lesson has a
+  chord without the left hand. Wired by the composition root, so the §2.3 direction rule
+  holds.
+- **Chords audible in right-hand lessons (decision 3).** `ModePolicy.For(mode, hands)`: for
+  a right-hand lesson, Try Yourself and Test Yourself play the harmony only (a new
+  `SystemPlayback.HarmonyOnly`); left-hand lessons are unchanged, since there the learner
+  plays the chords. `TimelinePlayback` gains a harmony-only option. The audible chords come
+  from `TimelinePlayback` on the `Accompaniment` channel; the harmonic state comes from
+  `ScriptedHarmony`, driven by the same timeline and start time, so the chord the learner
+  hears is the chord the ladder (or the arc) follows.
+
+**2c. Unity.**
+
+- `MetronomeVoice` (`Audio/`): a pool of ≥ 4 `AudioSource`s, round-robin, pumping
+  `Metronome.TryDequeueClick(now + lookAhead, …)` and calling `PlayScheduled(click.DspTime)`
+  — the design §3.6 and `Metronome`'s doc comment already describe. `Stop()` also stops
+  every pool source, which cancels clicks already scheduled. Clicks bypass `INoteSink`
+  (they are not part of the performance); one log line per run records the grid (start DSP
+  time, tempo, bar length, subdivision, swing) so every click time can be reconstructed.
+- **One shared start time.** Lessons anchor the phrase clock, `TimelinePlayback` and the
+  metronome at `now`, so the first click cannot be scheduled ahead. Use
+  `t0 = now + preRoll` (≥ look-ahead) for all three (`TimelinePlayback.Start(double atDspTime)`
+  overload).
+- `LessonRunner`: hand the metronome to the voice instead of `DrainMetronome`;
+  `LessonDefinition._useMetronome`'s "silent" tooltip goes. L2 scores left-hand strikes via
+  `OnsetCapture` against a pulse pattern authored on the lesson. For right-hand lessons,
+  play the chords (decision 3) and record the learner through `OnsetCapture`'s channel
+  filter. Today `OnNoteTriggered` ignores every note while `_playback` is running (it
+  assumes playback means a demonstration), so turning the chords on without this change
+  would silently stop Test Yourself from recording the learner at all.
+- **Timing test menu.** The session list gains a "Timing test" row after "Free play",
+  opening a list of `TimingDrillDefinition` presets (ScriptableObjects; a new preset needs
+  no C# change — the same rule as lessons, §3.9). A preset = metronome settings + pattern +
+  bars + scored hand + harmony (fixed chord or chord timeline; audible by default, matching
+  decision 3, with a per-preset switch) + optional target rungs + scoring on/off
+  ("Metronome only, 80 BPM" is a preset with scoring off, for informal free play). The list's first row cycles the right-hand
+  mechanic at runtime (`DESIGN-SPACE.md` §5's switch), so one headset session covers every
+  candidate.
+- **Results.** One deferred line on the HUD after the run (§3.7 — never mid-phrase), e.g.
+  "16 beats: 12 on time · 3 close · 1 off · 0 missed · 1 extra · avg 34 ms late". A CSV per
+  run under `Application.persistentDataPath/timing/` (`adb pull`): a header (drill,
+  mechanic, tempo, subdivision, swing, build, tester code), one row per expected onset
+  (expected, actual, deviation, verdict), the extra onsets, and the wrist-tap stroke
+  landmarks when that trigger is active. Derived timings only, no joint positions (§4.1
+  data-handling note). Anonymous tester codes; confirm informal testers are covered by the
+  ethics approval.
+- **Desk keys** (Editor / Link): `M` metronome on/off, `-`/`=` tempo ∓5 BPM, `B` cycle the
+  subdivision.
+- **Quiet build.** Route every `[DIAG]` log through one helper marked
+  `[System.Diagnostics.Conditional("JAZZTURES_DIAG")]`, so the calls — and their string
+  interpolation — compile out unless the define is set. Off for every timing run.
+
+**Reading the numbers.**
+
+- Timestamps are quantised by the hand-tracking frame (≈ 11–17 ms at 60–90 Hz), and
+  `AudioSettings.dspTime` can advance in audio-buffer-sized steps — log its step size on
+  device once. Treat differences between mechanics under ~20 ms as noise.
+- People tap ahead of a metronome (negative mean asynchrony, typically tens of ms; Repp,
+  2005), so a negative mean error is human, not a system fault.
+- A measured deviation folds together tracking latency, detection latency and anticipation.
+  The shared parts cancel when mechanics are compared on the same build — compare
+  mechanics, not absolute zeros.
+
+---
+
+### Implementation notes — steps 1–2
+
+Built on `feat/quiet-build-metronome`. Where the build departs from, or fills a gap in, the
+text above:
+
+- **Quiet build covers more than `[DIAG]`.** `DiagLog.Log` (`Diagnostics/`) is the one door;
+  the four `[DIAG]` call sites use it. `[POSTURE]` (`MetaXRHandPostureSource`, one line *per
+  frame*) and the per-note `[PinchSpike]` line (`TouchTargetBinder`) go through it too: the
+  done-when is "free play logs nothing per frame", and `main.unity` had both flags switched
+  on. One-off lines (errors, the spike's session-end summary, the metronome's per-run grid
+  line) stay on plain `Debug.Log`. Left alone: `HandPoseFrameLogger` (opt-in component, logs
+  on change), `EventChannel._logToConsole` (editor-only flag), `LessonRunner._logCues` (cue
+  events, not frames). To bring the logs back, add `JAZZTURES_DIAG` to Scripting Define
+  Symbols.
+- **A new port, `IMetronomeOutput` (`Core/Ports`).** `LessonRunner` gets the metronome sound
+  through it (`Bind`'s optional fourth argument), so `Jazztures.Lessons` does not take a
+  dependency on `Jazztures.Audio` (§2.2). `MetronomeVoice` implements it; the composition
+  root passes it in.
+- **Pre-roll only for lessons that use the metronome.** `t0 = now + PreRollSeconds` anchors
+  the phrase clock, `TimelinePlayback.Start(double)` and the metronome. Lessons with no
+  metronome (L1, L3) start immediately, as before. The phrase beat is clamped at 0 during the
+  pre-roll so the cue cursor does not advance before the first click.
+- **Settings the ADR's table did not list:** off-beat volume scale (0.5), downbeat click pitch
+  (2800 Hz; beat click is the table's ~2 kHz), pre-roll (150 ms, never below look-ahead), voice
+  pool size (4), desk-key tempo step (5 BPM). All `[TUNABLE]`, set by judgement; logged in
+  `CALIBRATION.md` as unmeasured.
+- **Count-in is not in `MetronomeSettings` yet.** Only drills use it, so it arrives with
+  `TimingDrill` (step 3/4) rather than as an unread field.
+- **`ClickInFreePlay` defaults to on**, so "clicks audible in free play" holds on a headset
+  before the timing-test menu (step 4) exists. Revisit when that menu can start a pulse.
+- **Tempo bounds live in `Core/Timing/TempoRange`:** 40–100 BPM, lifted only by
+  `AllowUnvalidatedTempo`, plus a 240 BPM absolute ceiling as an Inspector typo guard (not a
+  validated figure).
+- **A click already in the past is dropped, not played late** (a frame hitch longer than the
+  look-ahead); the first drop per run logs a warning.
+- **In-headset tempo control (added at the student's request after the first device build;
+  not in the ADR's text).** The session menu gets "+" / "-" buttons with a "Free-play click /
+  N BPM" readout, to the right of the rows: `LessonSelector.SetSideControl` / `SideStepped`
+  (a generic stepper — the selector stays a dumb view), wired by `LessonFlowController` to
+  `FreePlayMetronome.StepTempo`. Pinch-to-step uses the selector's existing ray and pinch.
+  Choices: it sets **free play's** tempo only (a lesson carries its own, §3.9), so it shows on
+  the top-level menu and not on a lesson list; the tempo persists across entering and leaving
+  free play; a press on the menu plays `TempoPreviewBars` of click at the new tempo, since
+  free play isn't running there to hear it; the step (5 BPM) and the preview length are
+  `MetronomeSettings` fields. **Cost:** one more element on the learner-facing menu, against
+  §3.10's visual restraint — it is a testing affordance, so `LessonFlowController`'s
+  `_showTempoControl` removes it without a code change (do that for a study build). Still
+  missing from the headset: an on/off switch and subdivision (desk keys only), and the
+  ADR's step 4 timing-test menu.
+- **Not verified:** how the click sounds against the piano on a Quest; that the clicks land
+  on their DSP samples (`AudioSettings.dspTime` step size is still to be logged on device,
+  per *Reading the numbers*); the `LessonRunner` pre-roll arithmetic, which sits in a
+  MonoBehaviour and has no automated test; and the menu stepper — its placement, whether the
+  buttons are easy to hit with the pinch ray, and that its text fits, are all unseen on a headset.
+
+### Order of work
+
+Part 2 first: it is the measuring instrument, it unblocks L2, and it can baseline today's
+arc + touch and arc + pinch before Part 1 exists. Sizes are rough (S ≈ ½ day, M ≈ 1–2 days).
+
+1. **Quiet build** (S). *Done when* a free-play session logs nothing per frame.
+2. **Metronome subdivision, `MetronomeVoice`, `MetronomeSettings`, shared start time** (M).
+   *Done when* clicks are audible in free play and in L2, the new `MetronomeTests` pass, and
+   CLAUDE.md §7's `MetronomeVoice` item can be closed.
+3. **`OnsetCapture`, `TimingDrill`, `ScriptedHarmony`, harmony-only playback,
+   `ModePolicy.For(mode, hands)`, with tests** (M). *Done when*
+   `dotnet test DotNet/Jazztures.sln` is green, including "one strike's voicing is one
+   onset", "scripted harmony sends no note events", "system chords are never captured as
+   the learner's onsets", and "a right-hand Test Yourself attempt still records the learner
+   while the chords play". CLAUDE.md §3.8 gets decision 3's footnote in the same change.
+4. **Timing test menu, presets, HUD line, CSV** (M). *Done when* a drill runs end to end on
+   device and the CSV pulls cleanly.
+5. **Baseline** (S): run the drills on arc + touch and arc + pinch.
+6. **`PitchLadder`, ladder selector, `MelodyEngine.TriggerPitch`, vocabulary, with tests**
+   (M) — cleared by decision 4. First add a scoped exception under CLAUDE.md §3.1's
+   "do not sort targets by pitch", pointing here (the rule still governs the arc; the
+   ladder sorts by pitch by design), so an agent reading §3.1 doesn't stop on the conflict.
+   Tests include the held-hand guide-tone lines (F rung → F–F–E; B rung → C–B–B), ties
+   resolving lower, and hysteresis at a rung boundary.
+7. **Right-hand adapter, wrist-tap and pinch triggers with tests, ladder rig, mechanic
+   switch** (M–L).
+8. **Microgesture spike** (S, optional).
+9. **Bake-off, then decide and record** (S): update CLAUDE.md §1.3/§3.1/§3.3/§7,
+   `ARCHITECTURE.md`, `CALIBRATION.md`, and the pending thesis-prose list.
+
+### Bake-off
+
+- **Drills** at 60 and 80 BPM, right hand alone over an audible I chord (decision 3),
+  1-bar count-in, 4 bars each: one rung on every beat; one rung on every eighth; two
+  neighbouring rungs alternating on eighths; a four-note up-and-down shape repeated. Then
+  the same with the left hand comping on beats 1 and 3.
+- **Guide-tone check** (ladder only): one note per beat over audible ii–V–I changes, a bar
+  each, with the hand held still on the F rung, then on the B rung. Expect F–F–E and C–B–B;
+  anything else is a ladder bug, not a learner error.
+- **Per mechanic:** missed, extra (double) and wrong-rung counts; mean and spread of signed
+  timing error; share on time (≤ 80 ms); NASA-TLX afterwards; one preference question.
+- **Testers:** at least two people besides the developer (19 Sep consultation: "the system
+  might be only for you").
+- **Gate** (proposed; the student decides): adopt the ladder with the trigger that has the
+  fewest missed + extra notes on the repeated-note drills and is at least as on time as the
+  pinch baseline, with NASA-TLX no worse. If nothing beats the baseline, keep the arc and
+  record why.
+- Results and the options list feed the right-hand co-design session recommended on 19 Sep
+  (list options → participants choose → build → try in VR).
+
+### Open questions
+
+The questions this ADR was drafted with — rung labels, two octaves vs. one column, whether
+chords sound in right-hand lessons, and sign-off on breaking §3.1's degree map — were
+answered by the student on 2026-10-08 (decisions 1–4, header). Still open:
+
+- If the left hand moves to Design A (height picks the chord, ADR-0038), both hands would be
+  working in height — check they don't pull each other along.
+
+### Thesis impact
+
+- **Part 1, if adopted:** §1.3's right hand ("touch targets in mid-air") becomes "hand
+  height selects from a fixed pitch ladder; a tap — or whichever trigger wins — plays".
+  **Two `[THESIS]` changes to §3.1** (CLAUDE.md rule 3: the student decides, an agent does
+  not):
+  - "Spanning two octaves" becomes one column of ten notes, C5–E6, labelled by note name —
+    **decided** (decisions 1 and 2).
+  - "Stable spatial map of scale degree … do not sort targets by pitch" becomes a stable
+    map of pitch — **signed off** (decision 4). This goes beyond the 2026-09-15 exploration
+    mandate, which released §1.3's gesture rules but deliberately kept §3.1's degree map
+    (Design B was "re-pitched, never re-arranged"); decision 4 is what clears step 6.
+
+  §3.3's note-on ("fingertip enters a target volume", entry-velocity gate) becomes the
+  chosen trigger's rule. L3's concept text changes with the labels: the lit rungs are the
+  chord's notes, and the letters are the notes' names (§1.5). Chapter 4 gains citable
+  grounding (Rusconi et al., 2006; Dowling, 1978; Dahl, 2014), and the guide-tone property
+  belongs in the design chapter as the jazz-specific rationale.
+- **Decision 3, independent of the bake-off** (applies with the arc too): CLAUDE.md §3.8's
+  mode table says "System plays: no" for Try Yourself and Test Yourself. For a right-hand
+  lesson that now means no melody demonstration while the harmony still plays — which is
+  what §3.9 ("over system-played changes") and the proposal's L3 description ("the system
+  plays chords") already say. The §3.8 table needs a footnote and Chapter 6 matching
+  wording. Added to the pending thesis-prose list below.
+- **Part 2:** none to Chapter 6 — L2's metronome is already in the lesson plan. Drill
+  results are technical-evaluation data for Chapter 7, alongside the §4.3 latency
+  percentiles.
+- No thesis prose edited (rule 7). Part 1's entries go on the pending thesis-prose list if
+  it is adopted.
+
+**References.** Dahl, L. (2014). Triggering sounds from discrete air gestures: What movement
+feature has the best timing? *Proceedings of NIME 2014*, 201–206. · Dowling, W. J. (1978).
+Scale and contour: Two components of a theory of memory for melodies. *Psychological
+Review, 85*(4), 341–354. · Repp, B. H. (2005). Sensorimotor synchronization: A review of the
+tapping literature. *Psychonomic Bulletin & Review, 12*(6), 969–992. · Rusconi, E., Kwan,
+B., Giordano, B. L., Umiltà, C., & Butterworth, B. (2006). Spatial representation of pitch
+height: The SMARC effect. *Cognition, 99*(2), 113–129.
+
+---
+
 ## ADR-0042 — A touch that arrives before selection confirms was discarded outright; give it a bounded grace window instead
 
 **Date:** 2026-09-23 · **Status:** Proposed — headless-tested; unverified on device.
@@ -2088,3 +2516,8 @@ Working rule #8 requires these to be surfaced. They are **not** to be edited by 
 - **`PokeInteractor` for touch targets (§4.1):** targets are volumetric spheres tested
   against the tracked fingertip; Poke is a surface interaction and does not fit. See
   ADR-0016. §4.1 table wording only — no Chapter 6 impact.
+- **Right-hand lessons keep the chords audible (§3.8 mode table, Chapter 6 lesson
+  descriptions):** in Try Yourself and Test Yourself a right-hand lesson plays the harmony
+  but no melody demonstration — student decision 2026-10-08, ADR-0043 (decision 3).
+  Matches §3.9 and the proposal's L3 description ("the system plays chords"); the §3.8
+  table's "System plays: no" needs a footnote.

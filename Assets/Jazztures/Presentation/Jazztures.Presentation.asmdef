@@ -4,6 +4,7 @@
     "references": [
         "Jazztures.Core",
         "Jazztures.Config",
+        "Jazztures.Diagnostics",
         "Jazztures.Events",
         "Oculus.Interaction",
         "Unity.InputSystem"

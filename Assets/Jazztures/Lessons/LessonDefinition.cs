@@ -43,7 +43,9 @@ namespace Jazztures.Lessons
 
         [SerializeField] private ActiveHands _hands = ActiveHands.Left;
 
-        [Tooltip("M5: metronome logic runs but is silent (no MetronomeVoice yet).")]
+        [Tooltip("Click on the beat for each phase (MetronomeVoice; sound set in MetronomeSettings). " +
+                 "The phrase starts a short pre-roll after the phase begins so the first click " +
+                 "can be scheduled ahead (ADR-0043).")]
         [SerializeField] private bool _useMetronome;
 
         [Header("Mode phases — run in this order (§3.8)")]

@@ -220,6 +220,36 @@ constants become fallback defaults only.
 | Swing ratio          | 0.66    | —        | default | per-lesson; L4 introduces swing, L1–3 straight. Code: `SwingRatio.Default` (straight = `SwingRatio.Straight`); warp in `SwingQuantizer` |
 | Metronome bar length | 4 beats | —        | default | click grid only, not swung. Code: `Metronome.DefaultBeatsPerBar`                                                                        |
 
+### Audible metronome — `Config/MetronomeSettings.asset` (§3.6, ADR-0043)
+
+Lessons carry their own tempo, bar length and swing (the table above); for a lesson only the
+**sound** and **scheduling** rows below apply. The **pulse** rows are free play's starting
+state. Every value is `[TUNABLE]`, set by ear or by engineering judgement — none came from the
+co-design sessions. The **Measured** column stays empty until M8.
+
+| Parameter                 | Default           | Measured | Status  | Notes                                                                                                                                                      |
+| ------------------------- | ----------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Click in free play        | on                | —        | default | Switch off to leave free play silent until desk key `M`. Revisit once the timing-test menu (ADR-0043 step 4) can start a pulse on device                  |
+| Tempo                     | 80 BPM            | —        | default | Validated range 40–100 (`TempoRange`); above that needs `Allow Unvalidated Tempo`; hard ceiling 240 as a typo guard only                                   |
+| Beats per bar             | 4                 | —        | default | `Metronome.DefaultBeatsPerBar`                                                                                                                             |
+| Subdivision               | none              | —        | default | none / eighths / swung eighths. The quarter pulse is never swung; only the off-beat click moves                                                           |
+| Swing ratio (off-beat)    | 0.66              | —        | default | Swung eighths only. Same warp as the melody: `SwingQuantizer.Swing(beat + 0.5, ratio)`                                                                     |
+| Accent downbeat           | on                | —        | default | Beat 1 gets its own, higher click                                                                                                                          |
+| Click volume              | 0.6               | —        | default | `AudioSource.volume`. Balance against the piano by ear                                                                                                     |
+| Off-beat volume scale     | 0.5               | —        | default | **Not in ADR-0043's table** — added so the subdivision reads lighter than the pulse                                                                        |
+| Beat click pitch          | 2000 Hz           | —        | default | Above the right-hand ladder's register (fundamentals ≈ 523–1319 Hz) so it does not mask the learner's notes                                                |
+| Downbeat click pitch      | 2800 Hz           | —        | default | **Not in ADR-0043's table** — "separate click sound" needed a value; judgement, not measured                                                               |
+| Click length              | 20 ms             | —        | default | Generated at start-up by `ClickWaveform` (no audio asset). Attack/decay/tail-fade shape are consts in that class                                           |
+| Look-ahead                | 100 ms            | —        | default | Scheduling horizon only; adds no latency to a click already due                                                                                           |
+| Pre-roll                  | 150 ms            | —        | default | **Not in ADR-0043's table** (it says "≥ look-ahead"). A metronome lesson's phrase clock, system playback and pulse all start this long after "now"         |
+| Voice pool                | 4 sources         | —        | default | `MetronomeVoice` inspector field; round-robin. A 20 ms click needs only a few                                                                              |
+| Tempo step                | 5 BPM             | —        | default | Per press of the menu's +/- buttons and the `-` / `=` desk keys (Editor / Link). `MetronomeSettings.TempoStepBpm`                                          |
+| Tempo preview             | 2 bars            | —        | default | Pressing +/- on the menu plays this many bars at the new tempo (free play isn't running there). `MetronomeSettings.TempoPreviewBars`                       |
+| Menu stepper layout       | 9 cm buttons      | —        | default | `LessonSelector` side-control fields (size, gap, pitch, hit margin, readout scale). First guesses — never seen on a headset; adjust in the Inspector       |
+
+Count-in (ADR-0043 §2a) is deliberately **not** here yet: only timing drills use it, so it
+arrives with `TimingDrill` (step 3/4).
+
 ## Lesson pacing — per-lesson `LessonDefinition` asset (§3.9, ADR-0021)
 
 Phrase length is a **pedagogical** parameter, not only a musical one: the same ii-V-I needs

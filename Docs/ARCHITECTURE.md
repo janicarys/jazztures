@@ -75,6 +75,7 @@ argument — nothing downstream changes.
 | `IHandPoseSource` | one frame: candidate pose + per-hand tracking quality | `MetaXRHandPoseSource`, `KeyboardHandPoseSource`, `ReplayHandPoseSource`, `FakeHandPoseSource` |
 | `INoteSink` | a `NoteEvent` (pitch, velocity, DSP time, channel, hand) | `SamplerNoteSink`, `ModeGatedNoteSink`, `ChannelNoteSink`, `CompositeNoteSink`, `NullNoteSink` |
 | `IMusicalClock` | the current time, in DSP seconds | `DspMusicalClock` (`AudioSettings.dspTime`), `VirtualClock` (tests) |
+| `IMetronomeOutput` | a started `Metronome`, to be sounded ahead on the DSP timeline (clicks bypass `INoteSink` — they are not part of the performance) | `MetronomeVoice` |
 
 ---
 
@@ -185,12 +186,13 @@ so the cue track can drive the HUD without the HUD ever steering the lesson (§2
 | Pitch, chords, voicings, chord-tone targets | `Core/Music` | done · tested |
 | Progression state & harmony engine | `Core/Harmony` | done · tested |
 | Melody engine, velocity mapping, touch-target recenter policy | `Core/Melody` | done · tested |
-| Clock, tempo, swing, metronome | `Core/Timing` | done · tested |
+| Clock, tempo, swing, metronome (quarter pulse + optional subdivision), tempo range, click waveform | `Core/Timing` | done · tested |
 | Gesture temporal state machine, record/replay | `Core/Gesture` | done · tested |
 | Learning modes, lesson timeline & cue track, state machine | `Core/Lessons` | done · tested |
 | Onset scoring (Test Yourself) | `Core/Evaluation` | done · tested |
 | Latency percentiles, hand-pose recorder | `Core/Diagnostics` | done · tested |
 | Sampler, voice pool, DSP clock, piano bank | `Audio/` | verified in editor |
+| Audible metronome — `MetronomeVoice` (scheduled clicks), `MetronomeSettings`, free-play pulse, quiet-build `DiagLog` | `Audio/`, `Config/`, `App/`, `Diagnostics/` | ADR-0043 steps 1–2 · compiles; **listen on device** |
 | Hand-pose sources, keyboard input | `Input/` | keyboard ok · all three left-hand recognisers verified on device (ADR-0013/0014); `HandPoseFixture_M3.txt` recorded, replay verified at desk |
 | ScriptableObject event channels | `Events/` | done |
 | Lesson assets, `LessonRunner` | `Lessons/` | L1 rebuilt as a 3-phase follow-along (GestureLearning → W&L → TryYourself), wired in `main.unity` · verify on device |

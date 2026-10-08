@@ -8,8 +8,11 @@ namespace Jazztures.Core.Timing
     /// so the Unity adapter can schedule them ahead with <c>PlayScheduled</c>.
     ///
     /// <para>
-    /// Clicks are quarter-note pulses and are <b>not</b> swung — swing is a melodic
-    /// phrasing concern (§3.6), the pulse the learner tracks stays even.
+    /// The quarter-note pulse is <b>not</b> swung — swing is a melodic phrasing concern
+    /// (§3.6), the pulse the learner tracks stays even. An optional
+    /// <see cref="MetronomeSubdivision"/> adds off-beat clicks between the beats; only
+    /// those move under swing, at <see cref="SwingQuantizer.Swing"/>(beat + 0.5), so the
+    /// quarter grid is identical with or without them (ADR-0043).
     /// </para>
     ///
     /// <para>
@@ -23,30 +26,64 @@ namespace Jazztures.Core.Timing
 
         private readonly Tempo _tempo;
         private readonly int _beatsPerBar;
+        private readonly MetronomeSubdivision _subdivision;
+        private readonly SwingRatio _swing;
+        private readonly int _clicksPerBeat;
+        private readonly double _offBeatPosition; // fraction of a beat after the beat itself
 
         private double _startDspTime;
-        private long _nextBeatIndex;
+        private long _nextClickIndex; // counts clicks, so with a subdivision it runs two per beat
         private bool _running;
 
-        public Metronome(Tempo tempo, int beatsPerBar = DefaultBeatsPerBar)
+        /// <param name="swing">
+        /// Used only for <see cref="MetronomeSubdivision.SwungEighths"/>; defaults to
+        /// <see cref="SwingRatio.Default"/> there. Ignored otherwise.
+        /// </param>
+        public Metronome(
+            Tempo tempo,
+            int beatsPerBar = DefaultBeatsPerBar,
+            MetronomeSubdivision subdivision = MetronomeSubdivision.None,
+            SwingRatio? swing = null)
         {
             if (beatsPerBar <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(beatsPerBar), beatsPerBar, "Must be positive.");
             }
 
+            if (!Enum.IsDefined(typeof(MetronomeSubdivision), subdivision))
+            {
+                throw new ArgumentOutOfRangeException(nameof(subdivision), subdivision, "Unknown subdivision.");
+            }
+
             _tempo = tempo;
             _beatsPerBar = beatsPerBar;
+            _subdivision = subdivision;
+            _swing = subdivision == MetronomeSubdivision.SwungEighths
+                ? swing ?? SwingRatio.Default
+                : SwingRatio.Straight;
+            _clicksPerBeat = subdivision == MetronomeSubdivision.None ? 1 : 2;
+            _offBeatPosition = SwingQuantizer.Swing(0.5, _swing);
         }
 
         public Tempo Tempo => _tempo;
 
         public int BeatsPerBar => _beatsPerBar;
 
+        public MetronomeSubdivision Subdivision => _subdivision;
+
+        /// <summary>
+        /// The swing the off-beat click is placed with: the configured ratio for
+        /// <see cref="MetronomeSubdivision.SwungEighths"/>, otherwise <see cref="SwingRatio.Straight"/>.
+        /// </summary>
+        public SwingRatio Swing => _swing;
+
         public bool Running => _running;
 
-        /// <summary>The beat index the next <see cref="TryDequeueClick"/> will consider.</summary>
-        public long NextBeatIndex => _nextBeatIndex;
+        /// <summary>DSP time of beat 0, as passed to the last <see cref="Start"/>.</summary>
+        public double StartDspTime => _startDspTime;
+
+        /// <summary>The whole-beat index the next <see cref="TryDequeueClick"/> will consider.</summary>
+        public long NextBeatIndex => _nextClickIndex / _clicksPerBeat;
 
         /// <summary>
         /// Begin (or restart) the pulse with beat 0 landing at <paramref name="atDspTime"/>.
@@ -59,7 +96,7 @@ namespace Jazztures.Core.Timing
             }
 
             _startDspTime = atDspTime;
-            _nextBeatIndex = 0;
+            _nextClickIndex = 0;
             _running = true;
         }
 
@@ -71,6 +108,13 @@ namespace Jazztures.Core.Timing
             _startDspTime + _tempo.BeatsToSeconds(beatIndex);
 
         /// <summary>
+        /// Absolute DSP time of a position on the beat timeline (e.g. 3.66 for a swung "and"
+        /// of beat 3), whether or not its click has been dequeued.
+        /// </summary>
+        public double DspTimeOfPosition(double beatPosition) =>
+            _startDspTime + _tempo.BeatsToSeconds(beatPosition);
+
+        /// <summary>
         /// If the next un-emitted click sounds at or before <paramref name="horizonDspTime"/>,
         /// return it and advance. Call in a loop each frame:
         /// <c>while (m.TryDequeueClick(now + lookAhead, out var c)) audio.PlayScheduled(c.DspTime);</c>
@@ -79,11 +123,15 @@ namespace Jazztures.Core.Timing
         {
             if (_running)
             {
-                double due = DspTimeOf(_nextBeatIndex);
+                long beatIndex = _nextClickIndex / _clicksPerBeat;
+                bool isOffBeat = _clicksPerBeat == 2 && (_nextClickIndex & 1) == 1;
+                double position = isOffBeat ? beatIndex + _offBeatPosition : beatIndex;
+                double due = DspTimeOfPosition(position);
+
                 if (due <= horizonDspTime)
                 {
-                    click = new MetronomeClick(_nextBeatIndex, due, _beatsPerBar);
-                    _nextBeatIndex++;
+                    click = new MetronomeClick(beatIndex, position, due, _beatsPerBar, isOffBeat);
+                    _nextClickIndex++;
                     return true;
                 }
             }

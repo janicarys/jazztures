@@ -1,6 +1,7 @@
 using Jazztures.Core.Diagnostics;
 using Jazztures.Core.Ports;
 using Jazztures.Core.Sampling;
+using Jazztures.Diagnostics;
 using UnityEngine;
 
 namespace Jazztures.Audio
@@ -66,7 +67,7 @@ namespace Jazztures.Audio
 
         public void Send(in NoteEvent note)
         {
-            Debug.Log($"[DIAG] Send {note.Kind} midi={note.Pitch.Midi} ch={note.Channel} vel={note.Velocity} now={AudioSettings.dspTime:0.000}");
+            DiagLog.Log($"[DIAG] Send {note.Kind} midi={note.Pitch.Midi} ch={note.Channel} vel={note.Velocity} now={AudioSettings.dspTime:0.000}");
 
             if (!_ready)
             {
@@ -107,7 +108,7 @@ namespace Jazztures.Audio
             // reconfiguring/PlayScheduled-ing it again within the same frame, which is an
             // unreliable pattern for Unity's audio source rather than a clean re-attack.
             int slot = AcquireVoice();
-            Debug.Log($"[DIAG] StartNote midi={note.Pitch.Midi} ch={note.Channel} acquiredSlot={slot} wasPlaying={_sources[slot].isPlaying} wasActive={_voices[slot].Active}");
+            DiagLog.Log($"[DIAG] StartNote midi={note.Pitch.Midi} ch={note.Channel} acquiredSlot={slot} wasPlaying={_sources[slot].isPlaying} wasActive={_voices[slot].Active}");
 
             // ADR-0033: a fresh strike on a pitch that is already sounding — its own
             // re-comp, or a chord tone shared between the outgoing and incoming voicing

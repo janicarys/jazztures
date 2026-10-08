@@ -2,6 +2,7 @@ using Jazztures.Config;
 using Jazztures.Core.Harmony;
 using Jazztures.Core.Melody;
 using Jazztures.Core.Music;
+using Jazztures.Diagnostics;
 using Jazztures.Events;
 using Oculus.Interaction.Input;
 using UnityEngine;
@@ -47,7 +48,8 @@ namespace Jazztures.Presentation
         [Header("Pinch spike — temporary, ADR-0022 de-risk (see the plan)")]
         [Tooltip("Trial the pinch mechanic instead of volume entry: the nearest stop to the " +
                  "thumb/index midpoint is 'armed' (glows); a pinch sounds it; a held pinch " +
-                 "swept across the arc plays a glissando. On-device evaluation only.")]
+                 "swept across the arc plays a glissando. On-device evaluation only. The " +
+                 "per-note log line needs the JAZZTURES_DIAG scripting define (ADR-0043).")]
         [SerializeField] private bool _pinchSpike;
 
         [Tooltip("Pinch spike: max distance from the thumb/index midpoint to a stop for it to arm, metres.")]
@@ -385,7 +387,7 @@ namespace Jazztures.Presentation
             {
                 targets[nearest].Strike();
                 _spikeNoteCount++;
-                Debug.Log(
+                DiagLog.Log(
                     $"[PinchSpike] stop {nearest} · {targets[nearest].Degree}" +
                     $"{(targets[nearest].OctaveOffset == 0 ? string.Empty : "+8")} · midi {targets[nearest].Pitch}" +
                     $" · {peakSpeed:0.00} m/s · {(slidWhilePinched ? "gliss" : "strike")}");

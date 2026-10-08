@@ -5,6 +5,7 @@ using Jazztures.Core.Harmony;
 using Jazztures.Core.Lessons;
 using Jazztures.Core.Melody;
 using Jazztures.Core.Ports;
+using Jazztures.Diagnostics;
 using Jazztures.Events;
 using Jazztures.Input;
 using Jazztures.Lessons;
@@ -43,6 +44,10 @@ namespace Jazztures.App
         }
 
         [SerializeField] private SamplerNoteSink _sampler;
+
+        [Tooltip("Sounds a lesson's metronome (ADR-0043). Optional — a lesson that asks for a " +
+                 "metronome runs it silently, with a warning, if this is empty.")]
+        [SerializeField] private MetronomeVoice _metronomeVoice;
 
         [Tooltip("A MetaXRHandPoseSource or MetaXRHandPostureSource, or leave empty to use the desktop keyboard (Z/X/C).")]
         [SerializeField] private MonoBehaviour _handPoseSource;
@@ -176,7 +181,7 @@ namespace Jazztures.App
                     _strikeDetector = new ChordStrikeDetector(clock, _interpreter, thresholds);
                     _strikeDetector.Struck += velocity =>
                     {
-                        Debug.Log($"[DIAG] STRUCK v={velocity} confirmed={_interpreter.ConfirmedFunction} t={AudioSettings.dspTime:0.000}");
+                        DiagLog.Log($"[DIAG] STRUCK v={velocity} confirmed={_interpreter.ConfirmedFunction} t={AudioSettings.dspTime:0.000}");
                         _harmony.Strike(velocity);
                     };
                     _feedCommit = _strikeDetector.Feed;
@@ -196,7 +201,10 @@ namespace Jazztures.App
             }
 
             GetComponent<DomainEventBridge>()?.Bind(_harmony, _interpreter, _poseSource);
-            GetComponent<LessonRunner>()?.Bind(clock, _gate, _interpreter);
+            // `_metronomeVoice` is a Unity object: pass null explicitly when unassigned rather
+            // than a fake-null reference that would pass a plain `!= null` check downstream.
+            GetComponent<LessonRunner>()?.Bind(
+                clock, _gate, _interpreter, _metronomeVoice != null ? _metronomeVoice : null);
             // Assigned in the inspector, not GetComponent'd: the binder belongs on the
             // target rig. An unassigned reference means melody notes silently never fire,
             // so it is worth a warning rather than a null-check that says nothing.
@@ -258,10 +266,12 @@ namespace Jazztures.App
             }
 
             HandPoseFrame frame = _poseSource.CurrentFrame;
+#if JAZZTURES_DIAG
             if (_commitGesture == HarmonyCommitGesture.Strike && Mathf.Abs(frame.LeftVerticalSpeedMetresPerSecond) > 0.05f)
             {
-                Debug.Log($"[DIAG] vy={frame.LeftVerticalSpeedMetresPerSecond:0.000} candidate={frame.LeftCandidate} confirmed={_interpreter.ConfirmedFunction} phase={_interpreter.Phase} t={AudioSettings.dspTime:0.000}");
+                DiagLog.Log($"[DIAG] vy={frame.LeftVerticalSpeedMetresPerSecond:0.000} candidate={frame.LeftCandidate} confirmed={_interpreter.ConfirmedFunction} phase={_interpreter.Phase} t={AudioSettings.dspTime:0.000}");
             }
+#endif
 
             if (_commitGesture == HarmonyCommitGesture.Touch && _strikeTarget != null)
             {
