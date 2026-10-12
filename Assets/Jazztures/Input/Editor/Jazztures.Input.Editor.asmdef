@@ -1,0 +1,19 @@
+{
+    "name": "Jazztures.Input.Editor",
+    "rootNamespace": "Jazztures.Input.Editor",
+    "references": [
+        "Jazztures.Input",
+        "Oculus.Interaction"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

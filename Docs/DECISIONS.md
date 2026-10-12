@@ -8,11 +8,352 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0048 — The strike plate's hitbox is built from its visual, not typed in beside it
+
+**Date:** 2026-10-12 · **Status:** Accepted (on-device report); the box is headless-tested and the
+component compiles — **not tried on a headset** · **Milestone:** M3
+**Supersedes:** the cylinder volume ADR-0039 gave the plate (radius 0.06 m, half-depth 0.08 m) ·
+**Changes the thesis:** nothing — an implementation fix; no Chapter 6 wording depends on the plate's shape.
+
+### The report
+
+"The strike plane's hitbox feels like it's not aligned with the visual. Hitbox feels too high."
+
+### What the scene showed
+
+The visual is a child Cube scaled 0.2 × 0.2 × 0.01 — a flat **20 × 20 cm slab, 1 cm thick**, top face
+5 mm above the plate's origin. The hitbox was a separate pair of numbers on the component, a
+`TargetVolume` cylinder (radius 0.06, half-depth 0.08) centred on the *same origin*:
+
+- It reached **8 cm above the origin — 7.5 cm above the top of the slab** — so a chord fired with the hand
+  a hand's-width in the air, which is exactly "too high".
+- It was a **12 cm-wide disc against a 20 cm-wide square**: the outer 4 cm on every side, and all four
+  corners, were visible but dead.
+- The two had no link. Resizing the visual (it had evidently been changed since the hitbox was written)
+  left the hitbox behind — "not aligned" would have kept happening.
+
+### Decision
+
+1. **The volume is derived from the visual.** `ChordStrikeTarget` reads its `Renderer`'s local bounds,
+   expresses the eight corners in the plate's own frame (so it is independent of where the plate is in the
+   world), and builds a `StrikePlateVolume` around the **top face**: the footprint plus a margin, a short
+   hover above the surface, a deep reach below it. Resize or move the visual and the hitbox follows.
+2. **`StrikePlateVolume` is a box, in `Core/Gesture`** (pure scalars, tested headlessly), replacing the
+   cylinder for this object only. The right hand's `TargetVolume` is untouched.
+3. **Asymmetric on purpose.** Above the surface the reach is short (the hand should touch what it sees);
+   below it, long (depth is the axis a person cannot judge in mid-air, ADR-0018 — overshooting must still
+   count; stopping short is the only way to miss).
+4. **Tunables** (on the component, `[TUNABLE]`; not pilot-calibrated): footprint margin **0.02 m**, hover
+   above the surface **0.02 m**, depth below the surface **0.10 m**. The 2 cm hover is an engineering
+   estimate that a tracked joint's centre sits about a centimetre inside the skin, so the *skin* meets the
+   slab as the joint reaches ~1–2 cm above it.
+5. **Selected-object gizmo** draws the computed box, so alignment can be checked in the Scene view.
+
+### Consequences
+
+- The old `_radiusMetres` / `_halfDepthMetres` values are still serialised in `main.unity`; Unity ignores
+  serialised fields the class no longer declares, so nothing needs re-saving. The three new fields take
+  their defaults.
+- The volume is built once, in `Awake`. A visual resized or moved at runtime is not re-read.
+- Tests: `StrikePlateVolumeTests` — hand on the surface counts, a hand 5–8 cm in the air does not (the
+  reported bug), the whole square including corners is hittable, the margin reaches but not far, an
+  off-centre visual is followed, overshoot below counts but not without limit.
+
+### Open
+
+- If it still feels high or low on device, `Hover Above Surface` is the lever (0 = skin-on-slab strictly;
+  raise to make it easier). Record the chosen value in `Docs/CALIBRATION.md` after the pilot.
+
+---
+
+## ADR-0047 — Left hand: ii is "palm sideways" (either thumb direction), "up" is gravity, and the plate takes any part of the hand and a tap inside
+
+**Date:** 2026-10-12 · **Status:** Accepted (student design call + on-device report); the Core part is
+headless-tested and the rest compiles — **none of it tried on a headset** · **Milestone:** M3
+**Supersedes:** ADR-0026's `WristUp` rule for ii (not its pose) and ADR-0014's `Head` up-reference;
+extends ADR-0039/0042 · **Changes the thesis:** Chapter 6's note on how ii is recognised (ADR-0026's
+"wrist roll — the thumb points up"); §1.3's wording ("open palm, facing the user's right") is unchanged
+and is, if anything, matched more closely.
+
+### The report
+
+On device, ii and I stayed hard to actuate. The student's guesses: a downward "chop" for ii may not
+register on the plate, and the thumb's position makes the recogniser "weirdly strict". Later: some people
+hold the sideways hand with the thumb up to the ceiling, others with the thumb pointing forward.
+
+### What the code showed
+
+1. **ii accepted exactly one way of holding the hand.** It was open palm AND `WristUp` — the wrist's
+   thumb-side axis within 25° of "up" (the saved thresholds are 40° ± 15° → enter 25°, exit 55°; the
+   ADR-0041 widening was never applied to this row). Fingers-forward/thumb-up passed; fingers-up/thumb-
+   forward did not — though both are "an open palm facing the user's right".
+2. **"Up" was the headset's up.** Both ii (`WristUp`) and I (`PalmDown`) compared against
+   `UpVectorType.Head`, which is `centerEyePose.up` — it tilts with head pitch. The strike plate sits
+   (−0.20, −0.25, +0.20) m from the head, ~41° below eye level, so a learner who looks at it pitches the
+   headset ~40° and every vertical check is measured against a tilted reference. I's `PalmDown` enters
+   at 35°: a perfectly flat palm-down hand is already borderline. This is the likely reason I was hard,
+   and part of why the thumb felt strict.
+3. **A chop moves the very axis ii was measured on.** ADR-0025/0027 noted that a strike rotates the
+   thumb-side axis away from vertical. A palm-sideways rule reads the *back-of-hand* axis instead, which
+   a chop (a rotation about the palm normal) does not move.
+4. **The plate tested one joint, and the wrong kind.** The scene saved `_fingertip: 10`, which is
+   `HandMiddle2` — the middle finger's intermediate phalange, not a tip. A sideways chop's leading edge is
+   the pinky side; a fingers-up chop's is the heel of the hand. Neither is a middle-finger joint.
+5. **The plate fired only on the frame of entry,** the same flaw ADR-0045 fixed on the right hand. The
+   volume is 16 cm deep, so the hand is often inside already — or arrived too gently to count.
+
+### Decision
+
+1. **ii = open palm AND palm sideways.** "Sideways" is "not palm-down, not palm-up, not palm-toward-face,
+   not palm-away-from-face" — four `IsNot` conditions on the SDK's existing features, all required. It
+   accepts thumb up, thumb forward, and anything between, and rejects palm-down (so ii and I are now
+   mutually exclusive by construction, not only by the ambiguity rule). The open-palm shape asset already
+   leaves the thumb unconstrained.
+2. **ii and I measure "up" against gravity** (`UpVectorType` Head → Tracking). Gravity-relative is still
+   independent of which way the learner faces (CLAUDE.md §3.4), but no longer tilts with the head.
+3. **The plate counts any part of the hand.** `ChordStrikeTarget` tests a set of joints (fingertips,
+   knuckles, the pinky-side palm, the wrist); any inside is a touch. *(As first written, the strike speed
+   was "that of the fastest joint inside" — that was wrong; see the addendum.)*
+4. **The plate takes a tap inside the volume,** by the same pure `TouchContact` rule as the right hand
+   (ADR-0045): a deliberate entry, or a tap at ≥ 0.25 m/s while already inside, with a settle (≤ 0.10 m/s
+   for 3 frames) before the next. ADR-0042's wait-for-confirmation grace is unchanged.
+
+(1) and (2) are applied to the open scene by the menu **Jazztures ▸ Gestures ▸ Apply Sideways-Palm ii +
+Gravity-Up (ADR-0047)** — through `SerializedObject`, undoable, idempotent; the scene must then be saved.
+It reads the state ids from the project's thresholds asset rather than assuming them.
+
+### Costs and risks (watch for these)
+
+- **A relaxed, open left hand hanging at the side reads as ii** (its palm faces the thigh, i.e. sideways).
+  Mitigations: the open-palm shape needs all four fingers extended, and a pose needs a 150 ms hold; and
+  selecting ii is silent — nothing sounds without a plate touch. But it does re-pitch the right-hand
+  targets. If it happens, tighten the shape or add a "hand raised" condition.
+- **Palm-facing-left also reads as ii.** Unnatural for a left hand; harmless.
+- **Any part of the hand can arm the plate,** so raising a hand *through* it while a pose is confirmed
+  will sound a chord, as an entry would have before.
+- **The ghost hand's ii still shows thumb-up.** The pose is now broader than the demonstration; fine for
+  teaching one clear hold, but re-capture it if a thumb-forward ghost is wanted.
+- **Tap values are borrowed,** not measured for the plate (see `CALIBRATION.md`).
+- **The hysteresis gap is unchanged** for I (flat palm 35°–50° from vertical keeps its previous state);
+  ii has none of that — it is "not any of the four".
+
+### Addendum, same day — "now it's prone to unintended inputs"
+
+**Reported on device** after the changes above. **Cause, in my own change:** decision 3 took the strike
+speed from the fastest *joint inside* the volume, fingertips included. Opening or closing the hand moves
+the fingertips at 0.5 m/s and more while the hand itself is still, and with decision 4's tap-inside rule
+(0.25 m/s) any pose change near the plate could read as a strike. Entry was also still any-direction
+at 0.08 m/s — a fingertip gate — with eleven joints now able to cross the volume's edge as a learner
+adjusts.
+
+**Fix.** The two jobs are separated:
+- **Where:** unchanged — any `Contact Joint` (fingertips, knuckles, pinky-side palm, wrist) inside the
+  volume is a touch.
+- **How hard, and whether it is a strike:** the **peak downward speed of the palm and wrist** (`Speed
+  Joints`: wrist, the four knuckles, the pinky base) via the pure `DownwardSpeedWindow` — the same
+  "current unbroken downward run" rule as the strike (ADR-0028/0035). Fingertips are not in it, so
+  finger movement never counts; sideways and upward motion read as 0, so raising a hand through the
+  plate no longer sounds it; and the plate is, as designed, struck from above.
+- **Entry gate 0.08 → 0.15 m/s** for the plate (`TouchCommitThresholds`). 0.08 was inherited from the
+  right hand's aimed fingertip; a chop is 0.5 m/s and up.
+
+**Cost.** A deliberately slow, level approach no longer fires on entry; a downward press at ≥ 0.25 m/s
+does (the tap). Both gates are `[TUNABLE]` and unmeasured.
+
+**Levers if it is still wrong** (no code needed): remove a joint from `Contact Joints` on the
+`ChordStrikeTarget`; raise the tap speed or entry gate in `TouchCommitThresholds`.
+
+**Other suspects, not yet touched** — which of these it is decides the next fix:
+(a) the relaxed hanging hand selecting ii (selection is silent, but re-pitches the right-hand targets);
+(b) the wrist/forearm brushing the volume as the arm moves; (c) the right hand's tap-inside
+(ADR-0045), which has no direction rule because a finger tap has no fixed direction.
+
+### Thesis impact
+Replace ADR-0026's note ("ii is recognised by wrist roll — the thumb points up") with: *ii is an open hand
+whose palm is held sideways — neither facing up, down, toward nor away from the learner — and both I and ii
+measure orientation against gravity rather than the headset.* No Chapter 6 impact beyond that sentence.
+
+---
+
+## ADR-0046 — Right-hand targets are paddles: a pad you push along a rail, drawn at the trigger volume's size
+
+**Date:** 2026-10-12 · **Status:** Accepted (student design call); compiles, **not yet seen on a
+headset** · **Milestone:** M4 · **Narrows:** ADR-0018 (the true-extent tube) · **Corrects:** ADR-0044's
+note-label size · **Changes the thesis:** design chapter's description of the target's look only.
+
+### What the scene was actually doing
+
+The rig's `Target Prefab` slot in `main.unity` points at a plain **Sphere scaled 0.05** (a 5 cm ball),
+so the targets were never the generated tube/rim/disc ADR-0018 describes — they were spheres. Three
+consequences:
+
+1. **The note labels were shrunk twentyfold.** A label is a child of its target and inherited the 0.05
+   scale. (This, not the character size, is why they looked "way too small"; doubling the size in
+   ADR-0044 was the wrong fix and is reverted.)
+2. **The visible object did not match the thing that triggers.** The invisible trigger volume is a
+   6 cm × 12 cm cylinder; the ball is 5 cm across. A fingertip touching the ball's skin is already
+   inside the volume, so a note fired ~3.5 cm *before* contact, and a tap on the ball happened inside
+   the volume, where there was no entry to detect (the failure ADR-0045 fixes).
+3. **No depth cue at all.** The ADR-0018 depth disc existed only on the generated tube.
+
+### Decision
+
+1. **The default look is a paddle** (`MelodyConfig.Target Look = Paddle`). A flat pad, the volume's own
+   3 cm radius and 1.2 cm thick, rests at the **near, learner-facing end** of the 12 cm trigger volume,
+   on a faint rail the length of the volume. It reads as "push me" and shows where the push goes.
+2. **The pad is pushed.** While a fingertip is inside the volume the pad is carried along the rail in
+   front of it (its learner-facing face meets the fingertip), bottoms out against the far end, and
+   springs back (~60 ms) when the finger leaves. This makes depth — the one axis a person cannot judge in
+   mid-air (D2) — *visible*, which is the point. It is a visual response only; **the trigger is unchanged**
+   (ADR-0045: a deliberate entry, or a tap inside), and the pinch mode never moves the pad.
+3. **The note label rides the pad**, just in front of its face, and is now **scale-independent**: it undoes
+   whatever scale its parents carry, so a scaled primitive can no longer shrink it. Default character size
+   is back to 0.005.
+4. **The scene's sphere is ignored by default.** With `Target Look = Paddle` the rig's `Target Prefab` slot
+   is not used; set `Target Look = Prefab` to get the sphere (or any styled prefab) back. The rig also
+   instantiates that prefab *as a child of the rig*, so the template sphere in the scene sits at the
+   shoulder pivot — delete it once the paddle is settled.
+5. **Removed:** the tube, the "entry rim" and the separate depth disc. The rim was drawn at local +Z,
+   which points *away* from the learner (the arc is built outward from the shoulder) — the far end, not the
+   near one its comment claimed. (Reading the geometry, not seen on a headset.)
+
+### Not decided: should pushing the pad *be* the trigger?
+
+Today the pad moves but a note still fires on entry or on a tap. A true virtual key would fire when the pad
+reaches a set point on its travel. That is a different trigger, with the cost already on record: a lateral
+sweep has no motion along the push axis (D7), which is why the plane-crossing redesign was set aside, and
+it competes with the tap logic just added. Worth trying only if the paddle plus the tap fix still feels
+indistinct. **Open for the student.**
+
+### Unverified on a headset
+That the pad reads as pushable at arm's length; that 6 cm pads 6.3 cm apart do not look like a wall (widen
+`Column Angle Degrees` if they do); that the pad tracking the fingertip does not feel laggy or jittery with
+hand-tracking noise; and the label's drawing order against a pad that moves under it.
+
+### Thesis impact
+The design chapter's description of the target (ADR-0017/0018: a translucent tube with a depth disc)
+becomes: a pad on a rail that the learner pushes, one neutral colour, labelled with the note it plays.
+No Chapter 6 impact.
+
+---
+
+## ADR-0045 — Right-hand touch: a tap inside a target's volume plays it, not only an entry
+
+**Date:** 2026-10-12 · **Status:** Accepted (fixes a reported on-device failure); headless-tested,
+compiles, **not yet re-tried on a headset** · **Milestone:** M4 · **Builds on:** ADR-0016/0018/0019
+**Changes the thesis:** none — §3.3's "note-on fires when a right-hand fingertip enters a target
+volume" is extended (a tap inside also fires), not contradicted; the gate speeds are `[TUNABLE]`.
+
+### The finding
+
+Reported on device: tapping a target with a finger does not play it, but swinging the whole hand
+does — and the wide hand then catches a neighbouring target.
+
+Cause, from the code: `TouchTargetBinder` fired only on the **frame the fingertip crossed from
+outside to inside** a target's volume, and only if the fingertip was moving at ≥ 0.08 m/s then. The
+volume is 12 cm deep (ADR-0018) because depth is unaimable in mid-air (D2), so a person puts the
+finger "on" the target — already inside — and taps. No crossing, no note. A gentle arrival was
+rejected silently *and* locked the target until the finger left the volume. A fast whole-hand swing
+leaves and re-enters at speed, so it was the one thing that reliably worked.
+
+### Decision
+
+A new pure `TouchContact` (`Core/Melody`), one per (fingertip, target), decides a touch two ways:
+
+1. **Enter it deliberately** — the original rule: the frame of crossing in, at ≥ the entry speed
+   (0.08 m/s, the melody engine's gate). A fast reach or a sweep still plays on arrival.
+2. **Tap it while inside** — a fingertip already inside plays on a sudden movement of ≥ the **tap
+   speed** (0.25 m/s). A gentle arrival now stays armed instead of locking the target.
+
+After a note the fingertip must **settle** (≤ 0.10 m/s for 3 consecutive frames) before another tap
+can play — a Schmitt trigger on speed, the same shape as the left-hand strike (§3.4, ADR-0030) —
+so a resting hand cannot machine-gun a target and repeated tapping still plays every time. The tap
+speed is far above the entry speed on purpose: with no entry edge to vouch for intent, the margin
+over tracking jitter is what separates a tap from a still hand. The values start from the strike's
+(tuned on this sensor, ADR-0028/0030); they are unmeasured for the right hand and live on
+`MelodyConfig` (`Tap Speed`, `Tap Settle Speed`, `Tap Settle Frames`).
+
+### Not changed, and a correction
+
+- **The pinch spike is untouched.** `main.unity` has `Pinch Spike` ticked on the binder, so
+  lessons and free play already run in pinch mode; this fix is for the touch mechanic, which the
+  Timing test's "Mechanic: touch" row selects (and which a scene with `Pinch Spike` off uses
+  everywhere). An earlier note called touch "the default" — true of the code, not of this scene.
+- **The wide-hand / neighbour problem is a separate cause.** Both the index and middle fingertips
+  are active (`Finger Tips` on the binder), and adjacent faces are only ~6.3 cm apart. If finger
+  taps now work, hand-swinging should stop; if neighbours are still hit, remove the middle
+  fingertip (ADR-0019 anticipated this) or widen `Column Angle Degrees`.
+- **Open:** the tap speed. If a gentle tap still does nothing, lower `Tap Speed`; if a resting hand
+  fires notes, raise it. Measure with the timing drills' extra and missed counts.
+
+---
+
+## ADR-0044 — Right-hand targets do not change colour with the chord; each shows the note it plays
+
+**Date:** 2026-10-12 · **Status:** Accepted (student design call); compiles, **not yet seen on
+a headset** · **Milestone:** M4/M5 (presentation) · **Narrows:** ADR-0017 §1 and §3 (targets)
+**Changes the thesis:** yes — the design chapter's colour-coding description, and the
+"Touch targets that light on chord change" line in CLAUDE.md §3.10 (updated).
+**Source of the advice:** the student reports being told the right-hand targets should not
+change colour. Who said it is not recorded here — add it.
+
+### Decision
+
+1. **The ten targets stay one colour.** Every target takes `TensionPalette.Neutral` once, at
+   start, and keeps it. `TensionColorDriver` no longer pushes the eased chord tint to them, and
+   the 0.6 s brighten on every chord change is gone (`TouchTarget.SetHighlighted`,
+   `TouchTargetBinder._highlightSeconds` and the timer that ended it are deleted).
+2. **Each target carries a note label** — the letter name of the pitch it plays under the
+   current chord ("C", "E", "G", "B", "D" over Cmaj7). It is rewritten on every chord change
+   (`TouchTarget.RePitch`), blank when no chord is held (a blank target cannot sound), a
+   fixed near-white, turned to face the learner each frame and drawn above the tube. Names come
+   from `PitchNames` (sharps only; in C major over these three chords none appear). **Letters
+   only — no octave numbers**, which would be unexplained notation for a novice (§1.5), the same
+   rule ADR-0043 decision 1 set for the ladder. Size and the on/off switch are on `MelodyConfig`
+   (`[TUNABLE]`).
+3. **The left hand's outline keeps the tension colour** (ADR-0017 §3, unchanged) — the request
+   was about the right-hand targets.
+4. **Touch feedback still changes the target's brightness**: the hover glow, the strike flash,
+   the pinch "armed" glow and the ghost hand's "play this one" glow. These answer the learner's
+   own action or the lesson's instruction, not the chord, and a label cannot replace them (the
+   ghost hand's cue in Try Yourself *is* "this target lights up", ADR-0012). **Open: if "do not
+   change colour" was meant to cover these too, they need a non-colour cue (e.g. a small scale
+   pulse) — say so and it is a small change.**
+
+### Consequences and things to check
+
+- **Labels name pitches; the map is still by degree.** CLAUDE.md §3.1 `[THESIS]` keeps targets
+  "re-pitched, never re-arranged" so the learner builds a map of *scale degree*. That is
+  unchanged — slot 2 is still the fifth — but the label now shows the absolute pitch name,
+  which changes with the chord, on top of that map. It does not break the rule as written; the
+  student should decide whether it blunts the "degree, not pitch" rationale in the paper.
+- **L3's concept text should say what the letters are** ("the letters are the notes' names",
+  §1.5). It is lesson content, so it is not edited here.
+- **Active vs inactive.** The tint used to say "a chord is held" (grey, then colour). Now the
+  presence of a label does.
+- **Label size — corrected by ADR-0046.** The first labels looked "way too small" and the default
+  was doubled to 0.010. That diagnosis was wrong: the scene's targets are clones of a sphere scaled
+  0.05, and a label parented to a target inherits its scale, so the letters were shrunk twentyfold.
+  Labels are now scale-independent and the default is back at 0.005 (a ~3 cm capital by estimate).
+- **Unverified on a headset:** that the label size reads at arm's length without crowding; and
+  that the legacy font material (no depth test of its own, as the selector and HUD use it) does
+  not draw a label over the hand when the hand passes in front of it.
+
+### Thesis impact
+
+The design chapter's description of colour-coding (ADR-0017's "targets take the chord's colour
+… always rendered in low-alpha grey when no chord is held") becomes: the targets are a single
+neutral colour; each carries a note-name label; the left (harmony) hand's outline carries the
+ii → V → I tension colour as a redundant channel. §3.10's feedback model (auditory primary,
+visual secondary and redundant, restraint) is unchanged. No Chapter 6 impact.
+
+---
+
 ## ADR-0043 — Right hand: a fixed pitch ladder with a swappable trigger; an audible, configurable metronome and timing drill to measure it
 
-**Date:** 2026-10-08 · **Status:** Proposed — order-of-work steps 1–2 built (see
-*Implementation notes — steps 1–2* below; compiles, headless tests green, **not yet listened to
-on device**); nothing else built. Part 2 has no thesis conflict and
+**Date:** 2026-10-08 · **Status:** Proposed — order-of-work steps 1–4 built (see
+*Implementation notes — steps 1–2* and *— steps 3–4* below; compiles, headless tests green,
+**not yet run on a headset**); nothing else built. Part 2 has no thesis conflict and
 can be accepted and built now. Part 1 is cleared for prototyping behind the mechanic switch
 (decision 4); adopting it still depends on the bake-off.
 **Decided by the student, 2026-10-08** (referred to below as decisions 1–4):
@@ -336,6 +677,78 @@ text above:
   per *Reading the numbers*); the `LessonRunner` pre-roll arithmetic, which sits in a
   MonoBehaviour and has no automated test; and the menu stepper — its placement, whether the
   buttons are easy to hit with the pinch ray, and that its text fits, are all unseen on a headset.
+
+### Implementation notes — steps 3–4
+
+Built on `feat/quiet-build-metronome`. Where the build departs from, or fills a gap in, the
+text above:
+
+- **`OnsetPattern` (`Core/Timing`) is the one description of "where the learner should play".**
+  Every beat / every 2nd beat / every eighth / authored positions that repeat each bar.
+  `TimingDrill` and a lesson's scored pulse both use it; positions are straight beats and
+  swing is applied afterwards, so every-eighth off-beats swing with the phrase. An authored
+  list is **per bar, repeated** (the ADR said only "a list of beat positions"; a per-bar rule
+  is what "comp on 1 and 3" and a repeated rhythm need without writing out every bar).
+- **L2's pulse is data on the lesson.** `LessonDefinition._scoredPulse` (an `OnsetPatternSpec`)
+  becomes `LessonTimeline.ScoredPulse`, spanning beat 0 to the end of the timeline, and
+  `ExpectedOnsetSeconds()` merges it with the melody notes. L2's asset is set to *every beat*,
+  so its Test Yourself now has four expected onsets (chords at beats 0 and 4 → beats 0–3).
+  The pulse starts with the phase — a lesson has no count-in (§3.6 table: "drills only").
+- **`OnsetCapture` implements `INoteSink`** and replaces `LessonRunner`'s hand-rolled list. It
+  takes note-ons from the scored hand's own channel only (left = `Harmony`, right =
+  `Melody`); `Accompaniment` is never captured. Left-hand notes within 5 ms count once (one
+  strike's voicing); right-hand notes never merge. `LessonRunner` no longer drops every note
+  while a playback exists — only during Watch and Listen's *melody demonstration*, so harmony-
+  only playback does not hide the learner.
+- **`ScriptedHarmony` lives in `Core/Lessons`**, not `Core/Harmony`, because it consumes a
+  `LessonTimeline` and `Lessons` already depends on `Harmony`. `Stop()` releases the selection
+  only if it started one.
+- **Right-hand lessons now sound their chords in Try / Test Yourself.** `ModePolicy.For(mode,
+  hands)` returns `HarmonyOnly` for those two modes when the lesson has a right hand and no left
+  (L3–L5); `LessonPhase` carries its lesson's hands so `phase.Policy` is the hands-aware one.
+  CLAUDE.md §3.8 has the footnote. `LessonRunner` plays `TimelinePlayback(includeMelody: false)`
+  and starts `ScriptedHarmony` at the same shared start. The phase still ends on the phrase
+  clock (duration + tail), not when the chords stop.
+- **Not built, on purpose: "expected pitch per onset" and the wrong-note count.** They only
+  mean something once there are pitch targets (the ladder, steps 6–7); on the arc the target is
+  a *degree*. `TimingDrill` and the CSV have no pitch column yet.
+- **A fixed drill chord is struck on every bar line**, count-in included, because a piano chord
+  decays (one strike would be gone by bar 3). The timeline is given a minimum duration
+  (`LessonTimelineBuilder.WithMinimumDuration`) so the last chord rings out instead of dying
+  after the default tail.
+- **Drills, as built.** `TimingDrillDefinition` is a ScriptableObject in the `LessonCatalog`'s
+  new `Timing Drills` list; a new preset is an asset. `TimingDrillRunner` anchors the click, the
+  chords and the capture at one `t0` a pre-roll after "now"; the count-in is beat 0 of `t0`, and
+  every time in the CSV is seconds from there. Scoring is `OnsetScorer.Evaluate`, unchanged.
+  A scored left-hand drill may not also script harmony (the learner plays it).
+- **Results appear under the menu, not as a HUD caption.** The ADR said "one deferred line on
+  the HUD". The HUD's caption fades in a few seconds and its width wraps at ~34 characters; a
+  tester needs to read six counts and an average. After the run the flow returns to the Timing
+  test menu and `LessonSelector.SetFooter` shows the line until the next run or leaving the
+  menu. Same rule (§3.7): nothing is shown mid-phrase. The line says "N notes" (the ADR's
+  example said "N beats", wrong for an every-eighth drill).
+- **CSV** — `Application.persistentDataPath/timing/<UTC stamp>_<drill>_<tester>.csv`, UTF-8,
+  invariant-culture numbers. `#`-prefixed `key,value` header lines (drill, tester, build,
+  mechanic, left-hand commit gesture, tempo, subdivision, swing, scored hand, pattern, count-in,
+  windows), then `index,kind,expected_s,actual_s,deviation_ms,verdict` with `kind` ∈ `onset` /
+  `missed` / `extra`. Derived timings only (§4.1). The wrist-tap stroke landmarks the ADR lists
+  wait for that trigger (step 7). A failed write is logged and never shown to the learner (§4.4).
+- **The mechanic row cycles what exists today:** arc + touch and arc + pinch
+  (`TouchTargetBinder.PinchSpike`, now switchable at runtime). The ladder's triggers join it at
+  step 7. Leaving the Timing test restores whatever the scene was authored with, so lessons
+  and free play are not left on the pinch spike.
+- **Tester code is an Inspector string on `TimingDrillRunner`** (default `T00`), not something
+  entered in the headset. **Open for the student: confirm informal testers are covered by the
+  ethics approval before collecting anyone's runs.**
+- **Starter presets** are made by the menu `Jazztures ▸ Timing ▸ Create Starter Drills`: right
+  hand over an audible I chord at 60 and 80 BPM, one onset per beat and per eighth (4 bars after
+  a 1-bar count-in); a left-hand comping drill on beats 1 and 3; a click-only run. The
+  pitch-specific bake-off drills (alternating rungs, a repeated shape) wait for the ladder.
+- **Not verified:** all of it on a headset — in particular that the harmony-only chords sit well
+  under the learner's notes, that the menu fits and reads at 8 rows, and that the CSV pulls
+  cleanly with `adb`. The runners' frame-by-frame behaviour is MonoBehaviour code with no
+  automated test; the pure parts (`OnsetPattern`, `OnsetCapture`, `ScriptedHarmony`,
+  `TimingDrill`, `DrillReport`) are covered headlessly.
 
 ### Order of work
 

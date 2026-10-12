@@ -12,12 +12,14 @@ namespace Jazztures.Presentation
     /// <summary>
     /// Connects the touch-target rig to the domain (CLAUDE.md §3.3, §3.10). Listens on
     /// <see cref="ChordChangedChannel"/> and re-pitches the ten targets in place on every
-    /// change ("re-pitched, never re-arranged", §3.1), lighting them briefly. Each frame it
-    /// reads every tracked right-hand fingertip and, when one enters a target's volume,
-    /// calls <see cref="MelodyEngine.TriggerTarget"/> with the fingertip's peak recent
-    /// speed — the engine owns the entry gate, the retrigger cooldown and the
-    /// speed→velocity curve. Targets a fingertip is merely *near* glow, so the learner can
-    /// learn the depth (ADR-0018).
+    /// change ("re-pitched, never re-arranged", §3.1), rewriting each one's note label. Each
+    /// frame it reads every tracked right-hand fingertip and, when a <see cref="TouchContact"/>
+    /// decides a fingertip has touched a target — by entering its volume deliberately, or by
+    /// a tap while already inside it (ADR-0045) — calls
+    /// <see cref="MelodyEngine.TriggerTarget"/> with the fingertip's peak recent speed. The
+    /// engine owns the entry gate, the retrigger cooldown and the speed→velocity curve.
+    /// Targets a fingertip is merely *near* glow, so the learner can learn the depth
+    /// (ADR-0018).
     ///
     /// <para>Direction rule (§2.3): this only reads the channel; it never raises it.</para>
     /// </summary>
@@ -42,9 +44,6 @@ namespace Jazztures.Presentation
             HandJointId.HandMiddleTip,
         };
 
-        [Tooltip("How long targets stay lit after a chord change, seconds.")]
-        [Min(0f)] [SerializeField] private float _highlightSeconds = 0.6f;
-
         [Header("Pinch spike — temporary, ADR-0022 de-risk (see the plan)")]
         [Tooltip("Trial the pinch mechanic instead of volume entry: the nearest stop to the " +
                  "thumb/index midpoint is 'armed' (glows); a pinch sounds it; a held pinch " +
@@ -61,7 +60,8 @@ namespace Jazztures.Presentation
         private MelodyEngine _melody;
         private IHand _hand;
 
-        private bool[,] _wasInside;          // [finger, target] — entry-edge state
+        private TouchContact[,] _contacts;   // [finger, target] — entry / tap state (ADR-0045)
+        private TouchContactThresholds _contactThresholds = TouchContactThresholds.Default;
         private Vector3[] _previousTips;
         private bool[] _hasPreviousTip;
         private float[,] _speedSamples;      // [finger, frame] — rolling window
@@ -72,7 +72,6 @@ namespace Jazztures.Presentation
 
         private float _hoverScale = DefaultHoverScale;
         private int _speedSampleFrames = DefaultSpeedSampleFrames;
-        private float _highlightUntil;
 
         // Pinch spike state (temporary).
         private bool _wasPinching;
@@ -86,6 +85,34 @@ namespace Jazztures.Presentation
 
         /// <summary>Wire the domain up. Call once, from the composition root's <c>Awake</c>.</summary>
         public void Bind(MelodyEngine melody) => _melody = melody;
+
+        /// <summary>
+        /// Which right-hand trigger is live: false = touch (a fingertip entering a target),
+        /// true = pinch (the pinch spike). Switchable at runtime so one headset session can
+        /// run the same timing drill on each mechanic (ADR-0043, <c>DESIGN-SPACE.md</c> §5).
+        /// Resets the per-mechanic edge state, so switching can never fire a stray note.
+        /// </summary>
+        public bool PinchSpike
+        {
+            get => _pinchSpike;
+            set
+            {
+                if (_pinchSpike == value)
+                {
+                    return;
+                }
+
+                _pinchSpike = value;
+                if (_contacts != null)
+                {
+                    System.Array.Clear(_contacts, 0, _contacts.Length);
+                }
+
+                _wasPinching = false;
+                _armedIndex = -1;
+                _hasPrevSelectPoint = false;
+            }
+        }
 
         private void Awake()
         {
@@ -107,10 +134,11 @@ namespace Jazztures.Presentation
             {
                 _hoverScale = Mathf.Max(1f, _config.HoverScale);
                 _speedSampleFrames = Mathf.Max(1, _config.SpeedSampleFrames);
+                _contactThresholds = _config.ToTouchContactThresholds();
             }
 
             int fingers = _fingerTips.Length;
-            _wasInside = new bool[fingers, ChordToneSet.TargetCount];
+            _contacts = new TouchContact[fingers, ChordToneSet.TargetCount];
             _previousTips = new Vector3[fingers];
             _hasPreviousTip = new bool[fingers];
             _speedSamples = new float[fingers, _speedSampleFrames];
@@ -152,15 +180,6 @@ namespace Jazztures.Presentation
             {
                 Debug.Log(
                     $"[PinchSpike] session end: {_spikeNoteCount} notes, {_spikeLowConfFrames} low-confidence frames.");
-            }
-        }
-
-        private void Update()
-        {
-            if (_highlightUntil > 0f && Time.time >= _highlightUntil)
-            {
-                _highlightUntil = 0f;
-                SetHighlight(false);
             }
         }
 
@@ -221,7 +240,7 @@ namespace Jazztures.Presentation
                     TouchTarget target = targets[i];
                     if (!target.IsSounding)
                     {
-                        _wasInside[f, target.Index] = false;
+                        _contacts[f, target.Index].Reset();
                         continue;
                     }
 
@@ -230,15 +249,14 @@ namespace Jazztures.Presentation
                     Vector3 local = target.ToLocal(tip);
                     bool inside = target.ContainsLocal(local);
 
-                    if (inside && !_wasInside[f, target.Index])
+                    // A deliberate entry, or a tap while already inside the volume (ADR-0045).
+                    if (_contacts[f, target.Index].Feed(inside, peak, _contactThresholds))
                     {
                         if (_melody != null && _melody.TriggerTarget(target.Index, peak))
                         {
                             target.Strike();
                         }
                     }
-
-                    _wasInside[f, target.Index] = inside;
 
                     if (inside)
                     {
@@ -270,15 +288,14 @@ namespace Jazztures.Presentation
                 // subscribes first (PerformanceCompositionRoot) — so the pitches shown are
                 // exactly the pitches TriggerTarget will sound. Build directly only when
                 // there is no engine bound (isolated tests).
+                // Re-pitching rewrites each target's note label; the target's colour does
+                // not change with the chord (ADR-0044).
                 ChordToneSet set = _melody?.ActiveChordToneSet ?? ChordToneSet.For(chord);
                 for (int i = 0; i < targets.Count; i++)
                 {
                     TouchTarget target = targets[i];
                     target.RePitch(set[target.Index]);
-                    target.SetHighlighted(true);
                 }
-
-                _highlightUntil = Time.time + _highlightSeconds;
             }
             else
             {
@@ -287,17 +304,6 @@ namespace Jazztures.Presentation
                     targets[i].Clear();
                     targets[i].SetHovered(false);
                 }
-
-                _highlightUntil = 0f;
-            }
-        }
-
-        private void SetHighlight(bool on)
-        {
-            var targets = _rig.Targets;
-            for (int i = 0; i < targets.Count; i++)
-            {
-                targets[i].SetHighlighted(on);
             }
         }
 

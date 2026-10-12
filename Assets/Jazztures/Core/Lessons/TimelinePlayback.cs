@@ -36,7 +36,14 @@ namespace Jazztures.Core.Lessons
         private int _cursor;
         private bool _playing;
 
-        public TimelinePlayback(LessonTimeline timeline, IMusicalClock clock, INoteSink sink, byte chordVelocity = 80)
+        /// <param name="includeMelody">
+        /// False plays the chords only — the harmony-only playback of a right-hand lesson's
+        /// Try / Test Yourself and of a timing drill's audible chord (ADR-0043), where the
+        /// learner supplies the melody.
+        /// </param>
+        public TimelinePlayback(
+            LessonTimeline timeline, IMusicalClock clock, INoteSink sink, byte chordVelocity = 80,
+            bool includeMelody = true)
         {
             if (timeline == null)
             {
@@ -45,7 +52,7 @@ namespace Jazztures.Core.Lessons
 
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _sink = sink ?? throw new ArgumentNullException(nameof(sink));
-            _events = BuildSchedule(timeline, chordVelocity);
+            _events = BuildSchedule(timeline, chordVelocity, includeMelody);
             TotalSeconds = _events.Length > 0 ? _events[_events.Length - 1].Offset : 0.0;
         }
 
@@ -161,7 +168,7 @@ namespace Jazztures.Core.Lessons
                 ? NoteEvent.On(e.Pitch, e.Velocity, dspTime, e.Channel, e.Source)
                 : NoteEvent.Off(e.Pitch, dspTime, e.Channel, e.Source);
 
-        private static ScheduledEvent[] BuildSchedule(LessonTimeline timeline, byte chordVelocity)
+        private static ScheduledEvent[] BuildSchedule(LessonTimeline timeline, byte chordVelocity, bool includeMelody)
         {
             var events = new System.Collections.Generic.List<ScheduledEvent>();
             Tempo tempo = timeline.Tempo;
@@ -186,7 +193,7 @@ namespace Jazztures.Core.Lessons
             }
 
             // Right hand — melody targets resolved against the active chord, swing applied.
-            for (int i = 0; i < timeline.Notes.Count; i++)
+            for (int i = 0; includeMelody && i < timeline.Notes.Count; i++)
             {
                 TimelineNote note = timeline.Notes[i];
                 ChordFunction? function = timeline.ChordFunctionAt(note.Beat.Position);

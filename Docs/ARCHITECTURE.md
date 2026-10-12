@@ -185,18 +185,21 @@ so the cue track can drive the HUD without the HUD ever steering the lesson (§2
 |---|---|---|
 | Pitch, chords, voicings, chord-tone targets | `Core/Music` | done · tested |
 | Progression state & harmony engine | `Core/Harmony` | done · tested |
-| Melody engine, velocity mapping, touch-target recenter policy | `Core/Melody` | done · tested |
+| Melody engine, velocity mapping, touch-target recenter policy, touch contact (entry / tap) | `Core/Melody` | done · tested (ADR-0045 tap: not yet re-tried on device) |
 | Clock, tempo, swing, metronome (quarter pulse + optional subdivision), tempo range, click waveform | `Core/Timing` | done · tested |
 | Gesture temporal state machine, record/replay | `Core/Gesture` | done · tested |
 | Learning modes, lesson timeline & cue track, state machine | `Core/Lessons` | done · tested |
-| Onset scoring (Test Yourself) | `Core/Evaluation` | done · tested |
+| Onset scoring (Test Yourself), learner-onset capture | `Core/Evaluation` | done · tested |
+| Timing drills — plan, builder, report (summary line + CSV text) | `Core/Drills` | done · tested (ADR-0043) |
+| Onset pattern, scripted harmony, hands-aware mode policy | `Core/Timing`, `Core/Lessons` | done · tested (ADR-0043) |
 | Latency percentiles, hand-pose recorder | `Core/Diagnostics` | done · tested |
 | Sampler, voice pool, DSP clock, piano bank | `Audio/` | verified in editor |
 | Audible metronome — `MetronomeVoice` (scheduled clicks), `MetronomeSettings`, free-play pulse, quiet-build `DiagLog` | `Audio/`, `Config/`, `App/`, `Diagnostics/` | ADR-0043 steps 1–2 · compiles; **listen on device** |
-| Hand-pose sources, keyboard input | `Input/` | keyboard ok · all three left-hand recognisers verified on device (ADR-0013/0014); `HandPoseFixture_M3.txt` recorded, replay verified at desk |
+| Timing test — `TimingDrillRunner`, `TimingDrillDefinition` presets, menu + results footer, CSV | `Lessons/`, `App/`, `Presentation/` | ADR-0043 steps 3–4 · compiles; **run on device** |
+| Hand-pose sources, keyboard input | `Input/` | keyboard ok · all three left-hand recognisers verified on device (ADR-0013/0014); `HandPoseFixture_M3.txt` recorded, replay verified at desk · ii as "palm sideways" + gravity-up and the any-part-of-hand plate (ADR-0047): compiles, applied by `Jazztures ▸ Gestures` menu, **re-try on device** |
 | ScriptableObject event channels | `Events/` | done |
 | Lesson assets, `LessonRunner` | `Lessons/` | L1 rebuilt as a 3-phase follow-along (GestureLearning → W&L → TryYourself), wired in `main.unity` · verify on device |
-| Right-hand touch targets — shoulder-arc rig, body anchor, re-pitch, fingertip trigger | `Presentation/` | built (ADR-0015/0016/0019) · spacing opened onto an arc after on-device play · verify |
+| Right-hand touch targets — shoulder-arc rig, body anchor, re-pitch, fingertip trigger, paddle look, note labels | `Presentation/` | built (ADR-0015/0016/0019); tap-inside trigger ADR-0045, labels ADR-0044, paddle ADR-0046 · **re-try on device** |
 | Lesson HUD — mode banner, pose prompt, captions | `Presentation/LessonHud.cs` | M5 placeholder (runtime `TextMesh`, builtin font) · ADR-0021 |
 | Ghost-hand renderer | — | not built · ADR-0012 spec'd; the HUD pose prompt stands in for M5 |
 | SMF lesson importer | — | M6 |

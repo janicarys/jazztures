@@ -325,6 +325,137 @@ namespace Jazztures.Tests.EditMode.Gesture
             Assert.That(freshArticulated, Is.Empty, "a confirmation past the grace window must not resurrect a spent entry");
         }
 
+        // ADR-0047: the volume is deep, so a chop often begins with the hand already inside
+        // it (or arrives too gently to count as an entry). A tap inside must still play.
+        [Test]
+        public void AGentleArrival_FollowedByATapInside_Articulates()
+        {
+            _detector.Feed(false, 0f);
+            _detector.Feed(true, TouchCommitThresholds.Default.EntryVelocityGateMetresPerSecond - 0.03f);
+            Assume.That(_articulated, Is.Empty, "the arrival itself was too gentle");
+
+            _detector.Feed(true, 0.02f);
+            _detector.Feed(true, 0.5f); // the chop, with the hand already in the volume
+
+            Assert.That(_articulated, Has.Count.EqualTo(1));
+        }
+
+        [Test]
+        public void ATapInside_JustUnderTheTapSpeed_DoesNotArticulate()
+        {
+            _detector.Feed(false, 0f);
+            _detector.Feed(true, 0.03f);
+
+            _detector.Feed(true, TouchCommitThresholds.Default.TapSpeedMetresPerSecond - 0.01f);
+
+            Assert.That(_articulated, Is.Empty);
+        }
+
+        [Test]
+        public void ARestingHandInsideTheVolume_NeverArticulates()
+        {
+            _detector.Feed(false, 0f);
+            _detector.Feed(true, 0.03f);
+
+            for (int i = 0; i < 300; i++)
+            {
+                _clock.Advance(0.014);
+                _detector.Feed(true, (i % 8) * 0.025f); // tracking jitter, 0 .. 0.175 m/s
+            }
+
+            Assert.That(_articulated, Is.Empty);
+        }
+
+        [Test]
+        public void ASecondTapInside_NeedsTheHandToSettleAfterTheFirst()
+        {
+            _detector.Feed(true, 0.5f);
+            Assume.That(_articulated, Has.Count.EqualTo(1));
+
+            _clock.Advance(TouchCommitThresholds.Default.MinInterTouchSeconds + 0.01);
+            _detector.Feed(true, 0.5f); // still moving: the same gesture, not a new tap
+            Assert.That(_articulated, Has.Count.EqualTo(1));
+
+            for (int i = 0; i < TouchCommitThresholds.Default.SettleFrames; i++)
+            {
+                _detector.Feed(true, 0.02f); // the hand comes to rest between strikes
+            }
+
+            _clock.Advance(TouchCommitThresholds.Default.MinInterTouchSeconds + 0.01);
+            _detector.Feed(true, 0.5f);
+
+            Assert.That(_articulated, Has.Count.EqualTo(2));
+        }
+
+        [Test]
+        public void ATapInsideBeforeConfirmation_ArticulatesOnceConfirmationLands()
+        {
+            var freshClock = new VirtualClock();
+            var freshInterpreter = new GestureInterpreter(freshClock, GestureThresholds.Default);
+            var freshDetector = new ChordTouchDetector(freshClock, freshInterpreter, TouchCommitThresholds.Default);
+            var freshArticulated = new List<byte>();
+            freshDetector.Articulated += freshArticulated.Add;
+
+            for (int i = 0; i < 3; i++)
+            {
+                freshClock.Advance(0.02);
+                freshInterpreter.Feed(new HandPoseFrame(HandPoseCandidate.None, TrackingQuality.High, TrackingQuality.High));
+            }
+
+            freshDetector.Feed(true, 0.03f); // arrives gently, nothing selected
+            freshDetector.Feed(true, 0.5f);  // the tap — pending, since nothing is confirmed yet
+            Assert.That(freshArticulated, Is.Empty);
+
+            for (int i = 0; i < 10; i++)
+            {
+                freshClock.Advance(0.05);
+                freshInterpreter.Feed(new HandPoseFrame(HandPoseCandidate.Ii, TrackingQuality.High, TrackingQuality.High));
+                freshDetector.Feed(true, 0f);
+            }
+
+            Assume.That(freshInterpreter.ConfirmedFunction, Is.EqualTo(ChordFunction.Two));
+            Assert.That(freshArticulated, Has.Count.EqualTo(1));
+        }
+
+        [Test]
+        public void TheDefaultTapValues_AreSane_AndShareTheRightHandsTapRule()
+        {
+            TouchCommitThresholds d = TouchCommitThresholds.Default;
+            Jazztures.Core.Melody.TouchContactThresholds right = Jazztures.Core.Melody.TouchContactThresholds.Default;
+
+            Assert.That(d.TapSpeedMetresPerSecond, Is.GreaterThan(d.EntryVelocityGateMetresPerSecond));
+            Assert.That(d.SettleSpeedMetresPerSecond, Is.LessThan(d.TapSpeedMetresPerSecond), "hysteresis");
+            Assert.That(d.SettleFrames, Is.GreaterThanOrEqualTo(1));
+
+            // Same tap / settle numbers as the melody targets; only the entry gate differs, on purpose.
+            Assert.That(d.TapSpeedMetresPerSecond, Is.EqualTo(right.TapSpeed));
+            Assert.That(d.SettleSpeedMetresPerSecond, Is.EqualTo(right.SettleSpeed));
+            Assert.That(d.SettleFrames, Is.EqualTo(right.SettleFrames));
+            Assert.That(d.EntryVelocityGateMetresPerSecond, Is.GreaterThan(right.EntrySpeed),
+                "a whole hand needs a higher entry gate than an aimed fingertip");
+        }
+
+        [Test]
+        public void ALazyDriftThroughTheVolume_BelowTheEntryGate_DoesNotArticulate()
+        {
+            _detector.Feed(false, 0f);
+
+            _detector.Feed(true, 0.10f); // above the old 0.08 gate, under the new one
+
+            Assert.That(_articulated, Is.Empty);
+        }
+
+        [Test]
+        public void InconsistentTapValues_AreRejected()
+        {
+            Assert.Throws<System.ArgumentOutOfRangeException>(() =>
+                new TouchCommitThresholds(0.12, 0.08f, 0.35, tapSpeedMetresPerSecond: 0.05f));
+            Assert.Throws<System.ArgumentOutOfRangeException>(() =>
+                new TouchCommitThresholds(0.12, 0.08f, 0.35, settleSpeedMetresPerSecond: 0.3f));
+            Assert.Throws<System.ArgumentOutOfRangeException>(() =>
+                new TouchCommitThresholds(0.12, 0.08f, 0.35, settleFrames: 0));
+        }
+
         [Test]
         public void AFasterEntry_ProducesAHigherVelocityThanASlowerOne()
         {

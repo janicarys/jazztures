@@ -25,7 +25,9 @@ namespace Jazztures.Core.Lessons
             int beatsPerBar,
             TimelineChord[] chords,
             TimelineNote[] notes,
-            TimelineMarker[] markers)
+            TimelineMarker[] markers,
+            OnsetPattern scoredPulse,
+            double minimumDurationBeats)
         {
             Tempo = tempo;
             Swing = swing;
@@ -33,8 +35,9 @@ namespace Jazztures.Core.Lessons
             _chords = chords;
             _notes = notes;
             _markers = markers;
+            ScoredPulse = scoredPulse;
 
-            double last = 0.0;
+            double last = Math.Max(0.0, minimumDurationBeats);
             for (int i = 0; i < notes.Length; i++)
             {
                 last = Math.Max(last, notes[i].Beat.Position);
@@ -54,8 +57,19 @@ namespace Jazztures.Core.Lessons
 
         public int BeatsPerBar { get; }
 
-        /// <summary>Position of the last event, in beats from the origin.</summary>
+        /// <summary>
+        /// Position of the last event, in beats from the origin — or the minimum duration the
+        /// builder was given, if that is longer (a drill's chord has to ring to the end of
+        /// the run, not just to its last event).
+        /// </summary>
         public double DurationBeats { get; }
+
+        /// <summary>
+        /// Onsets the learner is expected to play that are not melody notes — e.g. L2's steady
+        /// pulse on the left hand, which has chords but no notes. Spans beat 0 up to
+        /// <see cref="DurationBeats"/>. <see cref="OnsetPattern.None"/> for an ordinary lesson.
+        /// </summary>
+        public OnsetPattern ScoredPulse { get; }
 
         public IReadOnlyList<TimelineChord> Chords => _chords;
 
@@ -100,15 +114,30 @@ namespace Jazztures.Core.Lessons
         }
 
         /// <summary>
-        /// The melody onsets in seconds from the grid origin, with swing applied — ready
-        /// to hand to <see cref="Evaluation.OnsetScorer.Evaluate"/> as the expected onsets.
+        /// The expected onsets in seconds from the grid origin, with swing applied — ready
+        /// to hand to <see cref="Evaluation.OnsetScorer.Evaluate"/>: the melody notes plus any
+        /// <see cref="ScoredPulse"/> beats, in time order.
         /// </summary>
         public double[] ExpectedOnsetSeconds()
         {
-            var seconds = new double[_notes.Length];
+            double[] pulse = ScoredPulse.IsNone
+                ? Array.Empty<double>()
+                : ScoredPulse.BeatsBetween(0.0, DurationBeats, BeatsPerBar);
+
+            var seconds = new double[_notes.Length + pulse.Length];
             for (int i = 0; i < _notes.Length; i++)
             {
                 seconds[i] = SwingQuantizer.SwingToSeconds(_notes[i].Beat.Position, Swing, Tempo);
+            }
+
+            for (int i = 0; i < pulse.Length; i++)
+            {
+                seconds[_notes.Length + i] = SwingQuantizer.SwingToSeconds(pulse[i], Swing, Tempo);
+            }
+
+            if (pulse.Length > 0)
+            {
+                Array.Sort(seconds);
             }
 
             return seconds;

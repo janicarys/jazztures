@@ -14,12 +14,19 @@ namespace Jazztures.Core.Gesture
     ///
     /// <para>
     /// Unlike the strike detector, containment is a boolean the Unity adapter computes
-    /// (fingertip inside <c>ChordStrikeTarget</c>'s <see cref="TargetVolume"/> or not), not
-    /// a continuous signal this detector must itself threshold — the exact volume-entry
-    /// test the right hand's ten melody targets already use (ADR-0016/0018), reused for
+    /// (a hand joint inside <c>ChordStrikeTarget</c>'s <see cref="StrikePlateVolume"/> or not),
+    /// not a continuous signal this detector must itself threshold — the same volume-entry
+    /// idea the right hand's ten melody targets use (ADR-0016/0018), reused for
     /// harmony rather than re-derived. There is no arm/settle state and no Schmitt trigger
     /// here either, same reasoning as the pinch detector: a discrete "inside/outside" edge
     /// plus a retrigger cooldown replace what a continuous threshold otherwise needs.
+    /// </para>
+    ///
+    /// <para>
+    /// A touch is decided by <see cref="TouchContact"/> (ADR-0047, the same pure rule the right
+    /// hand's melody targets use, ADR-0045): a deliberate <b>entry</b>, or a <b>tap while the
+    /// hand is already inside</b> the volume. Entry-only missed exactly the chop the plate is
+    /// for — the volume is 16 cm deep, so the hand is often in it already when it strikes.
     /// </para>
     ///
     /// <para>
@@ -64,8 +71,9 @@ namespace Jazztures.Core.Gesture
         private readonly IMusicalClock _clock;
         private readonly GestureInterpreter _interpreter;
         private readonly TouchCommitThresholds _thresholds;
+        private readonly TouchContactThresholds _contactThresholds;
 
-        private bool _wasInside;
+        private TouchContact _contact;
         private bool _awaitingConfirmation;
         private float _awaitingEntrySpeed;
         private double _awaitingSince;
@@ -76,6 +84,7 @@ namespace Jazztures.Core.Gesture
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _interpreter = interpreter ?? throw new ArgumentNullException(nameof(interpreter));
             _thresholds = thresholds;
+            _contactThresholds = thresholds.ToContactThresholds();
         }
 
         /// <summary>Raised with the articulated MIDI velocity when a touch rising edge commits the confirmed chord.</summary>
@@ -112,33 +121,35 @@ namespace Jazztures.Core.Gesture
 
             if (!_interpreter.TrackingUsable)
             {
-                // Freeze the rising-edge detector through a dropout, before even reading
-                // isInsideTarget against _wasInside — a tracking blip's own recovery
-                // transition must not read as a fresh entry. A pending entry is likewise
-                // left exactly as it was (TryFireAwaitingEntry itself declines to resolve
-                // while tracking is unusable).
+                // Freeze the contact state through a dropout, before even reading
+                // isInsideTarget — a tracking blip's own recovery transition must not read
+                // as a fresh entry. A pending entry is likewise left exactly as it was
+                // (TryFireAwaitingEntry itself declines to resolve while tracking is
+                // unusable).
                 return;
             }
 
-            bool rising = isInsideTarget && !_wasInside;
-            _wasInside = isInsideTarget;
+            // A touch is a deliberate entry, or — ADR-0047 — a tap while the hand is already
+            // inside the volume. The second matters for a chop: the volume is deep, so the
+            // hand is often in it already (or arrived too gently to count) when it strikes.
+            bool touched = _contact.Feed(isInsideTarget, entrySpeedMetresPerSecond, _contactThresholds);
 
             if (!isInsideTarget)
             {
                 // Left the volume — an entry we were still waiting on is moot; the next
-                // approach must produce its own fresh rising edge and speed.
+                // approach must produce its own fresh entry or tap.
                 _awaitingConfirmation = false;
                 return;
             }
 
-            if (!rising)
+            if (!touched)
             {
                 return;
             }
 
             if (!_interpreter.ConfirmedFunction.HasValue)
             {
-                // Nothing selected yet (ADR-0042). Hold this entry's speed and retry once
+                // Nothing selected yet (ADR-0042). Hold this touch's speed and retry once
                 // confirmation lands, rather than discarding it outright — see the class
                 // doc comment.
                 _awaitingConfirmation = true;

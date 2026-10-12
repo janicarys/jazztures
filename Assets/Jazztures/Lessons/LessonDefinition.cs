@@ -48,6 +48,12 @@ namespace Jazztures.Lessons
                  "can be scheduled ahead (ADR-0043).")]
         [SerializeField] private bool _useMetronome;
 
+        [Tooltip("Score the learner against a steady pulse as well as any melody notes — for a " +
+                 "lesson with expected onsets but no notes to carry them (L2: chords struck on " +
+                 "the beat). Runs from beat 0 to the end of the timeline. Test Yourself reports " +
+                 "how the strikes lined up (§3.7).")]
+        [SerializeField] private OnsetPatternSpec _scoredPulse = new OnsetPatternSpec();
+
         [Header("Mode phases — run in this order (§3.8)")]
         [SerializeField] private List<LearningMode> _modes = new List<LearningMode>
         {
@@ -87,7 +93,8 @@ namespace Jazztures.Lessons
             var builder = new LessonTimelineBuilder()
                 .WithTempo(new Tempo(_tempoBpm))
                 .WithSwing(BuildSwing())
-                .WithBeatsPerBar(Mathf.Max(1, _beatsPerBar));
+                .WithBeatsPerBar(Mathf.Max(1, _beatsPerBar))
+                .WithScoredPulse(_scoredPulse != null ? _scoredPulse.ToPattern() : OnsetPattern.None);
 
             foreach (ChordEntry chord in _chords)
             {

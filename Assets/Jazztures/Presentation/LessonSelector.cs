@@ -76,6 +76,14 @@ namespace Jazztures.Presentation
         [Range(0.2f, 1f)] [SerializeField] private float _sideReadoutScale = 0.45f;
         [SerializeField] private Color _sideDisabledColor = new Color(0.45f, 0.45f, 0.48f, 0.6f);
 
+        [Header("Footer note — optional text under the rows (e.g. the last timing result)")]
+        [Tooltip("Footer text size relative to a row's.")]
+        [Range(0.2f, 1f)] [SerializeField] private float _footerScale = 0.4f;
+        [Tooltip("Characters per line before the footer wraps (TextMesh has no wrap of its own).")]
+        [Min(10)] [SerializeField] private int _footerWrapChars = 44;
+        [Tooltip("Gap between the last row and the footer, metres.")]
+        [Min(0f)] [SerializeField] private float _footerGapMetres = 0.07f;
+
         [Header("Visual")]
         [Tooltip("Optional. A translucent material for the plate behind each row. Left empty, " +
                  "a plain translucent plate is generated so the ray still has something to read against.")]
@@ -131,6 +139,9 @@ namespace Jazztures.Presentation
         private int _sideFocused;       // 0 none, −1 the "-" button, +1 the "+" button
         private int _lastSideHover;
         private float _lastSideHoverTime = -999f;
+
+        private TextMesh _footer;
+        private string _footerText = string.Empty;
 
         private Vector3 _targetPosition;
         private bool _hasTargetPosition;
@@ -225,6 +236,72 @@ namespace Jazztures.Presentation
             _sideFocused = 0;
             _lastSideHover = 0;
             SetShown(IsShown);
+        }
+
+        /// <summary>
+        /// Show a short, wrapped, non-interactive note under the rows — a deferred result
+        /// (§3.7), shown once something is over rather than mid-way. An empty or null
+        /// <paramref name="text"/> clears it. Stays until changed.
+        /// </summary>
+        public void SetFooter(string text)
+        {
+            _footerText = string.IsNullOrWhiteSpace(text) ? string.Empty : text;
+            if (_footer == null && _footerText.Length > 0)
+            {
+                _footer = CreateLine("Footer", _footerScale, _titleColor);
+                _footer.anchor = TextAnchor.UpperCenter;
+            }
+
+            if (_footer != null)
+            {
+                _footer.text = WrapFooter(_footerText, _footerWrapChars);
+                SetShown(IsShown);
+                LayoutFooter();
+            }
+        }
+
+        public void ClearFooter() => SetFooter(null);
+
+        private void LayoutFooter()
+        {
+            if (_footer == null)
+            {
+                return;
+            }
+
+            float lastRowY = -(_rowCount - 1) * 0.5f * _rowSpacingMetres;
+            _footer.transform.localPosition = new Vector3(
+                0f, lastRowY - _rowSpacingMetres * 0.5f - _footerGapMetres, 0f);
+        }
+
+        /// <summary>Break <paramref name="text"/> onto lines of at most <paramref name="maxChars"/>, on spaces.</summary>
+        private static string WrapFooter(string text, int maxChars)
+        {
+            if (text.Length == 0)
+            {
+                return text;
+            }
+
+            var sb = new System.Text.StringBuilder(text.Length + 8);
+            int lineLength = 0;
+            foreach (string word in text.Split(' '))
+            {
+                if (lineLength > 0 && lineLength + 1 + word.Length > maxChars)
+                {
+                    sb.Append('\n');
+                    lineLength = 0;
+                }
+                else if (lineLength > 0)
+                {
+                    sb.Append(' ');
+                    lineLength++;
+                }
+
+                sb.Append(word);
+                lineLength += word.Length;
+            }
+
+            return sb.ToString();
         }
 
         /// <summary>Choose a row directly (a test hook / editor shortcut).</summary>
@@ -608,6 +685,7 @@ namespace Jazztures.Presentation
             }
 
             LayoutSide();
+            LayoutFooter();
         }
 
         private void LayoutSide()
@@ -673,6 +751,11 @@ namespace Jazztures.Presentation
                 {
                     _plates[i].gameObject.SetActive(on);
                 }
+            }
+
+            if (_footer != null)
+            {
+                _footer.gameObject.SetActive(shown && _footerText.Length > 0);
             }
 
             if (_sidePlusPlate != null)

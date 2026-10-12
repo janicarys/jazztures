@@ -30,12 +30,10 @@ namespace Jazztures.Presentation
     [DefaultExecutionOrder(-10)]
     public sealed class TouchTargetRig : MonoBehaviour
     {
-        // Generated-visual cosmetics — how the volume is drawn, not how it behaves, so not
-        // [TUNABLE]. Ignored entirely when a _targetPrefab is supplied.
-        private const float RimRadiusScale = 1.12f;
-        private const float RimThicknessMetres = 0.004f;
-        private const float DepthDiscRadiusScale = 0.85f;
-        private const float DepthDiscThicknessMetres = 0.006f;
+        // Paddle cosmetics (ADR-0046) — how it is drawn, not how it behaves, so not [TUNABLE].
+        // Ignored when the look is Prefab.
+        private const float PadHalfThicknessMetres = 0.006f; // a 1.2 cm pad
+        private const float RailRadiusMetres = 0.004f;
 
         [Tooltip("Tuning for geometry and the lazy-recenter follow (ADR-0015).")]
         [SerializeField] private MelodyConfig _config;
@@ -43,12 +41,13 @@ namespace Jazztures.Presentation
         [Tooltip("The centre-eye / head transform to anchor against.")]
         [SerializeField] private Transform _head;
 
-        [Tooltip("Optional. A styled target prefab (needs a Renderer). If empty, the volume " +
-                 "visual (tube + entry rim + depth disc) is generated.")]
+        [Tooltip("Optional. A styled target prefab or scene object (needs a Renderer), used only " +
+                 "when MelodyConfig's Target Look is Prefab. With the default Paddle look this " +
+                 "slot is ignored — the paddle is generated.")]
         [SerializeField] private GameObject _targetPrefab;
 
-        [Tooltip("Material for the generated visual — a transparent unlit so alpha and the " +
-                 "chord colour read as authored. Ignored when a prefab is supplied.")]
+        [Tooltip("Material for the generated paddle — a transparent unlit so alpha reads as " +
+                 "authored. Ignored when the prefab look is used.")]
         [SerializeField] private Material _targetMaterial;
 
         private readonly List<TouchTarget> _targets = new List<TouchTarget>(ChordToneSet.TargetCount);
@@ -102,6 +101,14 @@ namespace Jazztures.Presentation
 
             float committed = (float)_recenter.Update(ReadHeadYaw(), Time.deltaTime);
             ApplyAnchor(committed);
+
+            // The targets face outward along the approach axis, so the note labels are turned
+            // to the learner after the anchor has moved them (ADR-0044).
+            Vector3 viewer = _head.position;
+            for (int i = 0; i < _targets.Count; i++)
+            {
+                _targets[i].FaceLabel(viewer);
+            }
         }
 
         /// <summary>Snap the grid to the learner's current facing (e.g. a recenter input).</summary>
@@ -120,6 +127,18 @@ namespace Jazztures.Presentation
             float radius = _config.TargetRadiusMetres;
             float halfDepth = _config.TargetDepthMetres * 0.5f;
 
+            bool usePrefab = _config.TargetLook == TargetLook.Prefab;
+            if (usePrefab && _targetPrefab == null)
+            {
+                Debug.LogWarning(
+                    $"{nameof(TouchTargetRig)}: Target Look is Prefab but no Target Prefab is assigned — " +
+                    "drawing the paddle instead.", this);
+                usePrefab = false;
+            }
+
+            // The padded half-thickness cannot exceed the volume it travels in.
+            float padHalfThickness = Mathf.Min(PadHalfThicknessMetres, halfDepth * 0.5f);
+
             for (int slot = 0; slot < ChordToneSet.TargetCount; slot++)
             {
                 int octave = slot / ChordToneSet.DegreesPerOctave;
@@ -127,17 +146,17 @@ namespace Jazztures.Presentation
 
                 TouchTarget target;
                 GameObject go;
-                if (_targetPrefab != null)
+                if (usePrefab)
                 {
                     go = Instantiate(_targetPrefab, transform);
                     target = go.GetComponent<TouchTarget>() ?? go.AddComponent<TouchTarget>();
                 }
                 else
                 {
-                    go = GenerateTarget(radius, halfDepth,
-                        out Renderer tube, out Renderer rim, out Transform depthIndicator);
+                    go = GeneratePaddle(radius, halfDepth, padHalfThickness,
+                        out Renderer pad, out Renderer rail, out Transform padRoot);
                     target = go.AddComponent<TouchTarget>();
-                    target.BindGeneratedVisual(tube, rim, depthIndicator);
+                    target.BindGeneratedVisual(pad, rail, padRoot, halfDepth, padHalfThickness);
                 }
 
                 go.transform.SetParent(transform, worldPositionStays: false);
@@ -147,6 +166,7 @@ namespace Jazztures.Presentation
                 go.transform.localRotation = localRotation;
 
                 target.Configure(slot, radius, halfDepth);
+                target.ConfigureLabel(_config.ShowNoteLabels, _config.LabelCharacterSize, _config.LabelColor);
                 target.Clear(); // visible from the start (§3.1); just not soundable yet
                 _targets.Add(target);
             }
@@ -174,26 +194,28 @@ namespace Jazztures.Presentation
         }
 
         /// <summary>
-        /// The default target visual, used when no <c>_targetPrefab</c> is set: the trigger
-        /// volume drawn at its true extent — a translucent tube, a brighter rim at the near
-        /// (+Z) face marking the entry threshold, and a depth disc (starts hidden, slid to a
-        /// fingertip's depth by <see cref="TouchTargetBinder"/>). Replaces the earlier
-        /// single sphere, which was drawn ~2× shorter than the volume along local Z — the
-        /// one axis a person cannot judge in mid-air (ADR-0018).
+        /// The default target visual (ADR-0046): a flat pad at the volume's own radius, resting
+        /// at its near, learner-facing end, on a faint rail the length of the volume. The pad
+        /// sits on a unit-scale root (<paramref name="padRoot"/>) that
+        /// <see cref="TouchTarget.SetFingerDepth"/> slides along the rail, so the note label can
+        /// ride on it without inheriting the cylinder's non-uniform scale. Replaces the earlier
+        /// translucent tube, whose "entry rim" was drawn at the far end of the volume and whose
+        /// depth disc was a separate object from the thing being pushed.
         /// </summary>
-        private GameObject GenerateTarget(
-            float radius, float halfDepth, out Renderer tube, out Renderer rim, out Transform depthIndicator)
+        private GameObject GeneratePaddle(
+            float radius, float halfDepth, float padHalfThickness,
+            out Renderer pad, out Renderer rail, out Transform padRoot)
         {
             var root = new GameObject("Target");
 
-            tube = MakeCylinder("Tube", root.transform, radius, halfDepth);
+            rail = MakeCylinder("Rail", root.transform, RailRadiusMetres, halfDepth);
 
-            rim = MakeCylinder("Rim", root.transform, radius * RimRadiusScale, RimThicknessMetres * 0.5f);
-            rim.transform.localPosition = new Vector3(0f, 0f, halfDepth);
+            padRoot = new GameObject("PadRoot").transform;
+            padRoot.SetParent(root.transform, worldPositionStays: false);
+            padRoot.localPosition = new Vector3(0f, 0f, -halfDepth + padHalfThickness);
 
-            Renderer disc = MakeCylinder(
-                "DepthIndicator", root.transform, radius * DepthDiscRadiusScale, DepthDiscThicknessMetres * 0.5f);
-            depthIndicator = disc.transform;
+            pad = MakeCylinder("Pad", padRoot, radius, padHalfThickness);
+            pad.sortingOrder = 1; // over the rail inside the transparent queue
 
             return root;
         }

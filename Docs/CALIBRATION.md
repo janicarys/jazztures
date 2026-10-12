@@ -151,12 +151,13 @@ after an on-device report of touches that registered nothing.
 | Parameter                    | Default  | Measured | Status  | Notes                                                                                                                     |
 | ----------------------------- | -------- | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Minimum inter-touch interval   | 0.12 s   | —        | default | inherited from `GestureThresholds.MinInterStrikeSeconds`, not re-guessed. `TouchCommitThresholds.MinInterTouchSeconds`     |
-| Entry velocity gate            | 0.08 m/s | —        | default | inherited verbatim from `MelodyConfig`'s own entry gate (ADR-0018) — the one commit threshold in this project's history already on-device validated, just for the other hand. `TouchCommitThresholds.EntryVelocityGateMetresPerSecond` |
+| Entry velocity gate            | 0.15 m/s | —        | default | *(was 0.08 until the ADR-0047 addendum — see below)* inherited from `MelodyConfig`'s own entry gate (ADR-0018) — the one commit threshold in this project's history already on-device validated, just for the other hand. `TouchCommitThresholds.EntryVelocityGateMetresPerSecond` |
 | Max awaiting-confirmation window | 0.35 s | —      | default | ADR-0042 — how long a touch that arrived before selection confirmed keeps waiting (fingertip still resting inside) before being given up on. Sized to cover `GestureThresholds.PoseHoldSeconds` (150 ms) plus margin, not measured. `TouchCommitThresholds.MaxAwaitingConfirmationSeconds` |
-| Target face radius             | 6 cm     | —        | default | `ChordStrikeTarget._radiusMetres` — larger than a melody target (3 cm) since there is only one, not ten crowded together  |
-| Target half-depth              | 8 cm     | —        | default | `ChordStrikeTarget._halfDepthMetres` — depth is unaimable in mid-air VR (ADR-0018), same reasoning as melody              |
+| Footprint margin               | 2 cm     | —        | default | `ChordStrikeTarget._footprintMarginMetres` — how far the hit area extends past the visual's edges on every side (ADR-0048). Replaces the fixed 6 cm-radius disc |
+| Hover above surface            | 2 cm     | —        | default | `ChordStrikeTarget._hoverAboveSurfaceMetres` — reach above the visual's top face (ADR-0048). **The lever for "hitbox feels too high/low"**: 0 = joint centre on the slab; raise to make it easier |
+| Depth below surface            | 10 cm    | —        | default | `ChordStrikeTarget._depthBelowSurfaceMetres` — depth is unaimable in mid-air VR (ADR-0018), so an overshoot must still count (ADR-0048). Was a ±8 cm half-depth centred on the origin |
 | Speed sample window            | 3 frames | —        | default | `ChordStrikeTarget._speedSampleFrames` — peak entry speed, mirrors `MelodyConfig`'s window (ADR-0018)                     |
-| Fingertip joint                | Index tip | —       | default | `ChordStrikeTarget._fingertip` — matches the melody targets' primary finger                                               |
+| Contact / speed joints         | see ADR-0047 | —    | default | the single `_fingertip` (Index tip) of ADR-0039 became `_contactJoints` / `_speedJoints` — see the ADR-0047 section below |
 | Hit-flash decay                | 0.18 s   | —        | default | `ChordStrikeTarget._flashDecaySeconds` — cosmetic only                                                                    |
 
 **Optional body anchor — `Presentation/ChordStrikeTargetAnchor` (ADR-0040).** Assign it
@@ -168,9 +169,9 @@ measurement).
 
 | Parameter               | Default  | Measured | Status  | Notes                                                                                   |
 | ------------------------ | -------- | -------- | ------- | ----------------------------------------------------------------------------------------- |
-| Height offset from head  | −0.25 m  | —        | default | matches `MelodyConfig.ShoulderHeightOffsetMetres` (ADR-0015) so both hands' target objects sit at the same level — revised from an initial guess of −0.45 m before any device test (ADR-0040). `ChordStrikeTargetAnchor._heightOffsetMetres` |
+| Height offset from head  | −0.25 m  | −0.30 m  | adjusted by feel | **Scene value −0.30 m (student, 2026-10-12): the plate rendered too close and too high.** Set in the scene, not by a pilot measurement; the code default is unchanged. No longer level with the melody arc's default offset. Original rationale: matches `MelodyConfig.ShoulderHeightOffsetMetres` (ADR-0015) so both hands' target objects sit at the same level — revised from an initial guess of −0.45 m before any device test (ADR-0040). `ChordStrikeTargetAnchor._heightOffsetMetres` |
 | Lateral offset from head | −0.20 m  | —        | default | mirrors melody's rightward bias (+0.08 m, ADR-0020) onto the other hand, at a larger magnitude since this is one plate, not a ten-target arc to keep in frame. `_lateralOffsetMetres` |
-| Forward offset from head | +0.20 m  | —        | default | how far in front of the body the plate sits. `_forwardOffsetMetres`                       |
+| Forward offset from head | +0.20 m  | +0.30 m  | adjusted by feel | **Scene value +0.30 m (student, 2026-10-12): the plate rendered too close.** By feel, not a pilot measurement; the code default is unchanged. How far in front of the body the plate sits. `_forwardOffsetMetres` |
 
 Leaving `_strikeTargetAnchor` unassigned on `PerformanceCompositionRoot` keeps
 `ChordStrikeTarget` exactly as ADR-0039 shipped it — a plain, world-fixed `Transform`
@@ -247,8 +248,74 @@ co-design sessions. The **Measured** column stays empty until M8.
 | Tempo preview             | 2 bars            | —        | default | Pressing +/- on the menu plays this many bars at the new tempo (free play isn't running there). `MetronomeSettings.TempoPreviewBars`                       |
 | Menu stepper layout       | 9 cm buttons      | —        | default | `LessonSelector` side-control fields (size, gap, pitch, hit margin, readout scale). First guesses — never seen on a headset; adjust in the Inspector       |
 
-Count-in (ADR-0043 §2a) is deliberately **not** here yet: only timing drills use it, so it
-arrives with `TimingDrill` (step 3/4).
+Count-in (ADR-0043 §2a) is **not** in this asset: only timing drills use it, so it is a field
+of each drill preset (below). Lessons have none.
+
+### Left-hand pose and plate — ADR-0047
+
+All `[TUNABLE]`, none measured. The plate values are code defaults in `TouchCommitThresholds` (no config
+asset for that path yet — wired from `Default` in `PerformanceCompositionRoot`); the recogniser values live
+on the Meta SDK's own assets/components.
+
+| Parameter                  | Default                          | Measured | Status  | Notes                                                                                                                                              |
+| -------------------------- | -------------------------------- | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ii rule                    | open palm + palm sideways        | —        | default | Four `IsNot` conditions (palm down / up / toward face / away from face) on the open-palm shape; accepts thumb up or thumb forward. Was `WristUp` only |
+| "Up" reference (ii and I)  | Tracking (gravity)               | —        | default | `UpVectorType` on the two `TransformRecognizerActiveState`s. Was Head, which tilts ~40° when looking down at the plate                             |
+| Palm cones                 | SDK asset: PalmDown 35°/50°, PalmUp 40°/50°, toward 30°/50°, away 40°/60° (enter / exit) | — | default | `Config/GesturePalmConeThresholds.asset`. A sideways palm is ~90° from all four, well outside every exit threshold                              |
+| Plate contact joints (where) | 5 tips, 4 knuckles, pinky base, wrist | — | default | `ChordStrikeTarget` ► Contact Joints. Any one inside the volume is a touch. Remove a joint here if it sets the plate off by accident            |
+| Plate speed joints (how hard) | wrist, 4 knuckles, pinky base  | —        | default | `ChordStrikeTarget` ► Speed Joints. The strike speed is their peak **downward** speed over 3 frames — never the fingertips, never sideways/upward motion (ADR-0047 addendum) |
+| Plate entry speed          | 0.15 m/s (downward hand speed)   | —        | default | `TouchCommitThresholds`. Was 0.08, inherited from the melody targets' aimed fingertip (ADR-0018); too low for a whole hand — it let unintended chords through |
+| Plate tap speed            | 0.25 m/s                         | —        | default | A tap while already inside plays. The left-hand strike's tuned enter speed, unmeasured for the plate                                                |
+| Plate tap settle           | ≤ 0.10 m/s for 3 frames          | —        | default | Re-arms a tap after a note                                                                                                                         |
+
+### Right-hand touch — `Config/MelodyConfig.asset` (§3.3, ADR-0045)
+
+A fingertip plays a target by entering it (at the entry speed, below) **or by tapping while already
+inside it**. All `[TUNABLE]`; the three tap values are unmeasured for the right hand — they start
+from the left-hand strike's.
+
+| Parameter           | Default  | Measured | Status  | Notes                                                                                                                                       |
+| ------------------- | -------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entry speed         | 0.08 m/s | —        | default | Existing (§3.3, ADR-0018): a fresh entry at or above this plays. Mirrors `MelodyEngine.EntryVelocityGateMetresPerSecond`, which still gates the note |
+| Tap speed           | 0.25 m/s | —        | default | A tap inside the volume at or above this plays. Too high: a gentle tap does nothing. Too low: a resting hand's jitter fires notes             |
+| Tap settle speed    | 0.10 m/s | —        | default | After a note the fingertip must slow to this before another tap plays (hysteresis — below the tap speed)                                      |
+| Tap settle frames   | 3        | —        | default | Consecutive frames at or below the settle speed that re-arm a tap                                                                            |
+
+### Right-hand target look — `Config/MelodyConfig.asset` (ADR-0046)
+
+| Parameter    | Default | Measured | Status  | Notes                                                                                                                                                       |
+| ------------ | ------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Target look  | Paddle  | —        | default | Paddle: a pad (the trigger volume's radius, 1.2 cm thick) on a faint rail, pushed in front of a fingertip. Prefab: the rig's `Target Prefab`, as-is (the scene's is a 5 cm sphere) |
+| Pad / rail dimensions, spring-back (60 ms), pad opacity (≥ 0.8) | consts | — | default | Cosmetics in `TouchTargetRig` / `TouchTarget`, not behaviour — change in code if the look needs it                                                          |
+
+### Right-hand note labels — `Config/MelodyConfig.asset` (ADR-0044)
+
+| Parameter       | Default            | Measured | Status  | Notes                                                                                                                            |
+| --------------- | ------------------ | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Show note labels | on                | —        | default | Letters only, no octave numbers (§1.5). Off removes the labels; the targets then carry no chord information at all (ADR-0044)    |
+| Label size      | 0.005 (character size) | —   | default | In world metres, independent of the target's scale (ADR-0046). Estimated ~3 cm capital on a 6 cm pad; columns are ~6 cm apart so much above 0.010 crowds neighbours. The first labels looked tiny because they inherited a 0.05-scaled sphere's scale, not because this was too small — tune by eye |
+| Label colour    | near-white         | —        | default | Fixed; the labels never change colour                                                                                            |
+
+### Timing drills — `TimingDrillDefinition` presets (§3.7, ADR-0043)
+
+A drill is a measuring instrument: change any of these and earlier runs are no longer
+comparable, so do it between sessions, not during one. All `[TUNABLE]`; none came from the
+co-design sessions. The onset windows (80 / 160 ms, match 300 ms) are the existing §3.7 values
+above — drills use `OnsetWindows.Default` unchanged.
+
+| Parameter                 | Default                    | Measured | Status  | Notes                                                                                                                                      |
+| ------------------------- | -------------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Count-in                  | 1 bar                      | —        | default | Per preset (`_countInBars`). Beat 0 of the run's shared start; no onsets are expected inside it                                           |
+| Scored bars               | 4                          | —        | default | Per preset (`_bars`); the click-only preset runs 8                                                                                         |
+| Tempo                     | 60 and 80 BPM              | —        | default | Per preset, inside the validated 40–100 range. The ADR's bake-off runs both                                                                |
+| Fixed chord               | I (Cmaj7), every bar line  | —        | default | Struck each bar because a piano chord decays; audible by default (ADR-0043 decision 3). Per preset                                         |
+| Run tail                  | 1.0 s                      | —        | default | `TimingDrillRunner._tailSeconds`: wait after the last scored beat before ending, so a late final note still counts                         |
+| Strike coincidence window | 5 ms                       | —        | default | `OnsetCapture.DefaultCoincidenceSeconds`: left-hand note-ons this close are one strike's voicing. A guard against float noise, not a measured value |
+| Starter presets           | beats 60/80, eighths 60/80, comp 1+3 80, click only 80 | — | default | Made by `Jazztures ▸ Timing ▸ Create Starter Drills`. The ladder's pitch-specific drills are not here yet                       |
+
+The CSV (`Application.persistentDataPath/timing/`) records the preset's values in its header,
+so a run is self-describing. A negative mean error ("early") is ordinary — people tap ahead of
+a click — and is not a system fault.
 
 ## Lesson pacing — per-lesson `LessonDefinition` asset (§3.9, ADR-0021)
 

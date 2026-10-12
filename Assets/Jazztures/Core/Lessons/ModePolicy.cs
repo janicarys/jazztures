@@ -41,6 +41,32 @@ namespace Jazztures.Core.Lessons
         /// </summary>
         public bool GateOnGesture { get; }
 
+        /// <summary>
+        /// The §3.8 behaviour for <paramref name="mode"/> in a lesson that exercises
+        /// <paramref name="hands"/>. Identical to <see cref="For(LearningMode)"/> except for
+        /// one case (ADR-0043 decision 3): in a <b>right-hand-only</b> lesson there is no
+        /// left hand to play the chords, so Try Yourself and Test Yourself — which otherwise
+        /// play nothing — play the harmony (<see cref="SystemPlayback.HarmonyOnly"/>) and
+        /// leave the melody to the learner. A lesson where the learner plays the left hand
+        /// (left-only or both) is unchanged.
+        /// </summary>
+        public static ModePolicy For(LearningMode mode, ActiveHands hands)
+        {
+            ModePolicy policy = For(mode);
+
+            bool learnerPlaysNoChords = (hands & ActiveHands.Left) == 0 && (hands & ActiveHands.Right) != 0;
+            bool silentMode = mode == LearningMode.TryYourself || mode == LearningMode.TestYourself;
+
+            return learnerPlaysNoChords && silentMode
+                ? new ModePolicy(
+                    SystemPlayback.HarmonyOnly,
+                    policy.GhostHandsVisible,
+                    policy.UserAudio,
+                    policy.DeferFeedback,
+                    policy.GateOnGesture)
+                : policy;
+        }
+
         public static ModePolicy For(LearningMode mode) => mode switch
         {
             LearningMode.GestureLearning => new ModePolicy(

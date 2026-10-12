@@ -28,13 +28,14 @@ namespace Jazztures.Presentation
     /// </para>
     ///
     /// <para>
-    /// The plate is a flat disc struck from above, not a radial approach volume like a
-    /// melody target: <see cref="TargetVolume"/>'s local Z is always its approach axis
-    /// (ADR-0016/0018), so <see cref="ApplyAnchor"/> fixes the transform's rotation so local
-    /// Z points straight up, laying the disc horizontal. Because the containment test is a
-    /// circular cylinder, that rotation is arbitrary about the vertical axis — unlike the
-    /// melody arc, the plate never needs to track head yaw for its <em>orientation</em>,
-    /// only its position.
+    /// The plate is a flat slab struck from above, not a radial approach volume like a
+    /// melody target: its hit volume (<see cref="Jazztures.Core.Gesture.StrikePlateVolume"/>,
+    /// ADR-0048) treats local Z as up, so <see cref="ApplyAnchor"/> fixes the transform's
+    /// rotation so local Z points straight up, laying the slab horizontal. The volume is built
+    /// from the visual, which is a child of this transform, so the two always share one
+    /// orientation — the rotation about the vertical axis is arbitrary, and unlike the melody
+    /// arc the plate never needs to track head yaw for its <em>orientation</em>, only its
+    /// position.
     /// </para>
     /// </summary>
     [RequireComponent(typeof(ChordStrikeTarget))]
@@ -110,9 +111,9 @@ namespace Jazztures.Presentation
                 Vector3.up * _heightOffsetMetres +
                 facing * new Vector3(_lateralOffsetMetres, 0f, _forwardOffsetMetres);
 
-            // Local Z is TargetVolume's approach axis — point it straight up so the disc
-            // lies flat, struck from above. Rotationally symmetric about that axis, so no
-            // yaw term belongs here.
+            // Local Z is the plate volume's "up" — point it straight up so the slab lies
+            // flat, struck from above. Visual and hitbox share this frame, so any yaw about
+            // that axis keeps them aligned and no yaw term belongs here.
             transform.SetPositionAndRotation(pivot, Quaternion.Euler(-90f, 0f, 0f));
         }
 

@@ -133,6 +133,7 @@ GameObject:
   - component: {fileID: 119089429}
   - component: {fileID: 771001001}
   - component: {fileID: 771001002}
+  - component: {fileID: 771001003}
   m_Layer: 0
   m_Name: Jazztures Performance Harness
   m_TagString: Untagged
@@ -736,13 +737,22 @@ MonoBehaviour:
   _transformFeatureStateProvider: {fileID: 1054031032}
   _transformFeatureConfigs:
     _values:
-    - _mode: 0
-      _feature: 0
-      _state: 0
+    - _mode: 1
+      _feature: 2
+      _state: 6
+    - _mode: 1
+      _feature: 3
+      _state: 9
+    - _mode: 1
+      _feature: 4
+      _state: 12
+    - _mode: 1
+      _feature: 5
+      _state: 15
   _transformConfig:
     PositionOffset: {x: 0, y: 0, z: 0}
     RotationOffset: {x: 0, y: 0, z: 0}
-    UpVectorType: 0
+    UpVectorType: 1
     FeatureThresholds: {fileID: 11400000, guid: 3d8f1a6c04e94b27a9c5e0f81b2d7a4e, type: 2}
 --- !u!114 &406873688
 MonoBehaviour:
@@ -1139,6 +1149,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: Jazztures.Audio::Jazztures.Audio.MetronomeVoice
   _settings: {fileID: 11400000, guid: c2241eefff3b3fe4bb741516a667d23a, type: 2}
   _poolSize: 4
+--- !u!114 &771001003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 119089425}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b78c2eceedd62aa4b9827e55beeca693, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.TimingDrillRunner
+  _noteChannel: {fileID: 11400000, guid: 43f958cab8fb0b246b9829f3181537d2, type: 2}
+  _testerCode: T00
+  _tailSeconds: 1
+  _writeCsv: 1
 --- !u!1 &771002001
 GameObject:
   m_ObjectHideFlags: 0
@@ -1646,7 +1672,6 @@ MonoBehaviour:
   _config: {fileID: 11400000, guid: 253f90023ed61b241865e2b5f3639010, type: 2}
   _rightHand: {fileID: 1265530301}
   _fingerTips: 1400000015000000
-  _highlightSeconds: 0.6
   _pinchSpike: 1
   _pinchSelectRadiusMetres: 0.18
 --- !u!1 &1033326364
@@ -2365,6 +2390,7 @@ MonoBehaviour:
   _exitButton: {fileID: 1033326365}
   _freePlayMetronome: {fileID: 1391259296}
   _showTempoControl: 1
+  _drillRunner: {fileID: 771001003}
 --- !u!114 &1391259296
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3072,9 +3098,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.ChordStrikeTargetAnchor
   _head: {fileID: 368964558}
-  _heightOffsetMetres: -0.25
+  _heightOffsetMetres: -0.3
   _lateralOffsetMetres: -0.2
-  _forwardOffsetMetres: 0.2
+  _forwardOffsetMetres: 0.3
 --- !u!114 &2008555717
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3088,11 +3114,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.ChordStrikeTarget
   _leftHand: {fileID: 1054031027}
-  _radiusMetres: 0.06
-  _halfDepthMetres: 0.08
-  _speedSampleFrames: 3
-  _fingertip: 10
   _renderer: {fileID: 1491792548}
+  _footprintMarginMetres: 0.02
+  _hoverAboveSurfaceMetres: 0.02
+  _depthBelowSurfaceMetres: 0.1
+  _speedSampleFrames: 3
+  _contactJoints: 0a0000000f000000140000001900000005000000070000000c00000011000000160000001500000001000000
+  _speedJoints: 01000000070000000c000000110000001600000015000000
   _flashDecaySeconds: 0.18
   _baseColor: {r: 0.58, g: 0.58, b: 0.62, a: 0.5}
   _flashColor: {r: 1, g: 0.96, b: 0.85, a: 1}
@@ -3229,7 +3257,7 @@ MonoBehaviour:
   _transformConfig:
     PositionOffset: {x: 0, y: 0, z: 0}
     RotationOffset: {x: 0, y: 0, z: 0}
-    UpVectorType: 0
+    UpVectorType: 1
     FeatureThresholds: {fileID: 11400000, guid: 3d8f1a6c04e94b27a9c5e0f81b2d7a4e, type: 2}
 --- !u!1 &2121604858
 GameObject:
@@ -3279,6 +3307,9 @@ MonoBehaviour:
   _sideHitMarginMetres: 0.015
   _sideReadoutScale: 0.45
   _sideDisabledColor: {r: 0.45, g: 0.45, b: 0.48, a: 0.6}
+  _footerScale: 0.4
+  _footerWrapChars: 44
+  _footerGapMetres: 0.07
   _plateMaterial: {fileID: 2100000, guid: f6236b26e7de43fe9e8fd9a3245dbb2a, type: 2}
   _characterSize: 0.006
   _fontSize: 90

@@ -20,6 +20,8 @@ namespace Jazztures.Core.Lessons
         private Tempo _tempo = Tempo.Default;
         private SwingRatio _swing = SwingRatio.Straight;
         private int _beatsPerBar = Metronome.DefaultBeatsPerBar;
+        private OnsetPattern _scoredPulse = OnsetPattern.None;
+        private double _minimumDurationBeats;
 
         public LessonTimelineBuilder WithTempo(Tempo tempo)
         {
@@ -41,6 +43,32 @@ namespace Jazztures.Core.Lessons
             }
 
             _beatsPerBar = beatsPerBar;
+            return this;
+        }
+
+        /// <summary>
+        /// Score the learner against <paramref name="pulse"/> as well as the melody notes —
+        /// for a lesson that has expected onsets but no notes to carry them (L2).
+        /// </summary>
+        public LessonTimelineBuilder WithScoredPulse(OnsetPattern pulse)
+        {
+            _scoredPulse = pulse;
+            return this;
+        }
+
+        /// <summary>
+        /// Make the timeline at least this long even if its last event comes earlier — so a
+        /// chord with no later change rings to the end of a drill instead of dying after the
+        /// default tail.
+        /// </summary>
+        public LessonTimelineBuilder WithMinimumDuration(double beats)
+        {
+            if (double.IsNaN(beats) || double.IsInfinity(beats) || beats < 0.0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(beats), beats, "Must be finite and not negative.");
+            }
+
+            _minimumDurationBeats = beats;
             return this;
         }
 
@@ -83,7 +111,8 @@ namespace Jazztures.Core.Lessons
             RequireDistinctMarkerNames(markers);
             RequireAChordBeforeTheFirstNote(chords, notes);
 
-            return new LessonTimeline(_tempo, _swing, _beatsPerBar, chords, notes, markers);
+            return new LessonTimeline(
+                _tempo, _swing, _beatsPerBar, chords, notes, markers, _scoredPulse, _minimumDurationBeats);
         }
 
         private static void RequireNoDuplicateChordBeats(TimelineChord[] chords)

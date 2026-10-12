@@ -9,7 +9,8 @@ namespace Jazztures.Config
     /// reinforcing the harmonic function the learner also hears and sees spatially; it is
     /// never the sole carrier of information. Read by
     /// <c>Jazztures.Presentation.TensionColorDriver</c>, which eases between these over
-    /// <see cref="TransitionSeconds"/> on every chord change.
+    /// <see cref="TransitionSeconds"/> on every chord change — onto the <b>left hand's
+    /// outline</b>. The right-hand targets keep <see cref="Neutral"/> (ADR-0044).
     ///
     /// <para>
     /// Every value is `[TUNABLE]` — an engineering default, pilot-calibrated at M8. Mirror
@@ -22,7 +23,9 @@ namespace Jazztures.Config
     public sealed class TensionPalette : ScriptableObject
     {
         [Header("Base colours — no chord, then the ii-V-I arc")]
-        [Tooltip("Shown when no left-hand pose is held. Cool, low-alpha: clearly inactive.")]
+        [Tooltip("Shown on the left hand's outline when no pose is held — and the fixed colour of " +
+                 "every right-hand touch target, which does not follow the chord (ADR-0044). " +
+                 "Cool, low-alpha.")]
         [SerializeField] private Color _neutral = new Color(0.58f, 0.58f, 0.62f, 0.35f);
 
         [Tooltip("ii — preparation. Sage/olive: a desaturated yellow-green (ADR-0017).")]
@@ -38,8 +41,9 @@ namespace Jazztures.Config
         [Tooltip("Flash colour the instant a fingertip triggers a target.")]
         [SerializeField] private Color _struck = new Color(1.00f, 0.96f, 0.85f, 1.00f);
 
-        [Tooltip("How far a target's colour is pushed toward white while its chord-change " +
-                 "highlight is active, 0..1.")]
+        [Tooltip("How far a target's colour is pushed toward white by the hover glow as a " +
+                 "fingertip nears it, 0..1 (halved for the hover). There is no chord-change " +
+                 "highlight any more (ADR-0044).")]
         [Range(0f, 1f)] [SerializeField] private float _highlightBoost = 0.35f;
 
         [Header("Transition")]

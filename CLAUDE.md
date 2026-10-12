@@ -297,6 +297,8 @@ Four modes from ImproVisAR, plus one Jazztures addition.
 | **Test Yourself** | no | no | yes | Feedback deferred to end of attempt |
 | **Compose on the Fly** | backing only | no | yes | Free improvisation |
 
+**Footnote — "System plays: no" (Try Yourself, Test Yourself).** In a **right-hand-only** lesson (L3–L5) the learner has no left hand playing the chords, so these two modes play the **harmony only** (`SystemPlayback.HarmonyOnly`, `ModePolicy.For(mode, hands)`): the chord changes sound, but the melody — the demonstration — stays silent and is the learner's to play. This is what §3.9 ("over system-played changes") already says. A lesson where the learner plays the left hand (left-only or both) is unchanged. Decided by the student, 2026-10-08 (ADR-0043, decision 3); Chapter 6 needs matching wording.
+
 Implement as an explicit state machine in `Core/Lessons`. The mode gates the note sink, **not** the gesture recogniser — recognition always runs, and every attempt is always logged to telemetry even when it is not sounded. Silent-but-logged is a first-class state.
 
 ### 3.9 Lesson content `[THESIS]`
@@ -324,7 +326,7 @@ Lessons are `ScriptableObject` assets — data, not code. Adding Lesson 9 must r
 
 **Auditory (primary).** Immediate, unconditional in free modes. This is the action-perception loop the whole design rests on.
 
-**Visual (secondary, CTML dual-channel).** Ghost hands for gesture guidance. Touch targets that light on chord change. Tension colour-coding across the ii → V → I arc `[TUNABLE]`: cool/neutral for ii, warm/saturated for V, resolved/settled for I. Colour is a redundant channel reinforcing the tension-release metaphor — it must never be the sole carrier of information.
+**Visual (secondary, CTML dual-channel).** Ghost hands for gesture guidance. Right-hand touch targets are one neutral colour that does **not** change with the chord; each shows the **note it currently plays** as a letter label (ADR-0044) — they do not "light on chord change". Tension colour-coding across the ii → V → I arc `[TUNABLE]`: cool/neutral for ii, warm/saturated for V, resolved/settled for I — carried by the **left hand's outline** only. Colour is a redundant channel reinforcing the tension-release metaphor — it must never be the sole carrier of information.
 
 **Visual restraint is a design requirement, not a preference.** VR gives total control of the visual field; the thesis argues this is used to *eliminate* visual noise. Every added HUD element spends limited-capacity budget. Justify additions against Chapter 4 or drop them.
 

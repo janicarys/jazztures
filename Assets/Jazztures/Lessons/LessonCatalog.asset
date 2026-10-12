@@ -17,3 +17,10 @@ MonoBehaviour:
     lessons:
     - {fileID: 11400000, guid: d53299446d8135b469cedcbee689351f, type: 2}
     - {fileID: 11400000, guid: 25e92bae4ffa9c04ebd987d19c5a0134, type: 2}
+  _timingDrills:
+  - {fileID: 11400000, guid: 031dc619ee6ebbf41b2b8fa6477a89f9, type: 2}
+  - {fileID: 11400000, guid: 0a3148bb80adcc944937418d7093a427, type: 2}
+  - {fileID: 11400000, guid: 14d8ca6d60b40884581f6e58c948b6a7, type: 2}
+  - {fileID: 11400000, guid: 141e527ecad310a48a598b003556c422, type: 2}
+  - {fileID: 11400000, guid: 67b19c0da333082409bb56796bd5a0c6, type: 2}
+  - {fileID: 11400000, guid: 38d43a241b41a0a44bf3542aadac0fc9, type: 2}

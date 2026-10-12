@@ -1,4 +1,5 @@
 using System;
+using Jazztures.Core.Melody;
 
 namespace Jazztures.Core.Gesture
 {
@@ -19,15 +20,25 @@ namespace Jazztures.Core.Gesture
         public TouchCommitThresholds(
             double minInterTouchSeconds,
             float entryVelocityGateMetresPerSecond,
-            double maxAwaitingConfirmationSeconds)
+            double maxAwaitingConfirmationSeconds,
+            float tapSpeedMetresPerSecond = TouchContactThresholds.DefaultTapSpeed,
+            float settleSpeedMetresPerSecond = TouchContactThresholds.DefaultSettleSpeed,
+            int settleFrames = TouchContactThresholds.DefaultSettleFrames)
         {
             Require(minInterTouchSeconds >= 0.0, nameof(minInterTouchSeconds));
             Require(entryVelocityGateMetresPerSecond >= 0f, nameof(entryVelocityGateMetresPerSecond));
             Require(maxAwaitingConfirmationSeconds > 0.0, nameof(maxAwaitingConfirmationSeconds));
 
+            // Validates the tap / settle / frames relationships (tap >= entry, settle < tap, frames >= 1).
+            _ = new TouchContactThresholds(
+                entryVelocityGateMetresPerSecond, tapSpeedMetresPerSecond, settleSpeedMetresPerSecond, settleFrames);
+
             MinInterTouchSeconds = minInterTouchSeconds;
             EntryVelocityGateMetresPerSecond = entryVelocityGateMetresPerSecond;
             MaxAwaitingConfirmationSeconds = maxAwaitingConfirmationSeconds;
+            TapSpeedMetresPerSecond = tapSpeedMetresPerSecond;
+            SettleSpeedMetresPerSecond = settleSpeedMetresPerSecond;
+            SettleFrames = settleFrames;
         }
 
         /// <summary>
@@ -38,14 +49,13 @@ namespace Jazztures.Core.Gesture
         public double MinInterTouchSeconds { get; }
 
         /// <summary>
-        /// Minimum fingertip speed on entry for it to count as a deliberate touch, not a
-        /// resting hand drifting into the volume — the same question §3.3's melody entry
-        /// gate answers for the right hand. Default 0.08 m/s, inherited directly from
-        /// <c>MelodyConfig</c>'s own entry gate (ADR-0018), which fixed the identical
-        /// problem ("careful aiming... landed under the gate and was dropped silently") for
-        /// the right hand's ten targets — this is the one commit-signal default in this
-        /// project's history that has already been on-device pressure-tested, just for a
-        /// different hand.
+        /// Minimum <b>downward hand speed</b> on entry for it to count as a deliberate touch, not
+        /// a resting hand drifting into the volume. Originally 0.08 m/s, inherited from the
+        /// right hand's fingertip entry gate (ADR-0018) — right for a carefully aimed fingertip,
+        /// too low for a whole hand whose joints cross the volume's edge all the time while a
+        /// learner adjusts; with the plate counting any part of the hand (ADR-0047) it let
+        /// unintended chords through. Now 0.15 m/s: still far under a real chop (0.5 m/s and up)
+        /// and under the tap speed. `[TUNABLE]`, unmeasured for the plate.
         /// </summary>
         public float EntryVelocityGateMetresPerSecond { get; }
 
@@ -61,14 +71,36 @@ namespace Jazztures.Core.Gesture
         public double MaxAwaitingConfirmationSeconds { get; }
 
         /// <summary>
+        /// Speed of a <b>tap while the hand is already inside</b> the target's volume (ADR-0047,
+        /// the left-hand counterpart of the right hand's ADR-0045). A slow arrival, or a chop
+        /// that begins inside the volume, has no entry edge to read; a sudden movement at or
+        /// above this plays instead. Default 0.25 m/s, the left-hand strike's own tuned enter
+        /// speed (ADR-0028/0030); unmeasured for the plate.
+        /// </summary>
+        public float TapSpeedMetresPerSecond { get; }
+
+        /// <summary>After a touch, the hand must slow to this before another tap inside can play (hysteresis). Default 0.10 m/s.</summary>
+        public float SettleSpeedMetresPerSecond { get; }
+
+        /// <summary>Consecutive frames at or below <see cref="SettleSpeedMetresPerSecond"/> that re-arm a tap. Default 3.</summary>
+        public int SettleFrames { get; }
+
+        /// <summary>The entry / tap / settle rule as the pure <see cref="TouchContact"/> state machine consumes it.</summary>
+        public TouchContactThresholds ToContactThresholds() => new TouchContactThresholds(
+            EntryVelocityGateMetresPerSecond, TapSpeedMetresPerSecond, SettleSpeedMetresPerSecond, SettleFrames);
+
+        /// <summary>
         /// The ADR-0039 defaults (cooldown, velocity gate — both inherited, neither a fresh
-        /// guess) plus ADR-0042's grace window (a fresh guess; see
-        /// <see cref="MaxAwaitingConfirmationSeconds"/>).
+        /// guess) plus ADR-0042's grace window and ADR-0047's tap-inside values (fresh
+        /// guesses; see their properties).
         /// </summary>
         public static TouchCommitThresholds Default => new TouchCommitThresholds(
             minInterTouchSeconds: 0.12,
-            entryVelocityGateMetresPerSecond: 0.08f,
+            entryVelocityGateMetresPerSecond: DefaultEntryVelocityGateMetresPerSecond,
             maxAwaitingConfirmationSeconds: 0.35);
+
+        /// <summary>The plate's default entry gate — see <see cref="EntryVelocityGateMetresPerSecond"/>.</summary>
+        public const float DefaultEntryVelocityGateMetresPerSecond = 0.15f;
 
         private static void Require(bool condition, string name)
         {

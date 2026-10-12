@@ -149,6 +149,40 @@ namespace Jazztures.Tests.EditMode.Lessons
             Assert.That(hands, Is.EqualTo(ActiveHands.Both), "Session 1 is not left-hand-only");
         }
 
+        private static LessonPlan PlanFor(ActiveHands hands, params LearningMode[] modes) =>
+            new LessonPlan(
+                new LessonId("L3"), "Chord tones", "Notes that belong to the chord.", modes,
+                Tempo.Default, SwingRatio.Straight, hands);
+
+        [Test]
+        public void ARightHandLessons_TryYourselfPhase_PlaysTheHarmony()
+        {
+            var sm = new LessonStateMachine(PlanFor(
+                ActiveHands.Right, LearningMode.WatchAndListen, LearningMode.TryYourself));
+            var seen = new List<LessonPhase>();
+            sm.PhaseChanged += seen.Add;
+
+            sm.Begin();
+            sm.AdvancePhase();
+
+            Assert.That(seen[0].Policy.SystemPlayback, Is.EqualTo(SystemPlayback.Full));
+            Assert.That(seen[1].Policy.SystemPlayback, Is.EqualTo(SystemPlayback.HarmonyOnly));
+        }
+
+        [Test]
+        public void ALeftHandLessons_TryYourselfPhase_StillPlaysNothing()
+        {
+            var sm = new LessonStateMachine(PlanFor(
+                ActiveHands.Left, LearningMode.WatchAndListen, LearningMode.TryYourself));
+            LessonPhase? last = null;
+            sm.PhaseChanged += p => last = p;
+
+            sm.Begin();
+            sm.AdvancePhase();
+
+            Assert.That(last!.Value.Policy.SystemPlayback, Is.EqualTo(SystemPlayback.None));
+        }
+
         [Test]
         public void Plan_RejectsEmptyModesAndNoHands()
         {

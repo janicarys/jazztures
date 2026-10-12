@@ -9,11 +9,16 @@ namespace Jazztures.Presentation
 {
     /// <summary>
     /// Drives the tension-arc colour (CLAUDE.md §3.10) from the harmony state. Subscribes
-    /// to <see cref="ChordChangedChannel"/> and eases a single colour — the one the whole
-    /// interface shares — from the old chord's tint to the new one over
-    /// <see cref="TensionPalette.TransitionSeconds"/>, so a chord change is never a jarring
-    /// snap. That colour is pushed to every <see cref="TouchTarget"/> as its base tint and
-    /// to the left hand's outline, tying hand and targets into one visual system.
+    /// to <see cref="ChordChangedChannel"/> and eases a single colour from the old chord's
+    /// tint to the new one over <see cref="TensionPalette.TransitionSeconds"/>, so a chord
+    /// change is never a jarring snap. That colour is pushed to the <b>left hand's outline</b>
+    /// only.
+    ///
+    /// <para>
+    /// The right-hand <see cref="TouchTarget"/>s do <b>not</b> follow it (ADR-0044, which
+    /// narrows ADR-0017): they are given the palette's neutral colour once and keep it. The
+    /// notes they play are written on them as labels instead.
+    /// </para>
     ///
     /// <para>
     /// Colour is a <b>redundant</b> channel here (§3.10): the chord is always also audible
@@ -77,7 +82,7 @@ namespace Jazztures.Presentation
             // Start, not OnEnable: the rig spawns its targets in Awake, and OnEnable can
             // run before that. By Start the grid exists.
             PushOverlayStyle();
-            PushBaseColor();
+            PushNeutralTargetColor();
             PushHandOutline();
         }
 
@@ -114,7 +119,6 @@ namespace Jazztures.Presentation
             }
 
             _dirty = false;
-            PushBaseColor();
             PushHandOutline();
         }
 
@@ -132,17 +136,19 @@ namespace Jazztures.Presentation
             }
         }
 
-        private void PushBaseColor()
+        /// <summary>Give every target the neutral colour — once. They never follow the chord (ADR-0044).</summary>
+        private void PushNeutralTargetColor()
         {
             if (_rig == null)
             {
                 return;
             }
 
+            Color neutral = _palette != null ? _palette.Neutral : Color.gray;
             IReadOnlyList<TouchTarget> targets = _rig.Targets;
             for (int i = 0; i < targets.Count; i++)
             {
-                targets[i].SetBaseColor(_current);
+                targets[i].SetBaseColor(neutral);
             }
         }
 

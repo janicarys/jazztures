@@ -83,6 +83,6 @@ namespace Jazztures.Core.Lessons
         }
 
         private LessonPhase PhaseAt(int index) =>
-            new LessonPhase(index, _plan.Modes[index], index == _plan.Modes.Count - 1);
+            new LessonPhase(index, _plan.Modes[index], index == _plan.Modes.Count - 1, _plan.Hands);
     }
 }

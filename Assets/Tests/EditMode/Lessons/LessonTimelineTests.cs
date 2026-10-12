@@ -125,6 +125,87 @@ namespace Jazztures.Tests.EditMode.Lessons
         }
 
         [Test]
+        public void ANotelessLesson_CanScoreAPulse_FromBeatZeroToItsDuration()
+        {
+            // L2: chords but no notes, so the pulse is what the learner is scored against.
+            LessonTimeline l2 = new LessonTimelineBuilder()
+                .WithTempo(Tempo.Bpm(120)) // 0.5 s per beat
+                .Chord(0.0, ChordFunction.Two)
+                .Chord(4.0, ChordFunction.Two)
+                .WithScoredPulse(OnsetPattern.EveryBeat)
+                .Build();
+
+            Assert.That(l2.ExpectedOnsetSeconds(), Is.EqualTo(new[] { 0.0, 0.5, 1.0, 1.5 }).Within(1e-12));
+        }
+
+        [Test]
+        public void APulse_IsMergedWithMelodyNotes_InTimeOrder()
+        {
+            LessonTimeline timeline = new LessonTimelineBuilder()
+                .WithTempo(Tempo.Bpm(120))
+                .Chord(0.0, ChordFunction.One)
+                .Note(1.5, 0)
+                .Note(3.0, 1)
+                .WithScoredPulse(OnsetPattern.EverySecondBeat)
+                .Build();
+
+            // duration 3 beats: pulse at 0 and 2; notes at 1.5 and 3 -> 0, 0.75, 1.0, 1.5 s
+            Assert.That(timeline.ExpectedOnsetSeconds(), Is.EqualTo(new[] { 0.0, 0.75, 1.0, 1.5 }).Within(1e-12));
+        }
+
+        [Test]
+        public void APulse_FollowsTheSwing_ForItsOffBeats()
+        {
+            LessonTimeline timeline = new LessonTimelineBuilder()
+                .WithTempo(Tempo.Bpm(60)) // 1 s per beat
+                .WithSwing(new SwingRatio(0.66))
+                .Chord(0.0, ChordFunction.One)
+                .Chord(2.0, ChordFunction.One)
+                .WithScoredPulse(OnsetPattern.EveryEighth)
+                .Build();
+
+            Assert.That(
+                timeline.ExpectedOnsetSeconds(),
+                Is.EqualTo(new[] { 0.0, 0.66, 1.0, 1.66 }).Within(1e-12));
+        }
+
+        [Test]
+        public void WithoutAPulse_ExpectedOnsetsAreJustTheNotes()
+        {
+            LessonTimeline timeline = new LessonTimelineBuilder()
+                .Chord(0.0, ChordFunction.One)
+                .Note(1.0, 0)
+                .Build();
+
+            Assert.That(timeline.ScoredPulse.IsNone, Is.True);
+            Assert.That(timeline.ExpectedOnsetSeconds(), Has.Length.EqualTo(1));
+        }
+
+        [Test]
+        public void MinimumDuration_ExtendsDurationBeats_ButNeverShortensIt()
+        {
+            LessonTimeline longer = new LessonTimelineBuilder()
+                .Chord(0.0, ChordFunction.One)
+                .WithMinimumDuration(16.0)
+                .Build();
+            LessonTimeline shorter = new LessonTimelineBuilder()
+                .Chord(0.0, ChordFunction.One)
+                .Chord(8.0, ChordFunction.Five)
+                .WithMinimumDuration(4.0)
+                .Build();
+
+            Assert.That(longer.DurationBeats, Is.EqualTo(16.0));
+            Assert.That(shorter.DurationBeats, Is.EqualTo(8.0));
+        }
+
+        [Test]
+        public void MinimumDuration_RejectsNegativeAndNonFinite()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new LessonTimelineBuilder().WithMinimumDuration(-1.0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new LessonTimelineBuilder().WithMinimumDuration(double.NaN));
+        }
+
+        [Test]
         public void Builder_RejectsAnOutOfRangeTargetIndex()
         {
             Assert.Throws<ArgumentOutOfRangeException>(() => new LessonTimelineBuilder().Note(0.0, 10));

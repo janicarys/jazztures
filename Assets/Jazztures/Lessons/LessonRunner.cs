@@ -76,7 +76,10 @@ namespace Jazztures.Lessons
         private Metronome _metronome;
         private IMetronomeOutput _metronomeOutput;
 
-        private readonly List<double> _capturedOnsets = new List<double>();
+        private ScriptedHarmony _scriptedHarmony;
+        private OnsetCapture _capture;
+        private bool _melodyDemonstrating; // Watch and Listen: the system plays the melody, so the learner is not scored
+        private bool _scriptStarted;
         private double _phaseStartDsp;
         private double _lessonBeat;    // phrase position — gated (held) on each pose in Gesture Learning
         private double _lastRealBeat;  // clock-derived beat last frame, to measure real elapsed
@@ -109,17 +112,21 @@ namespace Jazztures.Lessons
         /// Wire the domain in. Call once from the composition root's <c>Awake</c>.
         /// <paramref name="metronomeOutput"/> is where a lesson's metronome becomes sound
         /// (ADR-0043); without one a lesson that asks for a metronome runs it silently.
+        /// <paramref name="scriptedHarmony"/> selects a right-hand lesson's chords without the
+        /// left hand (ADR-0043 decision 3); without one the melody has no chord to follow.
         /// </summary>
         public void Bind(
             IMusicalClock clock,
             ModeGatedNoteSink gate,
             GestureInterpreter interpreter,
-            IMetronomeOutput metronomeOutput = null)
+            IMetronomeOutput metronomeOutput = null,
+            ScriptedHarmony scriptedHarmony = null)
         {
             _clock = clock;
             _gate = gate;
             _interpreter = interpreter;
             _metronomeOutput = metronomeOutput;
+            _scriptedHarmony = scriptedHarmony;
 
             if (_interpreter != null)
             {
@@ -155,6 +162,12 @@ namespace Jazztures.Lessons
             _stateMachine = new LessonStateMachine(_plan);
             _stateMachine.PhaseChanged += OnPhaseChanged;
             _stateMachine.Completed += OnLessonCompleted;
+
+            // The hand that is scored: the melody hand if the lesson has one, otherwise the
+            // left hand's chord strikes (L2's pulse). OnsetCapture filters by hand and by
+            // channel, so system playback on the Accompaniment channel is never the learner.
+            _capture = new OnsetCapture(
+                (_plan.Hands & ActiveHands.Right) != 0 ? Handedness.Right : Handedness.Left);
 
             _metronome = null;
             if (_lesson.UseMetronome)
@@ -227,6 +240,7 @@ namespace Jazztures.Lessons
                 _playback = null;
             }
 
+            StopScriptedHarmony();
             StopMetronome();
             _metronome = null;
             _ghostChannel?.Raise(GhostFrame.Hidden);
@@ -253,7 +267,7 @@ namespace Jazztures.Lessons
             _lessonBeat = 0.0;
             _lastRealBeat = 0.0;
             _waitingForInput = false;
-            _capturedOnsets.Clear();
+            _capture.Begin(_phaseStartDsp);
             _cuePlayer.Reset();
 
             _gate.SetMode(phase.Mode);
@@ -275,10 +289,34 @@ namespace Jazztures.Lessons
             }
 
             _playback = null;
+            _melodyDemonstrating = false;
+            StopScriptedHarmony();
             if (policy.SystemPlayback == SystemPlayback.Full)
             {
                 _playback = new TimelinePlayback(_timeline, _clock, _gate);
                 _playback.Start(_phaseStartDsp);
+                _melodyDemonstrating = true;
+            }
+            else if (policy.SystemPlayback == SystemPlayback.HarmonyOnly)
+            {
+                // ADR-0043 decision 3: a right-hand lesson's Try / Test Yourself. The chords
+                // sound (on the Accompaniment channel, so they are never the learner's
+                // onsets) and the same timeline selects them for the melody to follow —
+                // the chord the learner hears is the chord their notes are constrained to.
+                _playback = new TimelinePlayback(_timeline, _clock, _gate, includeMelody: false);
+                _playback.Start(_phaseStartDsp);
+
+                if (_scriptedHarmony != null)
+                {
+                    _scriptedHarmony.Start(_timeline, _phaseStartDsp);
+                    _scriptStarted = true;
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        $"{nameof(LessonRunner)}: '{_plan.Id}' needs scripted harmony (a right-hand " +
+                        $"lesson has no left hand to select the chord) but none was bound.", this);
+                }
             }
             else if (policy.SystemPlayback == SystemPlayback.BackingOnly && _logCues)
             {
@@ -325,6 +363,10 @@ namespace Jazztures.Lessons
             _lessonBeat = NextLessonBeat(phase, _lessonBeat + (advanced > 0.0 ? advanced : 0.0));
 
             _playback?.Tick();
+            if (_scriptStarted)
+            {
+                _scriptedHarmony.Tick();
+            }
 
             _cuePlayer.AdvanceTo(_lessonBeat < 0.0 ? 0.0 : _lessonBeat);
             PublishGhostFrame(phase, _lessonBeat);
@@ -471,7 +513,9 @@ namespace Jazztures.Lessons
 
             _playback?.Stop();
             _playback = null;
+            StopScriptedHarmony();
             StopMetronome();
+            _capture.Stop();
 
             if (phase.Policy.DeferFeedback)
             {
@@ -484,7 +528,7 @@ namespace Jazztures.Lessons
         private void ScoreAttempt()
         {
             AttemptResult result = OnsetScorer.Evaluate(
-                _timeline.ExpectedOnsetSeconds(), _capturedOnsets, OnsetWindows.Default);
+                _timeline.ExpectedOnsetSeconds(), _capture.OnsetsSeconds, OnsetWindows.Default);
 
             if (_evaluationChannel != null)
             {
@@ -523,27 +567,39 @@ namespace Jazztures.Lessons
             _cuePlayer.Notify(LearnerAction.ChordConfirmed, function);
         }
 
+        private void StopScriptedHarmony()
+        {
+            if (_scriptStarted)
+            {
+                _scriptedHarmony.Stop();
+                _scriptStarted = false;
+            }
+        }
+
         private void OnNoteTriggered(NoteEvent note)
         {
-            if (!_running || note.Kind != NoteEventKind.On || note.Source != Handedness.Right)
+            if (!_running || note.Kind != NoteEventKind.On)
             {
                 return;
             }
 
-            // While the system is demonstrating, right-hand notes are the demo, not the learner.
-            if (_playback != null)
+            // Watch and Listen: the system is demonstrating the melody, so what arrives is
+            // not the learner's attempt. (Harmony-only playback is not a demonstration — it
+            // is on the Accompaniment channel, which OnsetCapture never takes, and the
+            // learner's own melody notes must still count.)
+            if (_melodyDemonstrating)
             {
                 return;
             }
 
-            if (note.Channel == MidiChannel.Melody)
+            if (_capturing)
+            {
+                _capture.Observe(note); // filters by hand, channel and one-strike-one-onset
+            }
+
+            if (note.Source == Handedness.Right && note.Channel == MidiChannel.Melody)
             {
                 _waitingForInput = false;
-                if (_capturing)
-                {
-                    _capturedOnsets.Add(note.DspTime - _phaseStartDsp);
-                }
-
                 _cuePlayer.Notify(LearnerAction.MelodyNotePlayed);
             }
         }

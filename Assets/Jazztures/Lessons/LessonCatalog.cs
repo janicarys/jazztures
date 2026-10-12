@@ -28,6 +28,13 @@ namespace Jazztures.Lessons
 
         [SerializeField] private List<Session> _sessions = new List<Session>();
 
+        [Tooltip("Timing-drill presets for the \"Timing test\" menu (ADR-0043) — the measuring " +
+                 "instrument for comparing right-hand mechanics against a beat. Not part of any " +
+                 "session; a new preset is a new asset.")]
+        [SerializeField] private List<TimingDrillDefinition> _timingDrills = new List<TimingDrillDefinition>();
+
         public IReadOnlyList<Session> Sessions => _sessions;
+
+        public IReadOnlyList<TimingDrillDefinition> TimingDrills => _timingDrills;
     }
 }

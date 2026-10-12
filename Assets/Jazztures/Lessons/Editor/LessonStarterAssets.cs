@@ -58,6 +58,7 @@ namespace Jazztures.Lessons.Editor
             SetFloat(so, "_tempoBpm", 80f);
             SetEnum(so, "_hands", (int)ActiveHands.Left);
             SetBool(so, "_useMetronome", true);
+            SetEnum(so, "_scoredPulse._kind", (int)OnsetPatternSpec.PatternKind.EveryBeat); // L2 scores a steady pulse
 
             SetModes(so, LearningMode.WatchAndListen, LearningMode.TryYourself, LearningMode.TestYourself);
             SetChords(so, (0f, ChordFunction.Two), (4f, ChordFunction.Two));
@@ -117,6 +118,7 @@ namespace Jazztures.Lessons.Editor
 
         private static void SetEnum(SerializedObject so, string field, int value) =>
             so.FindProperty(field).enumValueIndex = value;
+        // `field` may be a dotted path into a nested serialisable class, e.g. "_scoredPulse._kind".
 
         private static void SetModes(SerializedObject so, params LearningMode[] modes)
         {

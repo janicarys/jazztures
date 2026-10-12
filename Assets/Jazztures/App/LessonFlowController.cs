@@ -19,9 +19,23 @@ namespace Jazztures.App
     /// includes Right — a left-hand lesson (L1) shows no touch-target markers. On completion
     /// the selector returns to that session's lesson list.
     /// </para>
+    ///
+    /// <para>
+    /// Beside the sessions sit two tester tools (ADR-0043): <b>Free play</b>, and a
+    /// <b>Timing test</b> menu of drill presets run by <see cref="TimingDrillRunner"/>, whose
+    /// first row switches the right-hand mechanic so one headset session can run the same
+    /// drill on each. A drill's result is shown after the run, under the menu (§3.7).
+    /// </para>
     /// </summary>
     public sealed class LessonFlowController : MonoBehaviour
     {
+        /// <summary>The right-hand mechanics that exist today; the ladder's triggers join them at ADR-0043 step 7.</summary>
+        private enum RightHandMechanic
+        {
+            ArcTouch = 0,
+            ArcPinch = 1,
+        }
+
         [SerializeField] private LessonCatalog _catalog;
         [SerializeField] private LessonRunner _runner;
         [SerializeField] private LessonSelector _selector;
@@ -31,7 +45,8 @@ namespace Jazztures.App
 
         [Tooltip("The right-hand melody binder (TouchTargetBinder). Enabled only for a lesson " +
                  "whose ActiveHands includes Right (§3.9) — so a left-hand lesson like L1 shows " +
-                 "no touch-target markers. Disabling it also hides the ten markers.")]
+                 "no touch-target markers. Disabling it also hides the ten markers. The Timing " +
+                 "test's mechanic row switches its trigger at runtime.")]
         [SerializeField] private Behaviour _melodyInput;
 
         [Tooltip("PerformanceCompositionRoot — disabled on the selector screen so left-hand " +
@@ -39,8 +54,8 @@ namespace Jazztures.App
                  "melody binder also hides the ten touch-target markers.)")]
         [SerializeField] private PerformanceCompositionRoot _performance;
 
-        [Tooltip("The overhead Exit control. Shown during any lesson and in free play; a " +
-                 "pinch on it returns to the selector.")]
+        [Tooltip("The overhead Exit control. Shown during any lesson, in free play and during a " +
+                 "timing drill; a pinch on it returns to the selector.")]
         [SerializeField] private ExitButton _exitButton;
 
         [Tooltip("The free-play metronome (ADR-0043). Optional — leave empty for a silent free " +
@@ -52,11 +67,28 @@ namespace Jazztures.App
                  "from the menu, e.g. in a study build (§3.10: visual restraint).")]
         [SerializeField] private bool _showTempoControl = true;
 
+        [Tooltip("Runs the timing drills (ADR-0043). Optional — leave empty, or leave the catalog's " +
+                 "drill list empty, to have no \"Timing test\" row. A testing affordance, not part " +
+                 "of the learner's task: remove it for a study build (§3.10).")]
+        [SerializeField] private TimingDrillRunner _drillRunner;
+
         private const string BackRow = "←  Back";
         private const string FreePlayRow = "Free play";
+        private const string TimingTestRow = "Timing test";
+        private const string TimingTitle = "Timing test";
 
         private int _session = -1;
         private bool _freePlay;
+        private bool _inTimingMenu;
+        private bool _inDrill;
+        private string _lastTimingResult = string.Empty;
+
+        private RightHandMechanic _mechanic = RightHandMechanic.ArcTouch;
+        private bool _defaultPinchSpike;
+        private bool _warnedNoBinder;
+
+        private bool HasTimingTest =>
+            _drillRunner != null && _catalog != null && _catalog.TimingDrills.Count > 0;
 
         private void Awake()
         {
@@ -64,6 +96,7 @@ namespace Jazztures.App
             if (_selector != null) _selector.SideStepped += OnTempoStepped;
             if (_runner != null) _runner.Completed += OnLessonCompleted;
             if (_exitButton != null) _exitButton.Exited += OnExitPressed;
+            if (_drillRunner != null) _drillRunner.Finished += OnDrillFinished;
         }
 
         private void Start()
@@ -75,6 +108,11 @@ namespace Jazztures.App
                 return;
             }
 
+            if (_melodyInput is TouchTargetBinder binder)
+            {
+                _defaultPinchSpike = binder.PinchSpike;
+            }
+
             ShowSessions();
         }
 
@@ -84,12 +122,15 @@ namespace Jazztures.App
             if (_selector != null) _selector.SideStepped -= OnTempoStepped;
             if (_runner != null) _runner.Completed -= OnLessonCompleted;
             if (_exitButton != null) _exitButton.Exited -= OnExitPressed;
+            if (_drillRunner != null) _drillRunner.Finished -= OnDrillFinished;
         }
 
         private void ShowSessions()
         {
             _session = -1;
             ExitToSelector();
+            _inTimingMenu = false;
+            RestoreMechanic();
 
             var rows = new List<string>();
             foreach (LessonCatalog.Session s in _catalog.Sessions)
@@ -97,9 +138,14 @@ namespace Jazztures.App
                 rows.Add(s.title);
             }
 
-            rows.Add(FreePlayRow); // last, after the numbered sessions
+            rows.Add(FreePlayRow); // after the numbered sessions
+            if (HasTimingTest)
+            {
+                rows.Add(TimingTestRow); // after Free play
+            }
 
             _selector.Show(rows, "Choose a session");
+            _selector.ClearFooter();
             RefreshTempoControl();
         }
 
@@ -125,7 +171,7 @@ namespace Jazztures.App
         private void OnTempoStepped(int direction)
         {
             // Only offered on the session menu; ignore a stray event from anywhere else.
-            if (_session >= 0 || _freePlayMetronome == null)
+            if (_session >= 0 || _inTimingMenu || _inDrill || _freePlayMetronome == null)
             {
                 return;
             }
@@ -138,6 +184,8 @@ namespace Jazztures.App
         {
             _session = session;
             ExitToSelector();
+            _inTimingMenu = false;
+            RestoreMechanic();
 
             var rows = new List<string>();
             foreach (LessonDefinition lesson in _catalog.Sessions[session].lessons)
@@ -149,17 +197,135 @@ namespace Jazztures.App
 
             _selector.Show(rows, _catalog.Sessions[session].title);
             _selector.ClearSideControl();
+            _selector.ClearFooter();
         }
+
+        // --- Timing test -------------------------------------------------------------------
+
+        private void ShowTimingMenu()
+        {
+            _session = -1;
+            ExitToSelector();
+            _inTimingMenu = true;
+
+            var rows = new List<string> { MechanicRow() }; // row 0 cycles the mechanic
+            foreach (TimingDrillDefinition drill in _catalog.TimingDrills)
+            {
+                rows.Add(drill != null ? drill.DisplayName : "(missing drill)");
+            }
+
+            rows.Add(BackRow);
+
+            _selector.Show(rows, TimingTitle);
+            _selector.ClearSideControl();
+            _selector.SetFooter(_lastTimingResult);
+        }
+
+        private void OnTimingChosen(int index)
+        {
+            if (index == 0)
+            {
+                _mechanic = _mechanic == RightHandMechanic.ArcTouch
+                    ? RightHandMechanic.ArcPinch
+                    : RightHandMechanic.ArcTouch;
+                ShowTimingMenu(); // redraw with the new label
+                return;
+            }
+
+            int drillIndex = index - 1;
+            if (drillIndex < 0 || drillIndex >= _catalog.TimingDrills.Count)
+            {
+                ShowSessions(); // the Back row, or out of range
+                return;
+            }
+
+            TimingDrillDefinition drill = _catalog.TimingDrills[drillIndex];
+            if (drill != null)
+            {
+                StartDrill(drill);
+            }
+        }
+
+        private void StartDrill(TimingDrillDefinition drill)
+        {
+            _freePlay = false;
+            _selector.Hide();
+
+            if (_freePlayMetronome != null) _freePlayMetronome.End();
+            if (_hud != null) _hud.enabled = false;
+            if (_performance != null) _performance.enabled = true;
+            if (_melodyInput != null) _melodyInput.enabled = (drill.ActiveHands & ActiveHands.Right) != 0;
+            if (_exitButton != null) _exitButton.Show();
+            ApplyMechanic();
+
+            string commit = _performance != null ? _performance.CommitGesture.ToString() : "unknown";
+            _inDrill = _drillRunner.Run(drill, MechanicTag(), commit);
+
+            if (!_inDrill)
+            {
+                _lastTimingResult = $"{drill.DisplayName} could not start — see the Console.";
+                ShowTimingMenu();
+            }
+        }
+
+        private void OnDrillFinished(DrillOutcome outcome)
+        {
+            _inDrill = false;
+            _lastTimingResult = $"{outcome.Drill.Name}: {outcome.SummaryLine}"
+                + (outcome.Report != null && outcome.CsvPath == null ? " (CSV not saved)" : string.Empty);
+            ShowTimingMenu(); // the result arrives after the run, under the menu (§3.7)
+        }
+
+        // Short: a menu row is about 15 characters wide in the headset.
+        private string MechanicRow() => $"Mechanic: {MechanicLabel()}";
+
+        private string MechanicLabel() => _mechanic == RightHandMechanic.ArcPinch ? "pinch" : "touch";
+
+        /// <summary>The machine-readable form written into a run's CSV.</summary>
+        private string MechanicTag() => _mechanic == RightHandMechanic.ArcPinch ? "arc+pinch" : "arc+touch";
+
+        private void ApplyMechanic() => SetPinchSpike(_mechanic == RightHandMechanic.ArcPinch);
+
+        /// <summary>Leaving the Timing test puts the right hand back to however the scene was authored.</summary>
+        private void RestoreMechanic() => SetPinchSpike(_defaultPinchSpike);
+
+        private void SetPinchSpike(bool pinch)
+        {
+            if (_melodyInput is TouchTargetBinder binder)
+            {
+                binder.PinchSpike = pinch;
+            }
+            else if (!_warnedNoBinder && pinch)
+            {
+                _warnedNoBinder = true;
+                Debug.LogWarning(
+                    $"{nameof(LessonFlowController)}: the melody input is not a TouchTargetBinder, so the " +
+                    "Timing test's mechanic row has no effect.", this);
+            }
+        }
+
+        // --- Lessons and free play ---------------------------------------------------------
 
         private void OnChosen(int index)
         {
+            if (_inTimingMenu)
+            {
+                OnTimingChosen(index);
+                return;
+            }
+
             if (_session < 0)
             {
-                if (index == _catalog.Sessions.Count) // the Free play row, appended last
+                int sessions = _catalog.Sessions.Count;
+                if (index == sessions) // the Free play row, appended after the sessions
                 {
                     EnterFreePlay();
                 }
-                else if (index >= 0 && index < _catalog.Sessions.Count)
+                else if (HasTimingTest && index == sessions + 1) // the Timing test row, after Free play
+                {
+                    ShowTimingMenu();
+                }
+                else if (index >= 0 && index < sessions)
                 {
                     ShowLessons(index);
                 }
@@ -223,7 +389,12 @@ namespace Jazztures.App
 
         private void ReturnToSelector()
         {
-            if (!_freePlay && _session >= 0)
+            if (_inDrill)
+            {
+                _lastTimingResult = "Run stopped early - nothing recorded.";
+                ShowTimingMenu(); // stops the drill; back to the menu it was started from
+            }
+            else if (!_freePlay && _session >= 0)
             {
                 ShowLessons(_session); // back to this session's lesson list
             }
@@ -236,6 +407,8 @@ namespace Jazztures.App
         private void ExitToSelector()
         {
             _freePlay = false;
+            _inDrill = false;
+            if (_drillRunner != null) _drillRunner.Abort();
             if (_runner != null) _runner.StopLesson();
             if (_hud != null) _hud.enabled = false;
             if (_melodyInput != null) _melodyInput.enabled = false; // also hides the target markers

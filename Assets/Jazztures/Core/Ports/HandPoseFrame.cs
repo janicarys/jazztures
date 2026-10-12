@@ -65,12 +65,11 @@ namespace Jazztures.Core.Ports
         public float LeftPinchClosingRatePerSecond { get; }
 
         /// <summary>
-        /// Whether the left hand's fingertip is inside the virtual
-        /// <c>ChordStrikeTarget</c>'s volume this frame (ADR-0039) — a third articulation
-        /// commit, alongside the strike (ADR-0025) and the pinch (ADR-0038), using the
-        /// exact volume-containment test the right hand's ten melody targets already use
-        /// (<see cref="Jazztures.Core.Melody.TargetVolume"/>, ADR-0016/0018) rather than a
-        /// velocity threshold or the SDK's own pinch flag. Drives
+        /// Whether any contact joint of the left hand is inside the virtual
+        /// <c>ChordStrikeTarget</c>'s volume this frame (ADR-0039, ADR-0047) — a third
+        /// articulation commit, alongside the strike (ADR-0025) and the pinch (ADR-0038), using
+        /// plain volume containment (<see cref="Jazztures.Core.Gesture.StrikePlateVolume"/>,
+        /// ADR-0048) rather than a velocity threshold or the SDK's own pinch flag. Drives
         /// <see cref="Jazztures.Core.Gesture.ChordTouchDetector"/>.
         /// </summary>
         public bool LeftIsTouchingTarget { get; }

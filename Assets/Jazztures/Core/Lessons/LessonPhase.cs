@@ -6,11 +6,12 @@ namespace Jazztures.Core.Lessons
     /// </summary>
     public readonly struct LessonPhase
     {
-        public LessonPhase(int index, LearningMode mode, bool isLast)
+        public LessonPhase(int index, LearningMode mode, bool isLast, ActiveHands hands = ActiveHands.Both)
         {
             Index = index;
             Mode = mode;
             IsLast = isLast;
+            Hands = hands;
         }
 
         public int Index { get; }
@@ -19,8 +20,15 @@ namespace Jazztures.Core.Lessons
 
         public bool IsLast { get; }
 
-        /// <summary>The §3.8 behaviour this phase's mode dictates.</summary>
-        public ModePolicy Policy => ModePolicy.For(Mode);
+        /// <summary>The hands the lesson this phase belongs to exercises (§3.9).</summary>
+        public ActiveHands Hands { get; }
+
+        /// <summary>
+        /// The §3.8 behaviour this phase's mode dictates for its lesson's hands — which only
+        /// matters for a right-hand lesson's Try / Test Yourself, where the system plays the
+        /// chords (ADR-0043 decision 3).
+        /// </summary>
+        public ModePolicy Policy => ModePolicy.For(Mode, Hands);
 
         public override string ToString() => $"phase {Index}: {Mode}{(IsLast ? " (last)" : string.Empty)}";
     }

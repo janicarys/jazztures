@@ -21,6 +21,9 @@ MonoBehaviour:
   _beatsPerBar: 4
   _hands: 1
   _useMetronome: 1
+  _scoredPulse:
+    _kind: 1
+    _positionsInBar: []
   _modes: 010000000200000003000000
   _chords:
   - beat: 0

@@ -138,6 +138,66 @@ namespace Jazztures.Tests.EditMode.Lessons
         }
 
         [Test]
+        public void HarmonyOnly_PlaysTheChords_AndNoMelody()
+        {
+            var harmonyOnly = new TimelinePlayback(TwoChordPhrase(), _clock, _sink, includeMelody: false);
+            RunToCompletion(harmonyOnly);
+
+            Assert.That(MelodyOns(), Is.Empty, "the learner supplies the melody");
+            Assert.That(
+                _sink.Events.FindAll(e => e.Kind == NoteEventKind.On && e.Source == Handedness.Left),
+                Has.Count.EqualTo(4 + 4),
+                "both four-note voicings still sound");
+        }
+
+        [Test]
+        public void HarmonyOnly_StaysOnTheAccompanimentChannel_AndBalancesEveryNote()
+        {
+            var harmonyOnly = new TimelinePlayback(TwoChordPhrase(), _clock, _sink, includeMelody: false);
+            RunToCompletion(harmonyOnly);
+
+            foreach (NoteEvent e in _sink.Events)
+            {
+                Assert.That(e.Channel, Is.EqualTo(MidiChannel.Accompaniment));
+            }
+
+            int ons = _sink.Events.FindAll(e => e.Kind == NoteEventKind.On).Count;
+            int offs = _sink.Events.FindAll(e => e.Kind == NoteEventKind.Off).Count;
+            Assert.That(ons, Is.EqualTo(offs));
+        }
+
+        [Test]
+        public void ByDefault_TheMelodyStillPlays()
+        {
+            RunToCompletion(Playback(TwoChordPhrase()));
+
+            Assert.That(MelodyOns(), Has.Count.EqualTo(2));
+        }
+
+        [Test]
+        public void AChordWithNoLaterChange_RingsToTheMinimumDuration()
+        {
+            // A drill's fixed chord has no second event; the builder's minimum duration is
+            // what keeps it from ending after the default tail.
+            LessonTimeline longRun = new LessonTimelineBuilder()
+                .WithTempo(Tempo.Bpm(120)) // 0.5 s per beat
+                .Chord(0.0, ChordFunction.One)
+                .WithMinimumDuration(16.0) // 8 s
+                .Build();
+
+            var playback = new TimelinePlayback(longRun, _clock, _sink, includeMelody: false);
+            playback.Start();
+            _clock.Advance(7.0);
+            playback.Tick();
+
+            Assert.That(_sink.Events.FindAll(e => e.Kind == NoteEventKind.Off), Is.Empty, "still ringing at 7 s");
+
+            _clock.Advance(2.0); // past 8 s + the 0.6 s tail
+            playback.Tick();
+            Assert.That(_sink.Events.FindAll(e => e.Kind == NoteEventKind.Off), Is.Not.Empty);
+        }
+
+        [Test]
         public void StartingAtAFutureTime_EmitsNothingUntilThen_AndOffsetsFromIt()
         {
             TimelinePlayback playback = Playback(TwoChordPhrase());

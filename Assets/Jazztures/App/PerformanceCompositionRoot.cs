@@ -93,7 +93,11 @@ namespace Jazztures.App
         private ModeGatedNoteSink _gate;
         private HarmonyEngine _harmony;
         private MelodyEngine _melody;
+        private ScriptedHarmony _scriptedHarmony;
         private KeyboardMelodyInput _melodyKeys;
+
+        /// <summary>How the left hand articulates a chord in this build — recorded in a timing run's CSV (ADR-0043).</summary>
+        public HarmonyCommitGesture CommitGesture => _commitGesture;
 
         private void Awake()
         {
@@ -123,6 +127,11 @@ namespace Jazztures.App
             _harmony = new HarmonyEngine(clock, _gate);
             _melody = new MelodyEngine(clock, _gate, _melodySustainSeconds);
             _harmony.ChordChanged += _melody.OnChordChanged;
+
+            // ADR-0043: selects a chord without the left hand — for a right-hand lesson's
+            // Try / Test Yourself and for a timing drill's fixed chord. Silent by
+            // construction; the runners start and stop it.
+            _scriptedHarmony = new ScriptedHarmony(clock, _harmony);
 
             GestureThresholds thresholds = _gestureThresholds != null
                 ? _gestureThresholds.ToThresholds()
@@ -203,8 +212,9 @@ namespace Jazztures.App
             GetComponent<DomainEventBridge>()?.Bind(_harmony, _interpreter, _poseSource);
             // `_metronomeVoice` is a Unity object: pass null explicitly when unassigned rather
             // than a fake-null reference that would pass a plain `!= null` check downstream.
-            GetComponent<LessonRunner>()?.Bind(
-                clock, _gate, _interpreter, _metronomeVoice != null ? _metronomeVoice : null);
+            IMetronomeOutput metronomeOutput = _metronomeVoice != null ? _metronomeVoice : null;
+            GetComponent<LessonRunner>()?.Bind(clock, _gate, _interpreter, metronomeOutput, _scriptedHarmony);
+            GetComponent<TimingDrillRunner>()?.Bind(clock, _gate, _scriptedHarmony, metronomeOutput);
             // Assigned in the inspector, not GetComponent'd: the binder belongs on the
             // target rig. An unassigned reference means melody notes silently never fire,
             // so it is worth a warning rather than a null-check that says nothing.
