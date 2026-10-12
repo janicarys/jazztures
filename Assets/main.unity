@@ -165,6 +165,7 @@ MonoBehaviour:
   _melodySustainSeconds: 0.5
   _noteChannel: {fileID: 11400000, guid: 43f958cab8fb0b246b9829f3181537d2, type: 2}
   _touchTargets: {fileID: 1001962249}
+  _fingerBend: {fileID: 698819752}
 --- !u!114 &119089427
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -197,6 +198,7 @@ Transform:
   - {fileID: 500463309}
   - {fileID: 1001962248}
   - {fileID: 1391259294}
+  - {fileID: 698819754}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &119089429
@@ -933,6 +935,72 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &698819751
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 698819754}
+  - component: {fileID: 698819752}
+  - component: {fileID: 698819753}
+  m_Layer: 0
+  m_Name: Finger Bend Input
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &698819752
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 698819751}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1b48ed03d830774c871da2f4c8ef065, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Input::Jazztures.Input.FingerBendBinder
+  _rightHand: {fileID: 1265530301}
+  _config: {fileID: 11400000, guid: 253f90023ed61b241865e2b5f3639010, type: 2}
+--- !u!114 &698819753
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 698819751}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ab4317f9a3afdef4e805eaadc716b6f7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.FingerNoteLabels
+  _rightHand: {fileID: 1265530301}
+  _config: {fileID: 11400000, guid: 253f90023ed61b241865e2b5f3639010, type: 2}
+  _chordChanged: {fileID: 11400000, guid: 5ae3de7f447f0864aa9394c89016b234, type: 2}
+  _noteTriggered: {fileID: 11400000, guid: 43f958cab8fb0b246b9829f3181537d2, type: 2}
+  _head: {fileID: 368964558}
+  _follow: {fileID: 698819752}
+  _hideTouchTargets: {fileID: 498091629}
+--- !u!4 &698819754
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 698819751}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 119089428}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &709526535
 GameObject:
   m_ObjectHideFlags: 0
@@ -1662,7 +1730,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1001962247}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4c0a3b8e6f1d52940e5a7c9b2d3f8051, type: 3}
   m_Name: 
@@ -2385,7 +2453,7 @@ MonoBehaviour:
   _runner: {fileID: 771001001}
   _selector: {fileID: 2121604859}
   _hud: {fileID: 771002003}
-  _melodyInput: {fileID: 1001962249}
+  _melodyInput: {fileID: 698819752}
   _performance: {fileID: 119089426}
   _exitButton: {fileID: 1033326365}
   _freePlayMetronome: {fileID: 1391259296}

@@ -288,6 +288,25 @@ from the left-hand strike's.
 | Target look  | Paddle  | —        | default | Paddle: a pad (the trigger volume's radius, 1.2 cm thick) on a faint rail, pushed in front of a fingertip. Prefab: the rig's `Target Prefab`, as-is (the scene's is a 5 cm sphere) |
 | Pad / rail dimensions, spring-back (60 ms), pad opacity (≥ 0.8) | consts | — | default | Cosmetics in `TouchTargetRig` / `TouchTarget`, not behaviour — change in code if the look needs it                                                          |
 
+### Right-hand finger bend — EXPLORATION, branch `explore/finger-bend-keys` only — `Config/MelodyConfig.asset` (ADR-0050)
+
+All `[TUNABLE]` and **entirely unmeasured** — engineering starting points for a key-sized bend, nothing more.
+Every level is a change in a finger's normalised bend (0 flat … 1 fully bent) from that finger's own last turning
+point — its lowest recent point while free, its peak while held — never from a fixed resting level (Revision 1).
+
+| Parameter          | Default | Measured | Status  | Notes |
+| ------------------ | ------- | -------- | ------- | ----- |
+| Press delta        | 0.14    | 0.15 (scene asset) | adjusted by feel | How far a free finger must rise above its lowest recent point to press. Too high: presses missed. Too low: ordinary movement sounds notes |
+| Release delta      | 0.07    | 0.05 (scene asset) | adjusted by feel | How far a pressed finger must **fall from its peak** to re-arm (hysteresis; below the press delta). Too high: a quick repeat on one finger is missed. Too low: wobble at the peak can re-fire |
+| Baseline seconds   | 2.0 s   | 2.0 s (scene asset) | revised | How fast a finger's lowest-recent-point memory forgets upward. Bends slower than about press ÷ this per second are drift and never press. **Was 0.4 s, which silently missed moderately slow presses** (Revision 1) |
+| Isolation margin   | 0.06    | 0.05 (scene asset) | adjusted by feel | A finger presses only if it rose this much further than every other free finger. Stops a fist / tendon-coupled neighbours. Raise if neighbours fire; lower if presses are ignored. The log reports each press this suppresses |
+| Signal             | `(2·curl + flexion)/3`, thumb curl only | — | verbatim | The SDK's own blend (`PalmGrabAPI`). Curl alone ignores the knuckle, where a key press mostly happens |
+| Thumb press span   | 0.08 m  | — | default | **Thumb only.** The thumb is pressed DOWN as often as it is curled in, and curl only sees it curl in. Its bend is curl **plus** its tip's offset toward the palm side (in the wrist's own frame) ÷ this span. Smaller = more sensitive; 0 = curl only; negative flips direction. Was 0.04, which let ~6 mm of ordinary thumb movement press. Unverified on device: with `JAZZTURES_DIAG` the thumb press log prints the offset in mm, which should rise when you press |
+| Thumb curl span    | 60°     | — | default | **Thumb only.** Degrees of thumb curl that count as 1.0 of bend. The SDK's thumb range is 30° (its grab test needs the thumb to move little), which made the thumb ~2× as sensitive as the other fingers; deliberately wider than the SDK's value. Raise it, with the press span, if the thumb is too easy to trigger |
+| Bend range         | SDK `PalmGrabAPI.CURL_RANGE` | — | verbatim | Thumb 190–220°, index/middle/ring 180–250°, pinky 180–245°; not tunables (as `MetaXRHandPostureSource`) |
+| Require high confidence | off | — | default | `FingerBendBinder` toggle. On: skip any frame where ANY finger is low-confidence (the first version's behaviour). Off by default — one flickering finger silenced all five |
+| Loudness           | tip speed, floored at the engine's entry gate | — | default | `TODO(OPEN)`: a slow deliberate press sounds quietly instead of being dropped; curl speed may be a better source |
+
 ### Right-hand note labels — `Config/MelodyConfig.asset` (ADR-0044)
 
 | Parameter       | Default            | Measured | Status  | Notes                                                                                                                            |

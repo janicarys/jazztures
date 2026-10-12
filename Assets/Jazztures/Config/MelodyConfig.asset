@@ -24,6 +24,19 @@ MonoBehaviour:
   _recenterAngleDegrees: 35
   _recenterDwellSeconds: 0.6
   _recenterEaseSeconds: 0.5
+  _targetLook: 0
+  _tapSpeedMetresPerSecond: 0.25
+  _tapSettleSpeedMetresPerSecond: 0.1
+  _tapSettleFrames: 3
+  _bendPressDelta: 0.2
+  _bendReleaseDelta: 0.05
+  _bendBaselineSeconds: 2
+  _bendIsolationMargin: 0.1
+  _bendThumbPressSpanMetres: 0.08
+  _bendThumbCurlSpanDegrees: 60
+  _showNoteLabels: 1
+  _labelCharacterSize: 0.005
+  _labelColor: {r: 0.96, g: 0.96, b: 0.98, a: 1}
   _entryVelocityGateMetresPerSecond: 0.08
   _velocityCurveMaxSpeedMetresPerSecond: 1.5
   _retriggerCooldownSeconds: 0.08

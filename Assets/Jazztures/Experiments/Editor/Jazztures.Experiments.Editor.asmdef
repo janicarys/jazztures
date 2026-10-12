@@ -1,0 +1,20 @@
+{
+    "name": "Jazztures.Experiments.Editor",
+    "rootNamespace": "Jazztures.Experiments.Editor",
+    "references": [
+        "Jazztures.App",
+        "Jazztures.Input",
+        "Jazztures.Presentation"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -84,6 +84,11 @@ namespace Jazztures.App
             + "must be assigned explicitly — leave empty only if the scene has no right hand.")]
         [SerializeField] private Jazztures.Presentation.TouchTargetBinder _touchTargets;
 
+        [Tooltip("EXPLORATION (ADR-0050, branch explore/finger-bend-keys): the finger-bend melody "
+            + "input — one finger bend = one chord tone. Optional; bound to the same melody engine "
+            + "as the touch targets. Only one of the two should be enabled at a time.")]
+        [SerializeField] private Jazztures.Input.FingerBendBinder _fingerBend;
+
         private IHandPoseSource _poseSource;
         private GestureInterpreter _interpreter;
         private ChordStrikeDetector _strikeDetector;
@@ -218,11 +223,16 @@ namespace Jazztures.App
             // Assigned in the inspector, not GetComponent'd: the binder belongs on the
             // target rig. An unassigned reference means melody notes silently never fire,
             // so it is worth a warning rather than a null-check that says nothing.
+            if (_fingerBend != null)
+            {
+                _fingerBend.Bind(_melody);
+            }
+
             if (_touchTargets != null)
             {
                 _touchTargets.Bind(_melody);
             }
-            else
+            else if (_fingerBend == null)
             {
                 Debug.LogWarning(
                     $"{nameof(PerformanceCompositionRoot)}: no {nameof(Jazztures.Presentation.TouchTargetBinder)} "

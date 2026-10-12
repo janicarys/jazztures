@@ -99,6 +99,45 @@ namespace Jazztures.Config
         [Tooltip("Consecutive frames at or below the settle speed that re-arm a tap. [TUNABLE]")]
         [Min(1)] [SerializeField] private int _tapSettleFrames = 3;
 
+        [Header("Finger bend — EXPLORATION, branch explore/finger-bend-keys only (ADR-0050)")]
+        [Tooltip("How far a free finger must rise above its lowest recent point to count as a key " +
+                 "press (0 flat .. 1 fully bent). A modest, key-sized bend — not a fist. Too high: " +
+                 "presses are missed. Too low: ordinary movement sounds notes. [TUNABLE]")]
+        [Range(0.05f, 1f)] [SerializeField] private float _bendPressDelta = FingerBendThresholds.DefaultPressDelta;
+
+        [Tooltip("How far a pressed finger must fall back from its PEAK before it can press again " +
+                 "(not from a resting level, so a hand that settles back a little more bent than it " +
+                 "began still re-arms). Must be below the press level (hysteresis). Too high: a quick " +
+                 "repeat on the same finger is missed. Too low: wobble at the peak can re-fire. [TUNABLE]")]
+        [Range(0f, 0.9f)] [SerializeField] private float _bendReleaseDelta = FingerBendThresholds.DefaultReleaseDelta;
+
+        [Tooltip("Seconds over which a finger's 'lowest recent point' forgets upward. A bend slower than " +
+                 "about (press level ÷ this) per second counts as drift and never presses, so a SHORT " +
+                 "value misses moderately slow presses (the first version, at 0.4 s, did) and a long " +
+                 "one lets slower drifts through. [TUNABLE]")]
+        [Min(0.05f)] [SerializeField] private float _bendBaselineSeconds = FingerBendThresholds.DefaultBaselineSeconds;
+
+        [Tooltip("A finger presses only if it rose this much further than every other free finger. " +
+                 "Stops a fist, or a neighbour dragged along by tendon coupling, from sounding " +
+                 "notes. Raise it if neighbouring fingers fire; lower it if presses are ignored. [TUNABLE]")]
+        [Min(0f)] [SerializeField] private float _bendIsolationMargin = FingerBendThresholds.DefaultIsolationMargin;
+
+        [Tooltip("THUMB ONLY. Degrees of thumb curl that count as 1.0 of bend. The SDK's own thumb range " +
+                 "is 30 degrees, because its grab test needs the thumb to move little — which makes the thumb " +
+                 "about twice as sensitive as the other fingers (whose range is about 70 degrees but, blended " +
+                 "with knuckle flexion, behaves like roughly 50-70). Larger = the thumb needs more curl to " +
+                 "press. Too easy to trigger: raise this and Thumb Press Span. [TUNABLE]")]
+        [Range(10f, 120f)] [SerializeField] private float _bendThumbCurlSpanDegrees = 60f;
+
+        [Tooltip("THUMB ONLY. The thumb is pressed DOWN as often as it is curled in, and the SDK's " +
+                 "curl feature only sees it curl in. So the thumb's bend also counts how far its tip has " +
+                 "moved toward the palm side of the hand, in this many metres per unit of bend " +
+                 "(smaller = more sensitive). 0 turns it off (curl only). NEGATIVE flips the direction — use " +
+                 "it if the thumb sounds when you lift it instead of when you press it. Measured in the hand's own " +
+                 "frame, so it works however the hand is turned. With JAZZTURES_DIAG the thumb's press " +
+                 "log shows how many millimetres it moved. [TUNABLE]")]
+        [Range(-0.2f, 0.2f)] [SerializeField] private float _bendThumbPressSpanMetres = 0.08f;
+
         [Header("Note labels — written on each target (ADR-0044)")]
         [Tooltip("Write the note each target currently plays (C, E, G, B, D …) on the target. " +
                  "Replaces colour-coding the chord: the targets stay one colour. Letters only — " +
@@ -179,6 +218,23 @@ namespace Jazztures.Config
             float settle = Mathf.Clamp(_tapSettleSpeedMetresPerSecond, 0f, Mathf.Max(0f, tap - 0.001f));
             return new TouchContactThresholds(entry, tap, settle, Mathf.Max(1, _tapSettleFrames));
         }
+
+        /// <summary>
+        /// The finger-bend levels (ADR-0050), kept consistent whatever is typed in the Inspector:
+        /// the release level is always below the press level, so a bad value cannot throw at startup.
+        /// </summary>
+        public FingerBendThresholds ToFingerBendThresholds()
+        {
+            float press = Mathf.Clamp(_bendPressDelta, 0.05f, 1f);
+            float release = Mathf.Clamp(_bendReleaseDelta, 0f, press - 0.01f);
+            return new FingerBendThresholds(press, release, Mathf.Max(0.05f, _bendBaselineSeconds), Mathf.Max(0f, _bendIsolationMargin));
+        }
+
+        /// <summary>Degrees of thumb curl that count as 1.0 of thumb bend (ADR-0050).</summary>
+        public float BendThumbCurlSpanDegrees => _bendThumbCurlSpanDegrees;
+
+        /// <summary>How far the thumb tip travels toward the palm side per unit of thumb bend, metres; 0 = off (ADR-0050).</summary>
+        public float BendThumbPressSpanMetres => _bendThumbPressSpanMetres;
 
         public TargetLook TargetLook => _targetLook;
 

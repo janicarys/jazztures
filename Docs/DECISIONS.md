@@ -8,6 +8,114 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0050 — EXPLORATION (branch `explore/finger-bend-keys`): right hand plays by bending one finger per chord tone
+
+**Date:** 2026-10-12 · **Status:** **Proposed — exploration only.** Lives on `explore/finger-bend-keys`; it is
+not a thesis decision and must not be merged as one · **Milestone:** M4 (alternative to ADR-0016/0045)
+**Reverses, for the experiment only:** ADR-0005 and ADR-0018's rejection of finger bends · **Changes the
+thesis:** it *would* — CLAUDE.md §1.3 (right hand = mid-air touch targets) and §3.1 (ten targets, two
+octaves) are not met on this branch. `CLAUDE.md` is deliberately **not** edited here.
+
+### The request and the tension
+
+The student asked to try "one finger bend = one chord tone" as the right-hand input, in a separate branch,
+arguing it does not contradict the earlier co-design evidence because those bends were presented as more
+extreme and these are "more like pressing keys".
+
+The repo has recorded this idea as rejected twice: ADR-0005 (finger curl is "the piano-mimicking /
+individual-finger-bend interaction that the co-design sessions explicitly rejected") and ADR-0018 (raised
+again as a fix for hard-to-hit targets, rejected again, "recording the re-test here because a panel may ask
+whether the constraint was ever pressure-tested"). CLAUDE.md §1.2 adds that keyboard realism bought with
+gestural fluidity is a regression, and `DESIGN-SPACE.md` D4 records finger shape as the least reliable
+classification signal this hardware gives. The reading that "pressing keys" is the part co-design rejected is at
+least as plausible as the reading that only extreme bends were. The co-design notes are not in the repo, so
+neither reading is checked here.
+
+It is therefore built as an experiment, and **before it could ship** someone must cite what in the co-design
+findings distinguishes a key-sized bend from the bends that were rejected.
+
+### What is built
+
+- **`Core/Melody/FingerBendDetector`** (pure, 21 tests) — turns five normalised finger bends into presses. Each
+  finger is a **peak/trough machine** (revised, see below): free, it remembers its lowest recent point and
+  presses when it has risen `PressDelta` above it; held, it remembers its peak and is re-armed when it has
+  fallen `ReleaseDelta` below that. Everything is measured from the finger's own last turning point, never from
+  a fixed resting level. Plus an **isolation margin** (a finger presses only if it rose `IsolationMargin`
+  further than every other free finger, so a fist, a hand relaxing from open, or a neighbour dragged along by
+  tendon coupling sounds nothing — and `Blocked(finger)` reports when that happened). `FingerBendThresholds`
+  holds the four levels.
+- **`Input/FingerBendBinder`** — reads the SDK's `FingerShapes` features (no hand-rolled joint maths, §3.4):
+  **curl blended with knuckle flexion**, `(2·curl + flexion)/3`, as the SDK's own grab detection does (the thumb
+  uses curl alone), normalised with `PalmGrabAPI.CURL_RANGE`. It calls the **existing** `MelodyEngine`.
+  Chord-tone locking, retrigger cooldown and the velocity curve are untouched. Loudness is the finger's tip
+  speed through the bend; a slow deliberate press is lifted to the engine's entry gate rather than dropped. It
+  starts over after a tracking gap (§3.5) and ignores frames whose joint read failed.
+- **Mapping:** thumb = root, index = 3rd, middle = 5th, ring = 7th, pinky = 9th — slots 0..4 of
+  `ChordToneSet`, so "finger 3 is always the fifth" and the tones re-pitch with the left hand's chord.
+- **`Presentation/FingerNoteLabels`** — a small letter above each fingertip saying what that finger plays now;
+  flashes when its note sounds, including the system's demonstration notes in Watch-and-Listen (standing in for
+  the target spheres the ghost hand lights in touch mode). Hides the touch-target pads while this input is on.
+- **`Jazztures ▸ Experiments ▸ Use Finger-Bend Input` / `Use Touch Targets Again`**
+  (`Experiments/Editor/FingerBendSetup`) — wires or unwires all of the above in the open scene; Ctrl+Z undoes
+  it. The harness gained an optional `Finger Bend` slot; the lesson flow already took its melody input as a
+  generic component, so it needed no change.
+- Tuning fields: `MelodyConfig` ► *Finger bend (exploration)*. All `[TUNABLE]`, unmeasured.
+
+### `TODO(OPEN)`
+
+- **Octaves.** Five fingers give five tones; §3.1 specifies two octaves. Chosen by the student for the trial:
+  **one octave only** (slots 0..4, lowest ≥ MIDI 72). Hand height as an octave switch was the alternative.
+  Nothing about the upper octave (slots 5..9) is wired.
+- **Loudness source.** Fingertip speed was reused because the engine's contract is metres per second; curl
+  speed may be a better signal.
+- The thumb uses the SDK's thumb curl range; whether the thumb "presses" naturally is untested.
+
+### Revision 1 (same day) — "I bend a finger and sometimes nothing plays"
+
+The first version was inconsistent on device. Reading it against the SDK source found five causes, any of which
+produces exactly that; **which one dominated is not yet known**, and the diagnostics below exist to say.
+
+1. **The signal ignored the knuckle.** `FingerShapes.GetCurlValue` averages the angles at the finger's *middle*
+   and *tip* joints (Finger1–2–3 and 2–3–Tip); it does not include the knuckle. A key press is mostly a knuckle
+   movement with the finger staying fairly straight, so curl barely changed for it, while curling the fingertips
+   registered at once — "sometimes it works". Fixed by blending in `GetFlexionValue` (the knuckle), as the SDK's
+   own grab detection does. This is the most likely main cause.
+2. **One low-confidence finger silenced all five.** Any finger reported low-confidence made the whole frame be
+   skipped, and a gap over 250 ms reset the detector — so a bend that straddled the reset was lost outright. The
+   thumb and pinky flicker often, and a finger folding toward the palm hides itself. The gate is now **off by
+   default** (`Require High Confidence` on the binder turns the old behaviour back on for comparison).
+3. **The "resting level" lagged a moderately slow bend away.** It followed the finger upward with a 0.4 s time
+   constant, so a 0.2 bend over half a second reached only ~0.11 above it and never pressed. The drift memory is
+   now 2 s, so only bends slower than roughly press-level ÷ 2 s are treated as drift.
+4. **A press could fail to re-arm.** The finger was "released" only when it came back within the release level
+   *of its original rest*. A hand that settled back slightly more bent than it began stayed "down" and the next
+   bend was silent for seconds. Re-arming is now relative to the finger's own peak (hence the peak/trough
+   detector), and a test reproduces the case.
+5. **The isolation margin can swallow a press silently** when a neighbour moves nearly as much. That is by
+   design, but it is now visible: the log says "bent … but another finger moved nearly as much — ignored".
+
+**Revision 2 — the thumb.** The student found the thumb unintuitive: it is pressed *down* instinctively, but the signal needed it to curl *in*. The SDK's curl feature averages the angles at the thumb's middle joints, and a downward press swings the whole thumb toward the palm side while those joints stay nearly straight; the SDK itself leaves flexion out of the thumb in its grab detection. The thumb's bend is now its curl **plus** the offset of its tip toward the palm side, measured in the wrist's own frame with the SDK's palmar axis (`Constants.RightPalmar` / `LeftPalmar`), so it works however the hand is turned. Either motion raises it and the detector, which only looks at change, treats it like any other finger. The scale is `Thumb Press Span` (0.04 m per unit of bend, `[TUNABLE]`, guessed). **Unverified on device**: the sign and size of the offset are assumptions from the SDK's axis definitions, so a negative span flips it and the thumb's press log prints the offset in millimetres.
+
+**Revision 3 — the thumb was then too easy.** Two reasons, both mine. The SDK's thumb curl range is 30° (its grab test needs the thumb to move little), against ~70° for the other fingers, so the same 0.15–0.2 of bend meant about half the movement; and the palm-side offset added in Revision 2, at 0.04 m per unit, let roughly 6 mm of ordinary thumb movement press. Because the thumb's summed bend also rose faster than the others' whenever the hand moved, it won the isolation test that is meant to stop a closing hand sounding a note. Both scales are now explicit and halved: `Thumb Curl Span` 60° (was the SDK's 30°, a deliberate departure from "verbatim") and `Thumb Press Span` 0.08 m (was 0.04). Both are guesses to tune on the headset.
+
+Not touched, but worth knowing: `MelodyEngine.TriggerTarget` plays nothing unless the left hand is holding a
+chord, and drops a repeat of the same finger within 80 ms. The per-press log line says "gated" in those cases.
+
+### What to measure on the headset
+
+False presses at rest and while moving the hand; missed presses; neighbour fingers sounding (ring/pinky above
+all); and the same timing drills (ADR-0043) with this input against the arc — the drills already log which
+mechanic was used. With `JAZZTURES_DIAG` set the log shows each press (rise, tip speed, whether it sounded), each
+press that the isolation margin suppressed, and every few seconds how often each finger was low-confidence.
+
+### Not verified
+
+Compiles (Config, Input, Presentation, App, and the Editor assembly checked in throwaway projects) and the
+detector is headless-tested. **Revision 1 has not been tried on a headset**: the causes above are read from the
+code and the SDK source, not observed.
+
+---
+
 ## ADR-0049 — Right-hand targets lie flat, face up, struck from above; the octaves are near and far; more spacing
 
 **Date:** 2026-10-12 · **Status:** Accepted (student request); compiles — **not seen or tried on a
