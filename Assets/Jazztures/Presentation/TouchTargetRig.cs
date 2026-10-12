@@ -8,11 +8,11 @@ namespace Jazztures.Presentation
 {
     /// <summary>
     /// Spawns the ten <see cref="TouchTarget"/>s on an arc centred on the learner's right
-    /// shoulder (ADR-0019): five scale-degree columns swept around the pivot at a constant
-    /// reach, two octave rows. Every target is the same distance from the shoulder, so the
-    /// outer degrees are no harder to reach than the centre and a glissando is a single
-    /// shoulder rotation. Each target faces radially outward, along the axis the fingertip
-    /// approaches on.
+    /// shoulder (ADR-0019): five scale-degree columns swept around the pivot, two octave rows
+    /// (near = lower, far = higher). Within a row every target is the same distance from the
+    /// shoulder, so the outer degrees are no harder to reach than the centre and a glissando
+    /// is a single shoulder rotation. Each target lies flat, face up, and is struck from
+    /// above (ADR-0049).
     ///
     /// <para>
     /// The rig is body-anchored at the shoulder pivot and keeps its facing with the pure
@@ -102,8 +102,8 @@ namespace Jazztures.Presentation
             float committed = (float)_recenter.Update(ReadHeadYaw(), Time.deltaTime);
             ApplyAnchor(committed);
 
-            // The targets face outward along the approach axis, so the note labels are turned
-            // to the learner after the anchor has moved them (ADR-0044).
+            // The note labels are laid flat on their pads, upright for the learner, after the
+            // anchor has moved the targets (ADR-0044, ADR-0049).
             Vector3 viewer = _head.position;
             for (int i = 0; i < _targets.Count; i++)
             {
@@ -173,24 +173,26 @@ namespace Jazztures.Presentation
         }
 
         /// <summary>
-        /// One target's place on the shoulder arc (ADR-0019). Column <paramref name="degree"/>
-        /// is swept by <c>ColumnAngleDegrees</c> about the pivot's up axis; the two octave
-        /// rows are stacked vertically. The target faces radially outward so its local +Z —
-        /// the depth axis <see cref="TouchTarget.Contains"/> tests along — points back at
-        /// the learner's approaching fingertip.
+        /// One target's place on the shoulder arc (ADR-0019, ADR-0049). Column
+        /// <paramref name="degree"/> is swept by <c>ColumnAngleDegrees</c> about the pivot's up
+        /// axis. The targets lie flat, face up, and are struck from above, so their local +Z —
+        /// the depth axis <see cref="TouchTarget.Contains"/> tests along — points straight
+        /// <b>down</b>, the way the fingertip travels. That is also why the two octave rows are
+        /// <b>near and far</b> rather than stacked: a pad stacked above another would sit in the
+        /// path of a fingertip coming down onto the lower one. The far row is the higher octave.
         /// </summary>
         private void LocalPlacement(int octave, int degree, out Vector3 position, out Quaternion rotation)
         {
             float midDegree = (ChordToneSet.DegreesPerOctave - 1) / 2f;
             float angleDeg = (degree - midDegree) * _config.ColumnAngleDegrees;
             float angleRad = angleDeg * Mathf.Deg2Rad;
-            float reach = _config.ReachDistanceMetres;
+            float reach = _config.ReachDistanceMetres + (octave - 0.5f) * _config.RowSpacingMetres;
 
             position = new Vector3(
                 Mathf.Sin(angleRad) * reach,
-                (octave - 0.5f) * _config.RowSpacingMetres,
+                0f,
                 Mathf.Cos(angleRad) * reach);
-            rotation = Quaternion.Euler(0f, angleDeg, 0f);
+            rotation = Quaternion.Euler(90f, angleDeg, 0f); // +Z straight down, yawed with its column
         }
 
         /// <summary>
@@ -306,7 +308,10 @@ namespace Jazztures.Presentation
 
             Gizmos.matrix = pivotFrame;
             Gizmos.color = new Color(0.4f, 0.6f, 0.9f, 0.25f);
-            Gizmos.DrawWireSphere(Vector3.zero, _config.ReachDistanceMetres);
+            for (int row = 0; row < 2; row++)
+            {
+                DrawRing(_config.ReachDistanceMetres + (row - 0.5f) * _config.RowSpacingMetres);
+            }
 
             for (int slot = 0; slot < ChordToneSet.TargetCount; slot++)
             {
@@ -316,6 +321,20 @@ namespace Jazztures.Presentation
                 Gizmos.matrix = pivotFrame * Matrix4x4.TRS(p, r, Vector3.one);
                 Gizmos.color = new Color(0.55f, 0.80f, 1f, 0.6f);
                 Gizmos.DrawWireCube(Vector3.zero, new Vector3(radius * 2f, radius * 2f, halfDepth * 2f));
+            }
+        }
+
+        /// <summary>A horizontal ring about the pivot, in the current Gizmos matrix.</summary>
+        private static void DrawRing(float radius)
+        {
+            const int Segments = 48;
+            Vector3 previous = new Vector3(0f, 0f, radius);
+            for (int i = 1; i <= Segments; i++)
+            {
+                float a = i * (Mathf.PI * 2f / Segments);
+                Vector3 next = new Vector3(Mathf.Sin(a) * radius, 0f, Mathf.Cos(a) * radius);
+                Gizmos.DrawLine(previous, next);
+                previous = next;
             }
         }
     }

@@ -8,6 +8,72 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0049 — Right-hand targets lie flat, face up, struck from above; the octaves are near and far; more spacing
+
+**Date:** 2026-10-12 · **Status:** Accepted (student request); compiles — **not seen or tried on a
+headset** · **Milestone:** M4
+**Supersedes:** the radially-outward, vertically-stacked layout of ADR-0019 (its shoulder pivot, column
+sweep and lazy recenter are unchanged) · **Changes the thesis:** nothing in CLAUDE.md `[THESIS]`
+(targets are "touch targets in mid-air", orientation unspecified). **Chapter 6 may need matching wording**
+if it describes the targets as facing the learner, or the octaves as an upper and a lower row.
+
+### The request
+
+"Make the right-hand note targets face up instead and give them a bit more spacing between."
+
+### What the code showed
+
+- Everything about a target is defined along its **local Z**: the trigger volume (`TargetVolume`), the push
+  of the paddle (ADR-0046) and the contact rule (ADR-0045) all read the fingertip in the target's local
+  frame. Orientation therefore lives in one place — `TouchTargetRig.LocalPlacement` — and "face up" is a
+  placement change, not a rewrite of the hit test.
+- **The two octave rows could not stay stacked.** They were 10 cm apart *vertically* and each volume is
+  12 cm deep. With the targets struck from above, a fingertip coming down onto the lower pad would pass
+  through the upper pad's volume and sound the wrong octave.
+- **The saved asset's column angle was 8°, not the 12° the calibration doc recorded.** At a 0.45 m reach
+  that is a 6.3 cm chord between neighbours: a 3 mm gap between 3 cm-radius pads, well inside tracking
+  jitter. This is the real reason the targets felt crowded.
+
+### Decision
+
+1. **Each target lies flat, face up.** Its local +Z points straight down — the way the fingertip travels —
+   so the pad rests at the top of the volume and is pushed down. The pad, rail, label and volume code are
+   unchanged; only the placement rotation is.
+2. **The octave rows are near and far**, not stacked: the near row (lower octave) at `reach − row/2`, the far
+   row (higher octave) at `reach + row/2`, both at the pivot's height. Columns still sweep about the pivot,
+   so within a row a glissando is one shoulder rotation and the outer degrees are no harder to reach.
+   Higher octave = farther away, as on a drum-pad grid, in place of "higher up".
+3. **More spacing.** Column angle 8° → **12°** (the value the doc already recorded): 8.3 cm between
+   neighbours on the near row, 10.6 cm on the far row, i.e. gaps of 2.3 / 4.6 cm between 3 cm-radius pads.
+   Row spacing 10 cm vertical → **11 cm near/far**.
+4. **Labels lie flat on the pad**, upright for the learner (their "up" points away from the viewer, and
+   they look back up the travel axis). An upright billboard would stand half-sunk into a flat pad.
+5. The Scene-view gizmo draws the two rows' rings in place of one sphere.
+
+### Consequences
+
+- **Reach.** The far row is `reach + 5.5 cm` = 0.505 m from the shoulder pivot, which at the default
+  pivot height (−0.25 m from the head) is a forward-extended arm. The near row (0.395 m) is easier than
+  anything before. Lower `Arc Reach` a little, or raise the pivot height offset, if the far row tires.
+- **Height.** Both rows now sit at the pivot's height rather than ±5 cm around it. `Shoulder Height Offset`
+  moves the whole set up or down, as the left plate's height offset does for the plate.
+- **A move toward a pad-pressing metaphor.** CLAUDE.md §1.2 warns against drifting toward a virtual
+  keyboard. This stays a 2 × 5 grid of degree-targets, not sorted by pitch and re-pitched in place, so it
+  is a drum-pad grid rather than a keyboard — but the student should judge whether it reads that way.
+- `MelodyConfig`'s code defaults now match the asset (12° / 11 cm); the old defaults were 16° / 14 cm.
+- No unit test: the placement is Unity-side geometry (`Quaternion`/`Vector3`) with no `Core` logic to
+  assert; the hit test it feeds is unchanged and already covered. Checked by compiling the Config and
+  Presentation assemblies and by working the rotation through by hand (`Euler(90°, yaw, 0)` maps +Z to
+  straight down).
+
+### Open
+
+- Whether the far row is too far, and whether higher-octave-farther reads naturally, are for the headset.
+- Spacing is by feel, not a pilot measurement. Record the final column angle and row spacing in
+  `Docs/CALIBRATION.md` after the pilot.
+
+---
+
 ## ADR-0048 — The strike plate's hitbox is built from its visual, not typed in beside it
 
 **Date:** 2026-10-12 · **Status:** Accepted (on-device report); the box is headless-tested and the

@@ -33,11 +33,14 @@ namespace Jazztures.Config
                  "pivot (ADR-0019). Chord spacing = 2·reach·sin(angle/2); it must clear " +
                  "2×radius plus tracking jitter with room to spare, or a finger reaching " +
                  "for one target clips its neighbours.")]
-        [Range(4f, 40f)] [SerializeField] private float _columnAngleDegrees = 16f;
+        [Range(4f, 40f)] [SerializeField] private float _columnAngleDegrees = 12f;
 
-        [Tooltip("Vertical spacing between the two octave rows, metres. No reach cost — " +
-                 "the arm does not stretch to go up — so this can be generous.")]
-        [Min(0.001f)] [SerializeField] private float _rowSpacingMetres = 0.14f;
+        [Tooltip("Spacing between the two octave rows, metres, centre to centre. The targets lie " +
+                 "face up and are struck from above, so the rows are NEAR and FAR rather than " +
+                 "stacked (ADR-0049): the near row (lower octave) sits half this closer than the " +
+                 "arc radius, the far row (higher octave) half this farther. Costs reach — keep " +
+                 "the far row (reach + half this) comfortably inside an arm's length.")]
+        [Min(0.001f)] [SerializeField] private float _rowSpacingMetres = 0.11f;
 
         [Tooltip("Volume multiplier for the 'hovering' glow — a target lights this much " +
                  "bigger than its trigger volume as a fingertip nears, so aim is learnable.")]
@@ -48,9 +51,11 @@ namespace Jazztures.Config
         [Min(1)] [SerializeField] private int _speedSampleFrames = 3;
 
         [Header("Shoulder pivot — consumed by the touch-target rig (ADR-0015/0019)")]
-        [Tooltip("Arc radius: the reach from the shoulder pivot to every target, metres. " +
-                 "Every column sits at this distance, so the outer degrees are no further " +
-                 "away than the centre and a glissando is one shoulder sweep.")]
+        [Tooltip("Arc radius: the reach from the shoulder pivot to the middle of the two rows, " +
+                 "metres. Within a row every column sits at the same distance, so the outer " +
+                 "degrees are no further away than the centre and a glissando is one shoulder " +
+                 "sweep. The targets are all at the pivot's height — raise or lower them with " +
+                 "Shoulder Height Offset below.")]
         [Min(0.05f)] [SerializeField] private float _reachDistanceMetres = 0.45f;
 
         [Tooltip("Vertical offset of the shoulder pivot from head height, metres. Negative " +
@@ -105,7 +110,7 @@ namespace Jazztures.Config
                  "0.005 is roughly a 3 cm capital by estimate, which fits the 6 cm pad. The " +
                  "first labels looked tiny because they inherited a 0.05-scaled sphere's scale " +
                  "(fixed in ADR-0046), not because this number was too small. Columns are " +
-                 "~6 cm apart, so much above ~0.010 starts to crowd neighbours. [TUNABLE]")]
+                 "~8 cm apart at the near row, so much above ~0.010 starts to crowd neighbours. [TUNABLE]")]
         [Min(0.001f)] [SerializeField] private float _labelCharacterSize = 0.005f;
 
         [Tooltip("Label colour. Fixed — the labels never change colour.")]

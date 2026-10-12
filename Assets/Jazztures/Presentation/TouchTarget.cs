@@ -14,10 +14,10 @@ namespace Jazztures.Presentation
     /// <para>
     /// The trigger volume is a cylinder along the target's local Z — generous in depth,
     /// tight in the XY face (ADR-0018): depth is the axis a person cannot judge in mid-air,
-    /// while the face still selects scale degree and octave. Local +Z points <b>away</b> from
-    /// the learner (the arc is built outward from the shoulder), so a fingertip reaching out
-    /// meets the volume at its -Z end. The generated visual is a <b>paddle</b> (ADR-0046): a
-    /// flat pad resting at that near end, on a faint rail the length of the volume. It says
+    /// while the face still selects scale degree and octave. The target lies flat, face up
+    /// (ADR-0049): local +Z points <b>down</b>, so a fingertip coming down onto it meets the
+    /// volume at its -Z (top) end. The generated visual is a <b>paddle</b> (ADR-0046): a
+    /// flat pad resting at that top end, on a faint rail the length of the volume. It says
     /// "push me": while a fingertip is inside, the pad is carried along the rail in front of it
     /// (<see cref="SetFingerDepth"/>), making the depth visible, and springs back on release.
     /// The pad is drawn at the volume's own radius, so what is pushed is what triggers.
@@ -73,7 +73,7 @@ namespace Jazztures.Presentation
         // The paddle's moving part: a unit-scale root the pad (and its label) ride on.
         private Transform _pad;
         private float _padHalfThickness;
-        private float _padRestZ;   // resting at the near face, toward the learner
+        private float _padRestZ;   // resting at the near face, where the fingertip arrives from (the top)
         private float _padMaxZ;    // bottomed out against the far face
         private float _padZ;
         private float _padTargetZ;
@@ -135,8 +135,8 @@ namespace Jazztures.Presentation
             _pad = padRoot;
             _padHalfThickness = padHalfThickness;
 
-            // +Z points away from the learner (the arc is built outward from the shoulder), so
-            // the pad rests on the near, -Z end and is pushed toward +Z.
+            // +Z points down (the target lies face up, ADR-0049), so the pad rests on the top,
+            // -Z end and is pushed toward +Z.
             _padRestZ = -halfDepth + padHalfThickness;
             _padMaxZ = halfDepth - padHalfThickness;
             _padZ = _padTargetZ = _padRestZ;
@@ -187,8 +187,8 @@ namespace Jazztures.Presentation
             {
                 var go = new GameObject("Label");
 
-                // On the paddle the label rides the pad, just in front of its learner-facing
-                // face; on a supplied prefab it sits at the target's centre.
+                // On the paddle the label rides the pad, just in front of its fingertip-facing
+                // (top) face; on a supplied prefab it sits at the target's centre.
                 Transform parent = _pad != null ? _pad : transform;
                 go.transform.SetParent(parent, worldPositionStays: false);
                 go.transform.localPosition = _pad != null
@@ -223,10 +223,11 @@ namespace Jazztures.Presentation
         }
 
         /// <summary>
-        /// Turn the label to face <paramref name="viewerPosition"/>, kept upright. The
-        /// target itself faces outward along the approach axis, so without this the letter
-        /// would be edge-on or mirrored from where the learner stands. Cheap enough for the
-        /// rig to call on all ten targets every frame.
+        /// Lay the label flat on the pad, readable from <paramref name="viewerPosition"/> (ADR-0049).
+        /// The target is struck from above along its local +Z, so the label looks back up that
+        /// axis, and its "up" points away from the viewer — the letter reads upright from where
+        /// the learner stands. A label that billboarded upright would stand half-sunk into a
+        /// pad lying flat. Cheap enough for the rig to call on all ten targets every frame.
         /// </summary>
         public void FaceLabel(Vector3 viewerPosition)
         {
@@ -235,10 +236,17 @@ namespace Jazztures.Presentation
                 return;
             }
 
-            Vector3 away = _label.transform.position - viewerPosition;
+            Vector3 axis = transform.forward; // the way the fingertip travels
+            Vector3 away = Vector3.ProjectOnPlane(_label.transform.position - viewerPosition, axis);
+            if (away.sqrMagnitude < 1e-6f)
+            {
+                // The viewer is straight above the pad: any horizontal heading will do.
+                away = Vector3.ProjectOnPlane(Vector3.forward, axis);
+            }
+
             if (away.sqrMagnitude > 1e-6f)
             {
-                _label.transform.rotation = Quaternion.LookRotation(away, Vector3.up);
+                _label.transform.rotation = Quaternion.LookRotation(axis, away);
             }
         }
 

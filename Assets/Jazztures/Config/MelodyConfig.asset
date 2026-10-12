@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Jazztures.Config::Jazztures.Config.MelodyConfig
   _targetRadiusMetres: 0.03
   _targetDepthMetres: 0.12
-  _columnAngleDegrees: 8
-  _rowSpacingMetres: 0.1
+  _columnAngleDegrees: 12
+  _rowSpacingMetres: 0.11
   _hoverScale: 1.6
   _speedSampleFrames: 3
   _reachDistanceMetres: 0.45

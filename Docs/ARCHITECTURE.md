@@ -199,7 +199,7 @@ so the cue track can drive the HUD without the HUD ever steering the lesson (§2
 | Hand-pose sources, keyboard input | `Input/` | keyboard ok · all three left-hand recognisers verified on device (ADR-0013/0014); `HandPoseFixture_M3.txt` recorded, replay verified at desk · ii as "palm sideways" + gravity-up and the any-part-of-hand plate (ADR-0047): compiles, applied by `Jazztures ▸ Gestures` menu, **re-try on device** |
 | ScriptableObject event channels | `Events/` | done |
 | Lesson assets, `LessonRunner` | `Lessons/` | L1 rebuilt as a 3-phase follow-along (GestureLearning → W&L → TryYourself), wired in `main.unity` · verify on device |
-| Right-hand touch targets — shoulder-arc rig, body anchor, re-pitch, fingertip trigger, paddle look, note labels | `Presentation/` | built (ADR-0015/0016/0019); tap-inside trigger ADR-0045, labels ADR-0044, paddle ADR-0046 · **re-try on device** |
+| Right-hand touch targets — shoulder-arc rig, body anchor, re-pitch, fingertip trigger, paddle look, note labels | `Presentation/` | built (ADR-0015/0016/0019); tap-inside trigger ADR-0045, labels ADR-0044, paddle ADR-0046, flat face-up targets with near/far octave rows ADR-0049 · **re-try on device** |
 | Lesson HUD — mode banner, pose prompt, captions | `Presentation/LessonHud.cs` | M5 placeholder (runtime `TextMesh`, builtin font) · ADR-0021 |
 | Ghost-hand renderer | — | not built · ADR-0012 spec'd; the HUD pose prompt stands in for M5 |
 | SMF lesson importer | — | M6 |
