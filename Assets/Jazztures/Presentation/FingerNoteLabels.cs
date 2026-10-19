@@ -13,7 +13,8 @@ namespace Jazztures.Presentation
     /// right-hand input there are no targets to carry the note letters, so each fingertip carries
     /// its own — a small letter floating just above the finger saying which note that finger plays
     /// <i>now</i>. It re-pitches on every chord change, exactly as the touch targets' labels do
-    /// (ADR-0044), and flashes when its note sounds. Letters only, no octave numbers (§1.5).
+    /// (ADR-0044), and lights up when its note sounds, the same way the left hand's chord name does
+    /// (<see cref="LabelGlow"/>). Letters only, no octave numbers (§1.5).
     ///
     /// <para>
     /// Presentation only (§2.3): it reads the chord and note channels and the hand's joint poses and
@@ -26,8 +27,6 @@ namespace Jazztures.Presentation
     {
         // How the labels are drawn, not how anything behaves — cosmetic, so not [TUNABLE].
         private const float HoverAboveTipMetres = 0.035f;
-        private const float FlashSeconds = 0.20f;
-        private static readonly Color StruckColor = new Color(1f, 0.92f, 0.60f, 1f);
 
         [Tooltip("The right Interaction SDK Hand component.")]
         [SerializeField] private MonoBehaviour _rightHand;
@@ -63,7 +62,7 @@ namespace Jazztures.Presentation
         private readonly int[] _midi = new int[Tips.Length];
         private readonly float[] _flash = new float[Tips.Length];
         private IHand _hand;
-        private Color _color = new Color(0.96f, 0.96f, 0.98f, 1f);
+        private LabelGlow _glow;
 
         private void Awake()
         {
@@ -75,12 +74,8 @@ namespace Jazztures.Presentation
                 return;
             }
 
-            float size = 0.005f;
-            if (_config != null)
-            {
-                size = _config.LabelCharacterSize;
-                _color = _config.LabelColor;
-            }
+            float size = _config != null ? _config.LabelCharacterSize : 0.005f;
+            _glow = new LabelGlow(_config);
 
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             for (int f = 0; f < _labels.Length; f++)
@@ -94,7 +89,7 @@ namespace Jazztures.Presentation
                 label.anchor = TextAnchor.MiddleCenter;
                 label.alignment = TextAlignment.Center;
                 label.characterSize = size;
-                label.color = _color;
+                label.color = _glow.Resting;
                 label.text = string.Empty;
 
                 if (font != null && go.TryGetComponent(out MeshRenderer labelRenderer))
@@ -195,6 +190,8 @@ namespace Jazztures.Presentation
             for (int f = 0; f < _labels.Length; f++)
             {
                 TextMesh label = _labels[f];
+                _flash[f] = _glow.Decay(_flash[f], Time.deltaTime); // counts down out of sight too
+
                 Pose pose = default;
                 bool visible = shown && _hand.GetJointPose(Tips[f], out pose);
                 if (label.gameObject.activeSelf != visible)
@@ -216,12 +213,7 @@ namespace Jazztures.Presentation
                     label.transform.rotation = Quaternion.LookRotation(away, Vector3.up);
                 }
 
-                if (_flash[f] > 0f)
-                {
-                    _flash[f] = Mathf.Max(0f, _flash[f] - Time.deltaTime / FlashSeconds);
-                }
-
-                label.color = Color.Lerp(_color, StruckColor, _flash[f]);
+                _glow.Apply(label, _flash[f]);
             }
         }
     }

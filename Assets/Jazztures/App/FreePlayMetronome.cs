@@ -14,14 +14,15 @@ namespace Jazztures.App
     ///
     /// <para>
     /// Starts from <see cref="MetronomeSettings"/> (running only if
-    /// <see cref="MetronomeSettings.ClickInFreePlay"/>). The tempo is changed from the menu's
-    /// +/- buttons via <see cref="StepTempo"/> and, in the Editor / over Link, by desk keys
-    /// (<see cref="KeyboardMetronomeInput"/>). The tempo is kept across entering and leaving
-    /// free play. Every change restarts the pulse from a fresh pre-roll so the grid stays exact.
+    /// <see cref="MetronomeSettings.ClickInFreePlay"/>). The tempo is changed, in the Editor /
+    /// over Link, by desk keys (<see cref="KeyboardMetronomeInput"/>) via <see cref="StepTempo"/>.
+    /// The gesture menu has no control for it (ADR-0051 — its tempo card sets a <i>lesson's</i>
+    /// tempo). The tempo is kept across entering and leaving free play. Every change restarts the
+    /// pulse from a fresh pre-roll so the grid stays exact.
     /// </para>
     ///
     /// <para>
-    /// Stepping the tempo from the menu (free play not running) plays a short preview of
+    /// Stepping the tempo while free play is not running plays a short preview of
     /// <see cref="MetronomeSettings.TempoPreviewBars"/> bars, so the change can be heard
     /// without entering free play.
     /// </para>

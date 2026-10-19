@@ -125,6 +125,25 @@ namespace Jazztures.Presentation
         /// <summary>The hand's peak downward speed, metres per second (0 when it is not moving down), as of the last <see cref="Sense"/> call this frame.</summary>
         public float CurrentEntrySpeed => _cachedEntrySpeed;
 
+        /// <summary>
+        /// The middle of the visual's top face in world space - where a hand lands on the plate.
+        /// The ghost hand (ADR-0052) aims for this when it demonstrates a strike. The plate is only
+        /// ever yawed (ADR-0040), so the renderer's axis-aligned bounds give the top face exactly.
+        /// </summary>
+        public Vector3 TopCenterWorld
+        {
+            get
+            {
+                if (_renderer == null)
+                {
+                    return transform.position;
+                }
+
+                Bounds bounds = _renderer.bounds;
+                return new Vector3(bounds.center.x, bounds.max.y, bounds.center.z);
+            }
+        }
+
         private void Awake()
         {
             _left = Resolve<IHand>(_leftHand, nameof(_leftHand));

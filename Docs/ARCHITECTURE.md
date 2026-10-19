@@ -75,6 +75,7 @@ argument — nothing downstream changes.
 | `IHandPoseSource` | one frame: candidate pose + per-hand tracking quality | `MetaXRHandPoseSource`, `KeyboardHandPoseSource`, `ReplayHandPoseSource`, `FakeHandPoseSource` |
 | `INoteSink` | a `NoteEvent` (pitch, velocity, DSP time, channel, hand) | `SamplerNoteSink`, `ModeGatedNoteSink`, `ChannelNoteSink`, `CompositeNoteSink`, `NullNoteSink` |
 | `IMusicalClock` | the current time, in DSP seconds | `DspMusicalClock` (`AudioSettings.dspTime`), `VirtualClock` (tests) |
+| `IMenuHandSource` | one frame of the right hand for the menu: leftward / rightward / downward palm speed and fist closure (ADR-0051) | `MetaXRMenuHandSource`, `KeyboardMenuHandSource` |
 | `IMetronomeOutput` | a started `Metronome`, to be sounded ahead on the DSP timeline (clicks bypass `INoteSink` — they are not part of the performance) | `MetronomeVoice` |
 
 ---
@@ -195,7 +196,12 @@ so the cue track can drive the HUD without the HUD ever steering the lesson (§2
 | Latency percentiles, hand-pose recorder | `Core/Diagnostics` | done · tested |
 | Sampler, voice pool, DSP clock, piano bank | `Audio/` | verified in editor |
 | Audible metronome — `MetronomeVoice` (scheduled clicks), `MetronomeSettings`, free-play pulse, quiet-build `DiagLog` | `Audio/`, `Config/`, `App/`, `Diagnostics/` | ADR-0043 steps 1–2 · compiles; **listen on device** |
-| Timing test — `TimingDrillRunner`, `TimingDrillDefinition` presets, menu + results footer, CSV | `Lessons/`, `App/`, `Presentation/` | ADR-0043 steps 3–4 · compiles; **run on device** |
+| Timing test — `TimingDrillRunner`, `TimingDrillDefinition` presets, CSV | `Lessons/` | ADR-0043 steps 3–4 · **no longer reachable from the menu** (dropped from the flow in ADR-0051); code and assets kept |
+| Ghost strike — `GhostStrikeSchedule` (when the ghost's hand meets the pad, how far along it is), `LessonTimeline.StrikeBeats`, `GhostFrame.StrikeProgress` / `StrikeCount` (Watch and Listen: the system's playback trails the ghost by the strike lead); `GhostHandView` holds the ghost above `ChordStrikeTarget`, drops it onto it and flashes it | `Core/Lessons`, `Lessons/`, `Presentation/` | ADR-0052 · Core tested (18) · compiles; **not run in the Editor, not seen on a headset** |
+| Tutorial — `TutorialRunner` (gated steps: hands in view / out of view / fist / thumb up / flick / strike), `TutorialPlan`, `TutorialThresholds`; `MenuHandFrame` carries the left hand's tracking, open-hand closure and thumb angle | `Core/Tutorial`, `Core/Ports` | ADR-0053 · done · tested (32) |
+| Tutorial surface — `TutorialDefinition` (the script as an asset), `TutorialView` (the line), `TutorialGhostView` (a ghost right hand from the SDK's `OpenXRGhost-HandRight`, reusing the ii and V poses), `SkyDome` (black, then a sunrise); wired by the extended `MenuSetup` | `Lessons/`, `Presentation/`, `App/Editor` | ADR-0053 · compiles; **not run in the Editor, not tried with hands** |
+| Gesture menu — `MenuGestureRecognizer` (right-hand flick / strike / fist), `MenuNavigator` (lessons → modes → post-run), `MenuModel`, `MenuHandFrame` | `Core/Menu`, `Core/Ports` | ADR-0051 · done · tested (66) |
+| Menu — `MenuView` (scrolling card row), `MetaXRMenuHandSource` / `KeyboardMenuHandSource` / `MenuInputDriver`, `MenuConfig`, `LessonFlowController` (catalog → model → cards → runs), `MenuSetup` editor command | `Presentation/`, `Input/`, `Config/`, `App/` | ADR-0051 · compiles; **not run in the Editor, not tried with hands**; tutorial `TODO(OPEN)` |
 | Hand-pose sources, keyboard input | `Input/` | keyboard ok · all three left-hand recognisers verified on device (ADR-0013/0014); `HandPoseFixture_M3.txt` recorded, replay verified at desk · ii as "palm sideways" + gravity-up and the any-part-of-hand plate (ADR-0047): compiles, applied by `Jazztures ▸ Gestures` menu, **re-try on device** |
 | ScriptableObject event channels | `Events/` | done |
 | Lesson assets, `LessonRunner` | `Lessons/` | L1 rebuilt as a 3-phase follow-along (GestureLearning → W&L → TryYourself), wired in `main.unity` · verify on device |

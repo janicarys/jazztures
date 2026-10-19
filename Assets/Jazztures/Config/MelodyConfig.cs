@@ -152,8 +152,27 @@ namespace Jazztures.Config
                  "~8 cm apart at the near row, so much above ~0.010 starts to crowd neighbours. [TUNABLE]")]
         [Min(0.001f)] [SerializeField] private float _labelCharacterSize = 0.005f;
 
-        [Tooltip("Label colour. Fixed — the labels never change colour.")]
+        [Tooltip("Label colour at rest. The touch targets' letters keep it for good; the finger letters and " +
+                 "the chord name dim it a little (Resting Brightness) so that lighting up stands out.")]
         [SerializeField] private Color _labelColor = new Color(0.96f, 0.96f, 0.98f, 1f);
+
+        [Header("Label glow — a finger's letter or the chord name lights when it sounds")]
+        [Tooltip("The colour a label lights to when its note or chord sounds. Warm, to match the strike " +
+                 "flash. The same for both hands. Cosmetic - a look, not a behaviour.")]
+        [SerializeField] private Color _labelLitColor = new Color(1f, 0.82f, 0.30f, 1f);
+
+        [Tooltip("How bright a label rests, 1 = the full Label Colour. Below 1 so that lighting up is a " +
+                 "visible change rather than white to slightly-less-white. Cosmetic.")]
+        [Range(0.2f, 1f)] [SerializeField] private float _labelRestingBrightness = 0.72f;
+
+        [Tooltip("Seconds a label takes to fade from lit back to resting. It holds bright for the first " +
+                 "part, then eases off. Cosmetic.")]
+        [Min(0.05f)] [SerializeField] private float _labelLitSeconds = 0.45f;
+
+        [Tooltip("How much bigger a label swells at the peak of lighting up (0.35 = 35%). The swell is a " +
+                 "second channel beside the colour, so the glow still reads if the hues are hard to tell " +
+                 "apart (§3.10). 0 = colour only. Cosmetic.")]
+        [Range(0f, 1f)] [SerializeField] private float _labelLitPop = 0.35f;
 
         [Header("Melody engine — mirrors Jazztures.Core.Melody consts, kept in sync by hand")]
         [Tooltip("Minimum fingertip speed to fire a note, m/s — 'was this a deliberate " +
@@ -243,6 +262,14 @@ namespace Jazztures.Config
         public float LabelCharacterSize => _labelCharacterSize;
 
         public Color LabelColor => _labelColor;
+
+        public Color LabelLitColor => _labelLitColor;
+
+        public float LabelRestingBrightness => _labelRestingBrightness;
+
+        public float LabelLitSeconds => _labelLitSeconds;
+
+        public float LabelLitPop => _labelLitPop;
 
         public float EntryVelocityGateMetresPerSecond => _entryVelocityGateMetresPerSecond;
 

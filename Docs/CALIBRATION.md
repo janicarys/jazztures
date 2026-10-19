@@ -244,9 +244,8 @@ co-design sessions. The **Measured** column stays empty until M8.
 | Look-ahead                | 100 ms            | —        | default | Scheduling horizon only; adds no latency to a click already due                                                                                           |
 | Pre-roll                  | 150 ms            | —        | default | **Not in ADR-0043's table** (it says "≥ look-ahead"). A metronome lesson's phrase clock, system playback and pulse all start this long after "now"         |
 | Voice pool                | 4 sources         | —        | default | `MetronomeVoice` inspector field; round-robin. A 20 ms click needs only a few                                                                              |
-| Tempo step                | 5 BPM             | —        | default | Per press of the menu's +/- buttons and the `-` / `=` desk keys (Editor / Link). `MetronomeSettings.TempoStepBpm`                                          |
-| Tempo preview             | 2 bars            | —        | default | Pressing +/- on the menu plays this many bars at the new tempo (free play isn't running there). `MetronomeSettings.TempoPreviewBars`                       |
-| Menu stepper layout       | 9 cm buttons      | —        | default | `LessonSelector` side-control fields (size, gap, pitch, hit margin, readout scale). First guesses — never seen on a headset; adjust in the Inspector       |
+| Tempo step                | 5 BPM             | —        | default | Per press of the `-` / `=` desk keys (Editor / Link). The menu's +/- buttons went with `LessonSelector` (ADR-0051). `MetronomeSettings.TempoStepBpm`                    |
+| Tempo preview             | 2 bars            | —        | default | Plays this many bars at the new tempo when it is stepped while free play is not running. **Nothing on the menu steps it now** (ADR-0051); only the desk keys reach it. `MetronomeSettings.TempoPreviewBars` |
 
 Count-in (ADR-0043 §2a) is **not** in this asset: only timing drills use it, so it is a field
 of each drill preset (below). Lessons have none.
@@ -313,7 +312,12 @@ point — its lowest recent point while free, its peak while held — never from
 | --------------- | ------------------ | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Show note labels | on                | —        | default | Letters only, no octave numbers (§1.5). Off removes the labels; the targets then carry no chord information at all (ADR-0044)    |
 | Label size      | 0.005 (character size) | —   | default | In world metres, independent of the target's scale (ADR-0046). Estimated ~3 cm capital on a 6 cm pad; columns are ~6 cm apart so much above 0.010 crowds neighbours. The first labels looked tiny because they inherited a 0.05-scaled sphere's scale, not because this was too small — tune by eye |
-| Label colour    | near-white         | —        | default | Fixed; the labels never change colour                                                                                            |
+| Label colour    | near-white         | —        | default | The touch targets' letters never change colour. The finger letters and the chord name rest at *Resting Brightness* of it and light up (below) |
+| Lit colour      | warm gold (1, 0.82, 0.30) | — | default | ADR-0054. The colour a finger's letter or the chord name lights to when it sounds; the same for both hands. Cosmetic        |
+| Resting brightness | 0.72            | —        | default | ADR-0054. Below 1 so that lighting up is a visible change — the old near-white to pale-yellow flash was barely visible        |
+| Lit seconds     | 0.45               | —        | default | ADR-0054. Holds bright for the first part, then eases off (smoothstep). The old flash was 0.2 s                                  |
+| Lit pop         | 0.35               | —        | default | ADR-0054. How much bigger a label swells at the peak (a second channel beside the colour, §3.10). 0 = colour only                |
+| Chord-name hover | 0.11 m above the palm | —    | default | Constant in `ChordNameLabel` (cosmetic); 1.25× the letter size. Untried on a headset                                              |
 
 ### Timing drills — `TimingDrillDefinition` presets (§3.7, ADR-0043)
 
@@ -335,6 +339,82 @@ above — drills use `OnsetWindows.Default` unchanged.
 The CSV (`Application.persistentDataPath/timing/`) records the preset's values in its header,
 so a run is self-describing. A negative mean error ("early") is ordinary — people tap ahead of
 a click — and is not a system fault.
+
+## Menu — `Config/MenuConfig.asset` (ADR-0051)
+
+The right hand's flick / strike / fist and what the menu offers. Every value is `[TUNABLE]` and **none has been
+tried on a headset** — the speeds are guesses sized from the left-hand strike's tuned 0.25 / 0.10 m/s, set higher
+because a menu has no musical need for sensitivity and a wrong choice costs more than a missed one. The
+**Measured** column stays empty until M8. Code: `Core/Menu/MenuGestureThresholds` (via `MenuConfig.ToThresholds()`).
+
+| Parameter                       | Default            | Measured | Status  | Notes                                                                                                                                                      |
+| ------------------------------- | ------------------ | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Flick enter / exit speed        | 0.7 / 0.25 m/s     | —        | default | Sideways palm speed (peak over 3 frames). Exit is also the "quiet" level the hand must fall to before anything can fire again                              |
+| Strike enter / exit speed       | 0.45 / 0.18 m/s    | —        | default | Downward palm speed. A fingertip would be more sensitive (the left-hand strike reads one, ADR-0028) but a closing fist swings it fast enough to fire a strike |
+| Axis dominance                  | 1.8×               | —        | default | The primary axis must beat the other by this factor; a diagonal swipe counts as neither                                                                    |
+| Settle frames                   | 3                  | —        | default | Consecutive quiet frames before the next flick/strike arms (ADR-0030 pattern)                                                                              |
+| Minimum gap between gestures    | 250 ms             | —        | default |                                                                                                                                                            |
+| Opposite-flick lockout          | 500 ms             | —        | default | A flick the other way inside this is the hand returning, and is swallowed. Cost: a deliberate flick back waits this long                                   |
+| Entry grace                     | 600 ms             | —        | default | After the menu appears, or the hand changes job, flicks and strikes are ignored this long and until settled — the right hand may still be mid-strike on a target |
+| Resume after tracking loss      | 3 High frames      | —        | default | §3.5.3, the same as the left hand                                                                                                                          |
+| Fist closure enter / exit       | 0.75 / 0.55        | —        | default | 0 open .. 1 tight; least-closed of index/middle/ring/pinky. Enter is §3.4's "curled" 0.75                                                                  |
+| Fist hold — in a menu           | 350 ms             | —        | default |                                                                                                                                                            |
+| Fist hold — lesson / free play  | 1000 ms            | —        | default | Longer: the right hand is playing, and being thrown out mid-phrase is worse than a slow exit. Never shorter than the menu hold                              |
+| Fist miss tolerance             | 2 frames           | —        | default | Open frames tolerated inside a hold                                                                                                                        |
+| Tempo presets                   | 60 70 80 90 100    | —        | default | Struck in turn, wrapping. §3.6: >100 BPM is unvalidated (`Allow Unvalidated Tempo` lifts it). **Untick Show Tempo Card for the study build** — a learner-chosen tempo changes how hard the §3.7 onset windows are |
+| Show Free Play / Show Tempo Card | on / on           | —        | default | Tester affordances; untick for the study build (§3.10, M8)                                                                                                 |
+| Transition fade out / in, drift | 0.10 s / 0.18 s, 6 cm | —    | default | `MenuView` fields. Cards drift up and out going deeper, down and out coming back; new cards arrive from the opposite side. Drift 0 = a plain fade |
+| Strike pulse                    | +12 % size, 0.22 s | —        | default | `MenuView` fields. The struck card swells and flashes, then settles                                                                                        |
+| Bump (one-card row only)        | 0.2 card, 0.14 s   | —        | default | `MenuView` fields. The row wraps, so only a flick on a single card has nowhere to go; it nudges the row and it springs back                                |
+| Card size / wrap                | 30×17 cm, 10 chars | —        | default | `MenuView` fields. Never seen on a headset; adjust in the Inspector. Also placement (0.8 m ahead) and the visible neighbours (2 each side)                  |
+
+## Ghost strike — `LessonRunner` and `GhostHandView` fields (ADR-0052)
+
+The ghost's left hand dips onto the strike pad to show *when* to sound a chord. All `[TUNABLE]`, **none seen on a
+headset**; the **Measured** column stays empty until M8. Code: `Core/Lessons/GhostStrikeSchedule`,
+`LessonTimeline.StrikeBeats`.
+
+| Parameter                 | Default             | Measured | Status  | Notes                                                                                                                                                       |
+| ------------------------- | ------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Strike after pose appears | 2.0 beats           | —        | default | `LessonRunner`. The ghost's 1.5-beat morph plus half a beat of grace; keep it at least `GhostHandView`'s morph beats. Ignored by a lesson that scores a pulse |
+| Approach / return         | 0.5 / 0.5 beats     | —        | default | `LessonRunner`. ≈ 0.375 s each at 80 BPM. The approach accelerates (∝ t²) and arrives on the strike beat; the lift is a smooth ease                          |
+| Anchor                    | StrikePad           | —        | default | `GhostHandView`. The ghost hovers above the pad (a straight drop) instead of riding the learner's wrist (`Wrist`, ADR-0012). Compare both on the headset                |
+| Station height            | 18 cm above the pad | —        | default | `GhostHandView`, StrikePad only. Where the ghost's wrist hovers while ready; also the length of the drop                                                    |
+| Station offset            | 0, 0, 0 (right, up, forward) | — | default | `GhostHandView`, StrikePad only, head-yaw frame. Shifts the hovering ghost and its contact point together; pull it back (−z) if the fingers overshoot the pad |
+| Contact height            | 5 cm above the pad  | —        | default | `GhostHandView`. Where the ghost's *wrist* stops; its lowest edge (pinky side, knuckles, palm) then meets the pad. Raise it if the hand sinks into the pad    |
+| Dip with no pad           | 12 cm               | —        | default | `GhostHandView`. Used only when no pad is assigned                                                                                                          |
+| Where it shows            | Left-hand lessons with the ghost visible | — | default | Try Yourself and (ADR-0052 Revision 2) Watch and Listen - and Gesture Learning, though no lesson lists it now                                                              |
+| Watch and Listen lead     | Strike-after-pose rounded up to whole beats (2) | — | default | The system's playback starts this many beats after the ghost, so the chord sounds as the hand lands. First sound ≈ 1.5 s in at 80 BPM |
+
+## Tutorial and sky — `Config/MenuConfig.asset`, `TutorialDefinition`, `SkyDome` fields (ADR-0053)
+
+All `[TUNABLE]`, none seen on a headset. The **Measured** column stays empty until M8. Code: `Core/Tutorial/TutorialThresholds`
+(via `MenuConfig.ToTutorialThresholds()`); the script is `Assets/Jazztures/Lessons/Tutorial.asset`.
+
+| Parameter                     | Default                   | Measured | Status  | Notes                                                                                                                                        |
+| ----------------------------- | ------------------------- | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Show Tutorial                 | on                        | —        | default | `MenuConfig`. Every startup. Off = straight to the menu and the sunrise                                                                      |
+| Minimum time per step         | 1.5 s                     | —        | default | A posture step is shown at least this long, so a learner already in position can still read the line                                         |
+| Hands in view — hold          | 0.5 s                     | —        | default | Both hands tracked High **and** within the in-front angle                                                                                    |
+| Hands out of view — hold      | 0.6 s                     | —        | default | Both hands not tracked High **or** at least the out-of-view angle off the gaze (the Quest keeps tracking hands at the sides)                  |
+| In front of you — angle       | ≤ 50° from the gaze       | —        | default | A hand held at chest height is ≈ 35°. `MenuConfig`                                                                                           |
+| Out of view — angle           | ≥ 60° from the gaze       | —        | default | A hand at the side is ≥ 80°; the 50–60° gap is neither. `MenuConfig`. From the head to the wrist                                              |
+| Posture step timeout          | 20 s                      | —        | default | A hands-in/out-of-view or thumb-up step still unmet is passed (warning logged). 0 = never. Gesture steps never time out. Decide for the study build |
+| Open hand — max finger closure | 0.35                     | —        | default | 0 open .. 1 curled; every one of the four long fingers must be under it                                                                     |
+| Thumb up — enter / exit       | 35° / 50°                 | —        | default | Angle from straight up; the SDK's `WristUp`, gravity reference (as ii, ADR-0047). Schmitt                                                    |
+| Thumb up — hold               | 0.6 s                     | —        | default |                                                                                                                                              |
+| Gesture grace                 | 0.5 s                     | —        | default | A gesture this soon after a step begins is the tail of the last motion and is ignored                                                        |
+| "The headset can detect it"   | 5 s                       | —        | default | `Tutorial.asset` (the student's number). The only timed step                                                                                 |
+| Ghost station                 | 0.30 right, −0.24 up, 0.45 forward | — | default | `TutorialGhostView`, heading frame from the head. Right of and below the menu; adjust if it covers the cards or the line                     |
+| Ghost motion                  | flick ±9 cm, wrist turns 22°, snap 0.12 s; strike 6 cm up / 20 cm down; fist loop 3.6 s | — | default | `TutorialGhostView` fields and consts. Loops until the learner does it. A flick is quick out, slow back |
+| Tutorial line height          | −0.05 m with no menu; −0.34 m once the menu is up | — | default | `TutorialView ▸ Height Without Menu` / `Height Offset`. Head-relative; eased between the two as the menu appears |
+| Ghost easing                  | cubic ease-out on every movement; 0.4 s glide between demos | — | default | `TutorialGhostView ▸ Move Curve`, `Strike Drop Curve` (editable `AnimationCurve`s) and `Handover Seconds`. Ease-in the drop for a harder-hitting strike |
+| Flick sensing point           | 16 cm past the wrist, along wrist → middle knuckle | — | default | `MetaXRMenuHandSource ▸ Flick Reach`. Where a wrist snap is read; ignores finger curl. 0 = the palm (the old behaviour). Strikes stay at the palm |
+| Sunrise — reveal              | 12 s, rise curve 2        | —        | default | `SkyDome`. Black → sunrise: smootherstep ^ curve, so the first seconds stay dim and the light gathers                                          |
+| Sunrise — brightness          | 0.55                      | —        | default | `SkyDome`. Multiplies the whole sky (gradient and glow); 1 = the palette as written. Darker sky also improves the menu text's contrast         |
+| Sunrise — palette             | nadir rose-brown → gold horizon → coral → rose → violet → deep blue | — | default | `SkyDome` colours (sRGB). Sun 4° up, straight ahead at the moment of the reveal; core 5°, halo 32°                                           |
+| Tutorial line                 | 0.8 m ahead, 34 cm below eye line, 30 chars wide | — | default | `TutorialView`. Below the menu's footer so reading it neither tilts the head nor pulls the hands out of the cone (ADR-0020)                |
+| Tutorial text fade            | out 0.4 s, in 0.6 s, 2.5 cm drift | — | default | `TutorialView`. The old line fades and drifts up; the next fades in rising into place                                                        |
 
 ## Lesson pacing — per-lesson `LessonDefinition` asset (§3.9, ADR-0021)
 

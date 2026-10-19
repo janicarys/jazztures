@@ -79,19 +79,39 @@ namespace Jazztures.Lessons
 
         public bool UseMetronome => _useMetronome;
 
-        public LessonPlan BuildPlan() => new LessonPlan(
+        /// <summary>The modes this lesson offers, in authored order (§3.8) — what its mode menu lists.</summary>
+        public IReadOnlyList<LearningMode> Modes => _modes;
+
+        /// <summary>The authored tempo, in BPM — the default a learner-chosen tempo overrides (ADR-0051).</summary>
+        public float TempoBpm => _tempoBpm;
+
+        /// <summary>The whole lesson: every authored mode, in order.</summary>
+        public LessonPlan BuildPlan() => BuildPlan(_modes, _tempoBpm);
+
+        /// <summary>
+        /// A lesson reduced to one mode at <paramref name="tempoBpm"/> (ADR-0051): the menu starts
+        /// a lesson one mode at a time, at a tempo the learner may have stepped. The timeline,
+        /// metronome and onset windows all follow the plan's tempo, so pair this with
+        /// <see cref="BuildTimeline(double)"/> at the same tempo.
+        /// </summary>
+        public LessonPlan BuildPlan(LearningMode onlyMode, double tempoBpm) =>
+            BuildPlan(new[] { onlyMode }, tempoBpm);
+
+        private LessonPlan BuildPlan(IEnumerable<LearningMode> modes, double tempoBpm) => new LessonPlan(
             new LessonId(_id),
             _title,
             _conceptExplanation ?? string.Empty,
-            _modes,
-            new Tempo(_tempoBpm),
+            modes,
+            new Tempo(tempoBpm),
             BuildSwing(),
             _hands);
 
-        public LessonTimeline BuildTimeline()
+        public LessonTimeline BuildTimeline() => BuildTimeline(_tempoBpm);
+
+        public LessonTimeline BuildTimeline(double tempoBpm)
         {
             var builder = new LessonTimelineBuilder()
-                .WithTempo(new Tempo(_tempoBpm))
+                .WithTempo(new Tempo(tempoBpm))
                 .WithSwing(BuildSwing())
                 .WithBeatsPerBar(Mathf.Max(1, _beatsPerBar))
                 .WithScoredPulse(_scoredPulse != null ? _scoredPulse.ToPattern() : OnsetPattern.None);

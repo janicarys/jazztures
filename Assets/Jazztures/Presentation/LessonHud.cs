@@ -83,6 +83,14 @@ namespace Jazztures.Presentation
             _phaseChannel?.Unregister(OnPhase);
             _cueChannel?.Unregister(OnCue);
             _evaluationChannel?.Unregister(OnEvaluated);
+
+            // Disabling stops Update, which is what fades the caption — so a caption still showing
+            // would freeze on screen over the menu that replaces the lesson (ADR-0051).
+            if (_caption != null)
+            {
+                _caption.text = string.Empty;
+                _caption.gameObject.SetActive(false);
+            }
         }
 
         private void Update()

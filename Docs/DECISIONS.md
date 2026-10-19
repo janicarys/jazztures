@@ -8,6 +8,561 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0054 — The left hand carries its chord's name, and both hands' labels light up when they sound
+
+**Date:** 2026-10-19 · **Status:** Accepted (student's request) — every Unity assembly compiles in a scratch
+project; **not run in the Editor, not tried on a headset** · **Milestone:** M5 · **Extends:** ADR-0044 (the note
+letters), ADR-0050 (the finger letters) · **Changes the thesis:** nothing in `[THESIS]`. **Chapter 6 / Chapter 4
+should mention the chord-name label** (see "Justification" below), and §3.10 of `CLAUDE.md` lists the left hand's
+visuals as the outline only.
+
+### The request
+"Add a chord name indicator to the left hand, similar to the notes on the right hand's fingers, and make the
+labels on both hands light up when activated."
+
+### What was built
+- **`ChordNameLabel`** (Presentation) — the name of the chord the left hand is holding ("Dm7", "G7", "Cmaj7", from
+  `Chord.ToString`, which is already tested) floating 11 cm above the palm, turned to face the learner. It appears
+  when the pose is confirmed and goes when the hand lets go. It reads the same channels as the finger letters
+  (`ChordChangedChannel`, `NoteTriggeredChannel`) and writes to nothing in the domain (§2.3).
+- **It lights on the strike, not on the pose.** Selecting a chord does not sound it (§3.2, ADR-0025), so the name
+  appears and rests while a pose is merely held, and lights when the chord sounds — the learner sees *selected* and
+  *sounded* apart, just as they hear them apart. It lights for the learner's own strike (`MidiChannel.Harmony`) and
+  for the system's demonstration (`Accompaniment`, left-hand source), and, like the finger letters, for notes the
+  mode gate keeps silent (the unconditional stream, §3.8).
+- **`LabelGlow`** (Presentation) — one shared "lit" look for both hands, so a note and a chord answer in the same
+  visual voice. A label *rests* at 72 % of the label colour, and the instant it is activated jumps to a warm gold,
+  swells 35 % and holds, then eases back over 0.45 s. The swell is a second channel beside the colour (§3.10).
+  `FingerNoteLabels` now uses it too: **the old flash went from near-white to pale yellow over 0.2 s, which was close
+  to invisible** — the resting colour was already almost white.
+- **Config:** four cosmetic fields under "Label glow" in `Config/MelodyConfig.asset` (lit colour, resting brightness,
+  lit seconds, pop). They are a look, not a behaviour; the existing asset picks up the defaults.
+- **Scene wiring:** `Jazztures ▸ Labels ▸ Set Up Left-Hand Chord Name` (idempotent, undoable) adds a
+  `Chord Name Label` object under the performance harness, copying the left hand from the hand-pose source and the
+  channels, config and head from the finger letters. Run it once and save the scene. It hides on the menu screens, as
+  the finger letters do.
+
+### Justification (visual restraint, §3.10)
+The left hand's outline carries the chord's *function* (cool / warm / settled) but not which chord it is, and with the
+selection/strike split a learner holding a pose has nothing on screen that confirms the pose was *read* before they
+strike. The name is the left-hand counterpart of ADR-0044's note letters, and the same dual-channel argument applies:
+the chord is also audible and the outline also colours it, so the label is redundant, never the only carrier. It is
+notation, like the finger letters — not the theory words §1.5 rules out (no "dominant", no "ii-V-I"). **If Chapter 4
+argues that the left hand carries colour only, this contradicts it** and the text or the label needs to change.
+
+### Consequences and open points
+- **Right-hand-only lessons (L3–L5):** the name still shows above the idle left hand, because it follows the
+  performance harness, not the lesson's active hands. It reads as "the chord playing now", which suits "over
+  system-played changes", but it is a second thing to look at on a lesson that does not use the left hand. If that
+  is too much, gate it on the lesson's active hands as the melody input is (`LessonFlowController`).
+- **Touch-target mode:** the glow applies to the finger letters only. A touch target already flashes as a whole when
+  struck (ADR-0046), so its letter was left alone.
+- **The label hides while the left hand is untracked.** The chord itself sustains (§3.5); only the label, which has
+  nowhere to hang, goes.
+- **Untested on a headset:** the 11 cm hover, the 1.25× size against a letter, and whether the resting dimming
+  reads against the sunrise sky (ADR-0053). Tune by eye; all four glow numbers are Inspector fields.
+
+---
+
+## ADR-0053 — The tutorial: a first lesson gated by what the learner does, guided by a ghost hand, in the dark until the menu opens
+
+**Date:** 2026-10-19 · **Status:** Accepted (student's script and design calls); the state machine is headless-tested
+(32 new tests) and every Unity assembly compiles in a scratch project — **not run in the Editor, not tried on a
+headset** · **Milestone:** M5 (lesson flow) · **Resolves:** the `[OPEN]` "system tutorial" left by ADR-0051 ·
+**Extends:** ADR-0051 (the gesture menu), ADR-0052 (the detached ghost hand) · **Changes the thesis:** nothing in
+`[THESIS]`. **Chapter 6 should mention the tutorial**, and the session-length budget (§3.9, ≤ 2 h) now includes it.
+
+### The request
+
+"A special lesson that runs on startup that introduces someone who is completely unfamiliar with VR to the system. It
+follows this script and is gated by the user actually doing the action." The script: *Place your hands in front of you.* →
+*Move your hands to your side, out of view.* → *Bring your hands back in front of you.* → *When you put your hands in
+front of you, the VR headset can detect it.* (five seconds) → *To open the menu, make a fist with your right hand.*
+(ghost hand; the lesson menu appears when they do it) → *Now open your right hand with your thumb facing up.* (ghost
+hand) → *To navigate the menu, flick your hand left or right.* (ghost hand; originally "swipe", see Revision 3) → *Strike your hand down to select a
+lesson.* (ghost hand; the modes menu appears when they do it). Then, added mid-way: **complete darkness for the start,
+until they open the menu, where we have a warm sunrise palette.**
+
+### Decisions
+
+1. **The script is data.** `TutorialDefinition` (a ScriptableObject beside the lesson assets) holds the eight steps —
+   text, what the learner must do, which ghost demo plays, whether the menu is on screen, which menu gestures the step
+   lets through — and bakes them into the pure `TutorialPlan`. A new asset starts with the student's script verbatim.
+   Changing a line or its order needs no C# (§3.9's spirit).
+2. **Gated by action, not time** (`Core/Tutorial/TutorialRunner`, pure, tested). *Posture* gates — both hands in view, both
+   out of view, an open right hand with the thumb up — must hold for a moment, so a flicker of tracking is not "doing it";
+   thumb-up has a Schmitt pair of angles (35° / 50°, §3.4). *Gesture* gates — fist, flick, strike — fire on the **menu
+   recogniser's own events**, so the tutorial teaches exactly the gestures the menu then expects, at the same thresholds.
+   The only timed step is the explanation ("the headset can detect it", 5 s). Every line is shown at least 1.5 s even if
+   the learner is already in position, and a gesture arriving in the first 0.5 s of a step is taken to be the tail of the
+   last motion and ignored.
+3. **It runs on the real menu.** The lesson menu appears when the fist is made; a swipe really moves the highlight; the
+   last strike really opens the chosen lesson's modes, and the tutorial ends there, handing over mid-flow. Each step lets
+   through only the gestures taught so far (`Forward`), so a stray strike while still learning to swipe cannot pick a
+   lesson. A strike that would land on **Free play** (a flick can reach it) is ignored in the tutorial rather than
+   quietly starting free play.
+4. **"Open your right hand with your thumb facing up"** is judged with the SDK's own `TransformFeature.WristUp` —
+   `TransformFeatureValueProvider.GetValue`, the value the ii recogniser uses, with the same gravity-up reference as the
+   left hand (ADR-0047) — plus all four long fingers under 0.35 closure. Not hand-rolled joint maths (§3.4).
+   **The menu itself never checks hand shape** (flicks and strikes are palm motions): this step teaches a *ready posture*
+   the recogniser does not enforce. If the student means it to be required, that is a change to ADR-0051.
+5. **The ghost right hand reuses the poses already recorded.** The SDK ships `OpenXRGhost-HandRight`, and a `HandPose`'s
+   joint rotations carry across hands unchanged (`HandPose.CopyFrom(…, mirrorHandedness)`), so the *ii* capture (open palm,
+   thumb up) is the open hand and the *V* capture the fist; the wrist orientation is mirrored (a reflection across the
+   learner's left-right plane negates two quaternion components). No recording was needed — and re-capturing those two
+   poses updates the tutorial. The ghost hovers to the right and below the menu, in the learner's heading frame, **not**
+   tied to their hand (ADR-0052's reasoning: it must not jump or vanish when the real hand does, which is what the first
+   steps are about). Four looping demos: close into a fist and open; hold open with the thumb up (a slow bob so it reads as
+   alive); swipe right–left–right; drop fast and lift slowly.
+6. **The left hand has to be visible to the tutorial.** `MenuHandFrame` gained `LeftTracking`, `MaxFingerClosure`
+   (an open hand needs *no* finger curled, where a fist needs *every* finger curled) and `ThumbUpAngleDegrees`;
+   `MetaXRMenuHandSource` takes an optional left hand. With none assigned it borrows the right's tracking and warns,
+   rather than leave the tutorial waiting forever at step 1.
+7. **The sky** (`Presentation/SkyDome`). Darkness is the cameras clearing to black (which also stops the scene's own
+   skybox drawing). When the lesson menu opens, a **sunrise** comes up over four seconds, with the sun on the horizon
+   *straight ahead of where the learner is facing at that moment*, and stays for the rest of the session: nadir rose-brown →
+   gold horizon → coral → rose → violet → deep-blue zenith. It is a vertex-coloured dome that follows the head, drawn in the
+   Background queue with no depth write, using `Sprites/Default` (already in every build for the menu's plates) — **not a
+   skybox shader**, which would be code that cannot be compiled without the Editor open, and whose palette could not be
+   tuned live. With the tutorial off, the sunrise is simply there from the start.
+8. **When it runs.** On every startup, per the student ("runs on startup"). `MenuConfig ▸ Show Tutorial` switches it off;
+   with no script, no view, or an invalid script it is skipped and the app opens on the menu — a broken script never
+   traps a learner.
+9. **At a desk:** hold **Tab** for "both hands out of view", hold **T** for "right hand open, thumb up", plus the menu keys
+   (arrows, Down/Enter, hold Backspace) — so the whole sequence can be walked without a headset.
+
+### Consequences and risks
+
+- **Everything is unseen on a headset.** Likeliest to need tuning: the thumb-up thresholds, whether the SDK's `WristUp`
+  reads the way the ii recogniser's does for the *right* hand, the ghost's position against the menu and text, and
+  whether 1 s of "hands out of view" is detected reliably at the edge of the tracking cone.
+- **The OVR rig may re-apply its own camera clear settings**; if the sky is not black at the start, that is where to look.
+  Passthrough, if ever enabled, is hidden by the black clear (which is what "complete darkness" asks for).
+- **A warm sky behind a warm tension colour.** §3.10 colours the left hand's outline cool → warm → settled across ii → V →
+  I; a sunrise-coloured background reduces the contrast of "warm = V". Colour is a redundant channel, never the only one, so
+  it is not a rule break, but worth looking at in a lesson.
+- **Session time.** The tutorial adds a few minutes to every session's start; the protocol should say whether returning
+  participants (sessions 2–5) see it.
+- The flow changes: `LessonFlowController` runs the tutorial before the first menu; `MenuSetup` (now **Jazztures ▸ Menu ▸
+  Set Up Gesture Menu + Tutorial**) creates the script asset, the text view, the sky dome and the ghost right hand
+  (instantiated from the SDK prefab, given the project's ghost material, wired to the *ii* and *V* poses), and gives the
+  menu source the left hand.
+
+### Revision 1 (same day) — "out of view" is about the gaze, not tracking loss
+
+**The report:** "It doesn't advance beyond moving hands out of view."
+
+**The cause, from the headset's own log.** The hand-pose logger prints every change in either hand's tracking quality.
+Over a whole tutorial run (≈ 30 s) it printed 350 lines, **349 of them `L:High R:High`**; the one other was the first frame
+at startup, before the hands appeared. So with the learner's hands hanging at their sides the Quest still reported both
+as tracked at High confidence (its downward-facing cameras see them). The gate as built — "neither hand is tracked High" —
+could therefore never be met on the hardware, however correctly the learner followed the line.
+
+**The fix: judge where the hands are, not whether they are tracked.** `MenuHandFrame` carries `ViewAngleDegrees` and
+`LeftViewAngleDegrees`, the angle between the learner's gaze and the direction from the head to each wrist
+(`MetaXRMenuHandSource`). A hand is **in front of you** when it is tracked High and within 50° of the gaze (a hand held at
+chest height is ≈ 35°); **out of view** when it is not tracked High *or* at least 60° off (a hand at the side is ≥ 80°).
+The 10° gap means a hand in between is neither, so the two instructions cannot both be satisfied by the same posture. Both
+hands must meet the condition, held for a moment, as before. "Place your hands in front of you" now also means *in front*,
+not merely tracked.
+
+**A safety valve.** A hands-in-view, hands-out-of-view or thumb-up step still unmet after 20 s is passed
+(`TutorialRunner.TimedOut`, logged as a warning) rather than strand the learner behind something the hardware cannot see.
+Gesture steps (fist, swipe, strike) never time out — the menu needs them. `MenuConfig` can set it to 0, which restores
+strict gating; **a study build should decide that deliberately**, since a timeout means a participant can reach the menu
+without having done the posture.
+
+**Keyboard stand-in tightened.** The desk keyboard no longer papers over a lost hand: it is used in the Editor only, and
+only until real hands have first appeared (or while a key is held). Before this, on a machine with a keyboard attached a
+hand that went `NotTracked` was replaced by a pretend, tracked one — which would have defeated this very step.
+
+**Diagnostics kept in release builds:** each step change, and once a second while the tutorial waits, the tracking quality
+and gaze angle of both hands, fist/openness and thumb angle — so the next stuck step can be read off `adb logcat`.
+
+**Text fades.** The line now cross-fades visibly: the old one fades and drifts up over 0.4 s, the new one fades in rising
+into place over 0.6 s (it was 0.15 s / 0.35 s, too quick to read as a fade), eased, with a 2.5 cm drift like the menu's
+transitions. All three are fields on `TutorialView`.
+
+### Revision 2 (same day) — a slower, darker sunrise
+
+The student asked for a longer transition from black to the sunrise, and for it to be darker.
+
+- **12 s, not 4.** And bent: a plain linear fade from black looks as if it jumps at the start (the screen brightens faster than the
+  alpha rises), so the rise is smootherstep raised to a power (`Rise Curve` 2): the first seconds stay dim and the light gathers.
+  It rises while the learner is on the thumb-up and swipe lines, which is the point.
+- **Darker.** A `Brightness` multiplier on the dome's tint, 0.55 by default (1 = the palette as written), darkens everything —
+  gradient and sun glow — evenly without changing a hue. The palette itself is untouched, so brightness is the one knob. I read
+  "that" as the sunrise; if the *black* start is not black enough on the headset, that is a different problem (the rig re-applying
+  its own camera clear), and worth telling me.
+
+### Revision 3 (same day) — a flick, not a swipe
+
+The student asked for the menu gesture to be "more of a flick" than a swipe. A swipe is a sweep of the arm, slow and long; a
+flick is a quick snap of the wrist, short and sharp. Three things followed:
+
+- **The words.** The step now reads "To navigate the menu, **flick** your hand left or right." (the existing `Tutorial.asset` was
+  edited as well as the default script, since the asset was already created). `TutorialDemo.Swipe` became `TutorialDemo.Flick`.
+- **The ghost.** It no longer sweeps ±22 cm over half a second. It rests, **snaps** 9 cm to one side in 0.12 s with the wrist
+  turning 22° toward it, holds a beat, relaxes back slowly, then does the other side: quick out, slow back, which is what a
+  flick looks like. Width, turn and timing are fields on `TutorialGhostView`.
+- **The sensing — the part that matters.** A flick is a rotation of the wrist, and the palm is only a few centimetres from the
+  wrist, so a snap barely moves it (the same reason ADR-0028 gave for the left-hand strike). With the palm as the sensing
+  point and 0.7 m/s to beat, a true flick could fail to register while a swipe sailed through. Sideways motion is now sensed
+  at **a point 16 cm past the wrist along the line from the wrist to the middle knuckle** (`MetaXRMenuHandSource ▸ Flick
+  Reach`), where the same wrist snap is two to three times faster. It is built from those two joints alone, so **curling the
+  fingers cannot move it** (a fist closing must not flick — the reason the palm and not a fingertip was chosen in ADR-0051), and
+  from joint positions rather than the SDK's `Constants.*Distal` (the OpenXR and OVR hand data disagree about which way "along
+  the hand" is). Strikes still use the palm. The thresholds (0.7 / 0.25 m/s) are unchanged.
+- **The risk, honestly:** the new point amplifies *every* wrist movement, so a hand that rotates sharply at the wrist for another
+  reason may now read as a flick. The recogniser's axis-dominance, settle and return-stroke rules still apply and the fist
+  suppression still holds, but it has not been tried on a hand. If false flicks appear, lower `Flick Reach` (0 restores the palm)
+  or raise the flick enter speed in `MenuConfig`.
+
+### Revision 4 (same day) — ease-out on every ghost movement
+
+The student asked for an ease-out curve on the ghost hand's movements, to look more natural. Movements used a mix before (smoothstep
+for the fist and the returns, ease-out only on the flick's snap, ease-in on the strike's drop), so some started and stopped like a
+machine. Now **every movement runs on one editable `AnimationCurve`** (`Move Curve`, default the cubic ease-out — leaves at three
+times the average speed, arrives at rest): the fist closing and opening, the flick's snap and its return, the strike's lift. The
+strike's drop has its own (`Strike Drop Curve`, also ease-out by default).
+
+- **Trade-off:** an ease-out drop leaves at speed and lands softly, where a real strike *accelerates* into contact (the ease-in used
+  before). The drop is only 0.25 s, so it reads as a snap down and settle, but if it feels too gentle, give `Strike Drop Curve` an
+  ease-in shape (slow start, fast finish).
+- **Between demos:** when the learner finishes a step and the next demo begins, the hand now **glides** from where it is to the new
+  motion over 0.4 s on the same curve, instead of jumping (`Handover Seconds`; 0 restores the jump). A demo starting from nothing just
+  appears.
+- Because the curves are Inspector fields, the feel can be tuned live on the headset without a rebuild — an overshoot is a bump past 1.
+
+### Revision 5 (same day) — the tutorial line sat too low
+
+The line was parked 34 cm below eye line (about 23° down at 0.8 m) so it would clear the menu's footer — but for the first five
+steps there is no menu, so it just sat low in an empty view. It now has **two heights**: `Height Without Menu` (−0.05 m, near eye
+line, where the menu will appear) until the menu is revealed, then it eases down to the existing −0.34 m under the footer
+(`LessonFlowController.RevealMenu` → `TutorialView.SetMenuVisible`). The −0.34 m below the menu is unchanged: the footer sits about
+0.24 m below eye line, and raising the line further would overlap it. If it still reads low *with* the menu up, the fix is a
+shorter footer, not a higher line.
+
+### Revision 6 (same day) — a fist skips the tutorial
+
+The student asked that closing the fist during the tutorial skip it. The fist already means "go home" everywhere in the menu
+(ADR-0051), so the tutorial follows suit: **on any step except the one that teaches the fist, a fist ends the tutorial** and the
+lessons menu comes up (with the sunrise) on whatever screen it was on. On the "make a fist to open the menu" step the fist is the
+answer, as before. The rule lives in `TutorialRunner.Notify` (pure Core, tested), so it uses the recogniser's own fist hold
+(0.35 s) and the runner's usual `EventGrace` — the tail of the fist that opened the menu cannot skip the step after it.
+
+- **No on-screen hint.** Telling a first-timer "make a fist to skip" in the first line would spend the attention the tutorial exists
+  to direct (§1.5), and the fist is taught two steps in anyway. A returning participant or an operator who knows the gesture can use it.
+- **Risk:** a novice who clenches a hand in steps 1–4 could skip by accident and arrive at the menu untaught. The 0.35 s hold makes
+  that unlikely, but it is untried; if it happens in the pilot, gate the skip behind the fist step having been reached once.
+- **This partly answers the `[OPEN]` below about returning participants** (they can skip), but not the protocol question: whether a
+  skip is allowed on a given participant's day is still a study decision, and a skip is not yet distinguishable from finishing in the log (both print `[Tutorial] complete.`; neither reaches telemetry).
+
+### `TODO(OPEN)`
+
+- Whether returning participants skip the tutorial (a protocol decision; today `Show Tutorial` is global).
+- Whether the sunrise should persist *inside* lessons or only on the menus.
+- Whether the thumb-up posture should become a requirement of the menu (it is taught, not enforced).
+
+### Not verified
+
+`TutorialRunner` and the extended `MenuHandFrame` are covered by `TutorialRunnerTests` / `MenuHandFrameTests`. The Unity side
+(`TutorialView`, `TutorialGhostView`, `SkyDome`, the flow changes, the setup command) compiled in a scratch project against the
+Editor's own assemblies; **none of it has run**, and the setup command has not been run.
+
+---
+
+## ADR-0052 — The ghost hand demonstrates the strike: it dips onto the pad, and the pad lights when it lands
+
+**Date:** 2026-10-19 · **Status:** Accepted (student design call); the schedule is headless-tested (18 tests), every
+Unity assembly compiles in a scratch project — **not run in the Editor, not seen on a headset** · **Milestone:** M5
+(lesson content) · **Extends:** ADR-0012 (ghost hands), ADR-0024 (Lesson 1), ADR-0025 (selection vs strike), ADR-0039/0047
+(the pad) · **Changes the thesis:** nothing in `[THESIS]`; Chapter 6's description of the Lesson 1 demonstration (poses
+only) is now incomplete.
+
+### The report
+
+"The tutorial for the chord gestures is outdated. It doesn't do the strike." Since ADR-0025 a pose only *selects* a
+chord and a strike *sounds* it, but Lesson 1 (Gesture Learning) still taught poses alone: a learner copied the ghost,
+held the shape, and heard nothing. The student asked whether the Ghost Pose Recorder could capture a strike, then
+decided: **"the ghost hand dips towards [the pad], and I would also like the pad to light up when it is hit, even by
+the ghost hand."**
+
+### Why the recorder cannot do this
+
+`GhostPoseAsset` is one still frame — the finger joint rotations plus the wrist orientation — and there are three
+slots (ii, V, I). A strike does not change the hand's shape, it moves it; there is nothing to snapshot. And
+`GhostFrame` named only a pose and when it began, while `GhostHandView` always placed the ghost on the learner's own
+wrist, so even a recorded movement had no way to play. The recorder remains the right tool for the *poses* (below).
+
+### Decision
+
+1. **A strike is data, not a recording.** `GhostStrikeSchedule` (Core, tested) holds the beats the hand meets the pad
+   and two shared durations. `ProgressAt(beat)` is 0..1 "how far toward the pad": the hand *accelerates* onto the pad
+   (progress ∝ time², so it arrives fast, as a strike does), reaches exactly 1 on the strike beat, then lifts away on
+   a smooth ease. `ContactsUpTo(beat)` counts strikes landed. `GhostFrame` carries both (`StrikeProgress`,
+   `StrikeCount`); a running count rather than a one-frame flag, so a skipped frame cannot lose a hit.
+2. **Where the beats come from** (`LessonTimeline.StrikeBeats`): a lesson that scores a pulse (L2) strikes **on the
+   pulse** — the dip *is* the rhythm being asked for; any other lesson strikes each chord **2 beats after its pose
+   appears** (the 1.5-beat morph plus half a beat of grace), so the shape is formed first. Swing is applied.
+3. **The ghost dips onto the pad.** `GhostHandView` lerps the ghost's root from the learner's wrist to the pad's top
+   face (`ChordStrikeTarget.TopCenterWorld`, 5 cm above for the wrist) by `StrikeProgress` and back. At rest it is
+   exactly where it always was, so ADR-0012's superimposition is unchanged between strikes. Without a pad assigned it
+   dips straight down 12 cm. The rotation (the demonstrated wrist orientation) is untouched, so the hand strikes in
+   the pose it is teaching.
+4. **The pad flashes on every ghost contact**, with the same `Flash()` a real hit gives (the composition root calls it
+   when the learner's touch lands), so a ghost strike and a real one read alike.
+5. **Where it applies.** Only where the learner plays the left hand (`ActiveHands` includes Left) and the ghost is
+   visible: Gesture Learning and Try Yourself. **Originally not Watch and Listen (superseded by Revision 2):** there the system sounds each chord on its
+   beat, when the ghost is only beginning to form the shape, so a dip would land on the wrong pose or two beats off
+   the sound. Fixing that means the ghost must lead the sound (switch pose early) — a change to W&L timing across all
+   lessons, left for the student to decide. Right-hand-only lessons (L3) get no dip.
+6. **The phrase waits for the last strike** (`LessonRunner.PhraseIsFinished`): L1's last chord is at beat 20 and its
+   last strike at 22, so it now ends after the strike has lifted away (+ the usual tail).
+7. **Lesson 1's words.** The concept text now says "Make a shape, then tap the pad to play the chord"; a first caption
+   "Copy the ghost hand, then tap the pad to play the chord." (beat 0) precedes the meanings caption (moved to beat 6);
+   and the closing line, which was an unfinished sentence ("…this is "), now reads "Prepare, tension, release. That is
+   a ii-V-I." The captions say *tap the pad* because the scene's commit gesture is the pad (`_commitGesture: Touch`).
+8. **The closing line is shown under the post-run menu.** `LessonFlowController` keeps a caption raised in the same
+   frame a run ends and shows it as the post-run footer, above a Test Yourself score. Without this the closing caption
+   was switched off with the HUD before it was ever drawn (the HUD now clears its caption when disabled, ADR-0051).
+
+### Not decided / assumed
+
+- **Whether Gesture Learning should wait for the strike** was left open; it only *prompts* (no gate), because §3.8
+  defines Gesture Learning as pose fluency with no gating — waiting would turn it into Try Yourself. A reactive
+  "now tap the pad" hint after the first confirmed pose would need a new cue trigger ("chord struck"); not built.
+- **The geometry is a guess:** a straight line from the wrist to 5 cm over the pad's centre, whatever the pose. Hands
+  of different size and poses whose lowest edge sits differently (ii's pinky side, V's knuckles, I's palm) will
+  overlap the pad by a few centimetres either way. `Contact Height` is the lever.
+- **The ghost poses themselves are old.** The three captures date from 10 Sep, before ADR-0025/0026/0047 (19 Sep,
+  12 Oct); ADR-0026 recorded re-capturing ii as an in-editor action, and the pose it teaches is now "palm sideways"
+  (ADR-0047). **Re-capture with Jazztures ▸ Ghost Pose Recorder** — this is what the recorder is for. The ghost will
+  strike in whatever pose is on file.
+- `Jazztures ▸ Lessons ▸ Create Session 1 Starter Lessons` still describes the *old* Lesson 1 (W&L → Try Yourself,
+  three chords) and overwrites an existing asset's fields: do not run it over the shipped assets.
+
+### Revision 2 (same day) — Watch and Listen is back in Lesson 1, and the ghost strikes in it
+
+The student asked "why is there no sound in Watch and Listen?" about the chord lesson. The headset log showed the
+build had only run Lesson 1, whose single mode was Learn the shapes, where §3.8 has the system play nothing: the ghost
+struck the pad and lit it in silence, which reads as broken. The student's call: **restore Watch and Listen to Lesson 1;
+Try Yourself is a separate mode.**
+
+- **Lesson 1's modes** are now *Learn the shapes → Watch and listen → Try yourself*, each its own card on the mode screen
+  (the menu runs one mode at a time, ADR-0051) and **Next** steps through them. This returns Lesson 1 toward §3.9's table
+  (L1: Watch and Listen, Try Yourself), with §3.8's Gesture Learning first because it "precedes Watch and Listen". **Learn the shapes was then
+  removed from Lesson 1 at the student's request** (same day): its modes are Watch and listen → Try yourself,
+  exactly §3.9's table. Gesture Learning remains a mode in Core (§3.8, the ghost still strikes in it) but no
+  lesson lists it now.
+- **The ghost strikes in Watch and Listen, and the chord sounds as the hand lands.** The ghost keeps its usual timing
+  (the pose appears on the chord's beat, the strike comes a couple of beats later once the shape is formed), and the
+  *system's playback is simply started that many beats later* — `ceil(Strike After Pose)` = 2 beats, so a metronome
+  that keeps its own start stays on the grid. The right-hand ghost lights trail by the same amount. A test pins the
+  invariant (the chord's note-on time equals the ghost's contact time; mutation-checked — a half-beat drift fails it).
+- **What Watch and Listen strikes** is the chords, never a scored pulse (`StrikeBeats(…, useScoredPulse: false)`): the
+  system sounds the chords, not the beat. So Lesson 2's Watch and Listen shows two strikes, not the beat-by-beat rhythm
+  its Try Yourself asks for — that would need the system to play the pulse.
+- **Cost:** the first sound in a left-hand Watch and Listen comes 2 beats (1.5 s at 80 BPM) after the lesson starts —
+  the ghost's lead-in — and the phrase is that much longer. Right-hand-only lessons (Lesson 3) are unchanged.
+- **Try Yourself** is unchanged: it waits for the pose, not the strike, and the audio reward still needs the learner's
+  own strike. Whether it should also wait for the strike is still open.
+- **Lesson 1's first caption** now reads "Shape first, then tap the pad. That plays the chord." — descriptive rather
+  than a command, because the learner's input is silent in Watch and Listen (§3.8) and an instruction to tap would invite
+  the same "why is there no sound" there. Cues cannot be mode-specific.
+- Not run in the Editor or on the headset.
+
+### Revision 1 (same day) — the ghost hovers over the pad instead of riding the wrist
+
+On first sight the strike "goes forward instead of downwards". The cause is the design above: the dip ran from the
+learner's *own wrist* to the pad, and the pad is anchored to the learner's left at strike height (ADR-0040), not
+wherever the hand happens to be held — so unless the hand was directly above the pad, the path was a diagonal, mostly
+forward. Any ghost tied to the learner's hand has this problem.
+
+The student asked whether un-tying the ghost from the player's hand would feel limiting. Assessment, and what was built:
+
+- **What is given up** is ADR-0012's superimposition: with the ghost on the learner's own hand, the difference in
+  finger shape between the two is visible in place. Detached, the learner copies a shape they see *over there*.
+  That is the ordinary "ghost in front of you" idiom, and the hand is placed where the learner's own hand should end
+  up, so it is not a perspective flip; but it is a real loss for fine shape matching (Try Yourself). It also changes
+  what Chapter 6 says about the ghost (see Thesis below).
+- **What is gained:** the strike is a true straight drop, as the pad requires (it reads *downward* hand speed); the
+  ghost teaches where to hold the hand as well as what shape to make; and it no longer vanishes or jumps when the
+  learner's own hand is lost (§3.5), nor sits glued to an idle left hand in a right-hand lesson.
+- **Built as an option, not a replacement:** `GhostHandView ▸ Anchor` = **StrikePad** (new default) or **Wrist** (the
+  ADR-0012 behaviour, kept so the two can be compared on the headset). StrikePad needs the pad and falls back to Wrist
+  without one. In StrikePad the ghost's wrist hovers 18 cm above the pad's top face (`Station Height`) and drops
+  straight onto it; `Station Offset` shifts the hovering ghost and its contact point together if the fingers overshoot
+  the pad. The orientation is still the demonstrated one, re-expressed through head yaw (§3.4).
+- It applies to every ghost mode, not only the ones with strikes: a ghost that sat on the wrist in Watch and Listen but
+  over the pad in Gesture Learning would jump between the two.
+- **Thesis:** CLAUDE.md §7 and Chapter 6 describe the ghost as "superimposed on the learner's hands" (ADR-0012). With
+  StrikePad that is no longer what the left ghost does. §7 is annotated; the paper is not touched (rule 7).
+
+### `[TUNABLE]` — none measured
+
+`LessonRunner`: strike after pose 2.0 beats, approach 0.5, return 0.5 (≈ 0.375 s each at 80 BPM). `GhostHandView`:
+anchor StrikePad, station height 18 cm, station offset 0, contact height 5 cm, no-pad dip 12 cm. Mirrored in
+`Docs/CALIBRATION.md`.
+
+### Wiring
+
+Re-run **Jazztures ▸ Menu ▸ Set Up Gesture Menu (ADR-0051)**: it is idempotent and now also gives `GhostHandView` its
+strike pad and `LessonFlowController` the cue channel. Until then the ghost dips straight down and no closing line
+appears under the menu.
+
+---
+
+## ADR-0051 — The menu is driven by the right hand: flick to move, strike to choose, fist to go home
+
+**Date:** 2026-10-19 · **Status:** Accepted (student design call); the Core part is headless-tested (66 tests)
+and every Unity assembly compiles in a scratch project — **not run in the Editor, not tried on a headset** ·
+**Milestone:** M5 (lesson flow) · **Supersedes:** the point-and-pinch lesson selector (`LessonSelector`, with its
+sessions → lessons list and +/- tempo stepper) and the overhead `ExitButton`; the menu *surface* of ADR-0043 (its
+Timing test and free-play tempo stepper are no longer reachable — the code is kept) · **Changes the thesis:**
+nothing in `[THESIS]`. **Chapter 6 may need matching wording** if it describes a session-grouped menu, a
+point-and-pinch selector, or an Exit button.
+
+### The request
+
+"We're changing the menu system entirely. We want a tutorial at the start for how to use the interface, and that
+leads you into the main menu, which you navigate by flicking your right hand horizontally, striking down to
+select an option, and closing your fist to go back to the main menu. Back should also be an option in sub-menus."
+The tree: lessons → (pick one) its modes → (pick one) the run starts; when a mode finishes, a menu with *back to
+modes*, *restart*, *next* (the next mode, else the next lesson). The student asked to do the menu first and the
+system tutorial after.
+
+### Decisions
+
+1. **One vocabulary, three gestures, right hand only.** *Flick* (a quick sideways stroke either way) moves the
+   highlight — **left = next card, right = previous**, the swipe convention, so the row follows the hand (swapped from
+   the first version on the student's request; the recogniser still reports the physical direction and only
+   `MenuNavigator.Handle` maps it, so the desk arrow keys follow suit); *strike* (a quick downward stroke) chooses it; *fist* (held) goes to the main menu from anywhere.
+   `Core/Menu/MenuGestureRecognizer` turns right-hand motion into these. It follows the left-hand strike's rules
+   (§3.4/§3.5): Schmitt enter/exit speeds, a settle of several quiet frames before the next gesture can arm
+   (ADR-0030), an axis-dominance test so a diagonal swipe counts as nothing ("never guess"), nothing fires while
+   tracking is Low and not until 3 High frames have returned, and a minimum gap between gestures.
+2. **Layout.** A single row of cards that scrolls under a fixed highlight (`Presentation/MenuView`), so the
+   card you would choose is always centre. It is a dumb view like the HUD (ADR-0021); it reads no input.
+3. **Structure is a pure state machine** (`Core/Menu/MenuNavigator`, tested): *Main* = lessons then **Free play**;
+   *Modes* = the lesson's own modes, then a **tempo card**, then **Back**; *PostRun* = **Back to modes**,
+   **Restart**, **Next**. The highlight **wraps around** at the ends (the student's request, same day: it first clamped), and
+   returning to Main puts it back on the card you came from. Modes come from each `LessonDefinition`'s own mode list, so L1 offers only "Learn the shapes" and
+   L2 also offers "Test yourself". Adding a lesson is still data only (§3.9).
+4. **A lesson now runs one mode at a time.** `LessonRunner.LoadLesson(lesson, mode, tempo)` builds a one-mode
+   plan; `Completed` fires when that mode ends. The multi-phase path (a lesson walking its modes in order) is
+   untouched and still tested.
+5. **The fist is also the way out of a running lesson or free play** — the student chose to delete the overhead
+   Exit button now rather than keep it as a fallback. While something runs the right hand is busy playing, so
+   there the recogniser listens for the fist **only**, and it needs a longer hold (1.0 s, against 0.35 s in a
+   menu); the view draws a thin bar that fills during the hold, because a hold with no feedback just reads as
+   latency. A fist is latched until the hand has been seen open, so leaving a lesson with a fist does not
+   immediately fire again.
+6. **Free play** is the last card of the main menu. **The Timing test is dropped from the flow** (student's call):
+   `TimingDrillRunner`, the drill assets and the catalog's drill list stay on disk, but nothing reaches them.
+   `FreePlayMetronome.StepTempo` has no caller now either.
+7. **Tempo card** (student's call: "a card next to the mode selection", and it sets *this lesson's* tempo). Striking
+   it steps through presets (60-100 BPM, `MenuConfig`), wrapping from the fastest to the slowest; the tempo is
+   remembered per lesson and applies to every mode started from that screen — timeline, metronome and onset
+   windows all follow it.
+8. **After a run.** *Next* starts the next mode of the same lesson at once; after a lesson's last mode it opens the
+   **next lesson's mode screen** instead (a new lesson deserves its concept text and its tempo card) and does not
+   start anything. After the last mode of the last lesson there is no *Next*. A Test Yourself score is shown as the
+   post-run screen's footer — after the attempt, never during it (§3.7) — which the old flow lost: it disabled the
+   HUD the instant the lesson completed.
+9. **The post-run highlight starts on *Back to modes***, not *Next*: the screen appears the moment a phrase ends,
+   with the right hand perhaps still mid-strike on a target, and the safe card is the one that cannot start
+   anything. The recogniser also ignores flicks and strikes for 0.6 s after any change of the hand's job
+   (`Rearm`) and until the hand has settled.
+10. **The catalog keeps its sessions; the menu lists lessons flat**, in session order. CLAUDE.md §3.9's session
+    distribution (S1 = L1+L2+L3 …) is a study protocol the menu no longer displays — confirm that is intended.
+
+### Why it is built this way
+
+- **The palm is tracked, not a fingertip** (`Input/MetaXRMenuHandSource`). Closing a fist swings the fingertips
+  tens of centimetres in a fraction of a second; read at a fingertip that is a strike, at the instant the learner
+  means to go back. The palm barely moves when the fingers curl. Strikes also stay suppressed while a fist is
+  closing. (The left-hand strike reads a fingertip for the opposite reason — ADR-0028; if the palm proves too
+  insensitive for a menu strike, that one joint is the line to change.)
+- **"Left"/"right" are the learner's, by projecting velocity, not position.** The hand's world displacement each
+  frame is projected onto the head's current right vector and accumulated. Measuring the hand's position *in the
+  head's frame* instead would read a head turn as a flick, because the frame itself swings round a stationary hand.
+- **A return stroke is not a second flick.** After a flick, one the other way inside 0.5 s is swallowed (and
+  disarms), or every flick would be followed by its own return undoing it. The cost: a deliberate flick back needs
+  half a second.
+- **Fist = the SDK's own finger curl** (`FingerShapes`, curl blended with knuckle flexion, the least-closed of the
+  four long fingers), not hand-rolled joint maths (§3.4) — the same read `FingerBendBinder` uses. The Schmitt edges
+  are §3.4's 0.75 "curled" and a lower exit.
+- **The recogniser, navigator and their tests are pure `Core`** (§2.1): `MenuHandFrame` and `IMenuHandSource` are a
+  new port beside `IHandPoseSource`, with a headset adapter (`MetaXRMenuHandSource`) and a desk one
+  (`KeyboardMenuHandSource`: arrows = flick, Down/Enter = strike, hold Backspace = fist). `LessonFlowController`
+  only translates: it builds the `MenuModel` from the catalog, words the cards, draws them, and carries out the
+  `MenuIntent`s the navigator raises.
+
+### Revision 1 (same day) — feedback on the menu
+
+The student asked for more feedback, "like maybe have cards fade up/down when switching submenus". With no haptics
+(§3.10) the menu has to say what the hand just did, so `MenuView` now answers each gesture and nothing else:
+
+- **Transition on a screen change.** Going deeper (into a lesson, into a result, on to the next lesson) the old cards
+  drift up and fade out (0.10 s), then the new ones rise in from below (0.18 s); coming back out it runs the other
+  way. A menu appearing from nothing fades in — from above when it is Main (arriving home), from below otherwise.
+  `MenuTransition` carries the direction; `LessonFlowController` works it out from a depth per screen
+  (Main 0, Modes 1, PostRun 2). A change that arrives while the old screen is still fading just replaces the
+  destination. Alpha is linear in the phase so a fade reversed mid-way does not pop.
+- **Pulse on a strike.** The highlighted card swells ~12 % and flashes white, settling over 0.22 s. On the tempo card
+  (which stays on screen and only changes its number) it is the whole answer; on a card that leads elsewhere it is
+  seen for the instant before the transition.
+- **Bump at the end of the row** (since the row wraps, now only on a one-card row). `MenuNavigator.Bumped` fires when a flick is recognised but the highlight is already
+  at that end; the row is nudged 0.2 of a card and springs back. This is not decoration: without it "recognised,
+  nowhere to go" and "flick not recognised" look identical, which would make the first headset session much harder
+  to read.
+
+Not added, deliberately: sound (needs assets and a mixing decision) and any per-flick effect beyond the glide the row
+already had. Durations and sizes are fields on `MenuView`, `[TUNABLE]` and unseen on a headset.
+
+### `[TUNABLE]` — none measured
+
+All in `Config/MenuConfig.asset` (the transition, pulse and bump fields are on `MenuView`) and mirrored in `Docs/CALIBRATION.md` ("Menu"). The speeds (flick 0.7 / 0.25 m/s,
+strike 0.45 / 0.18 m/s) are guesses sized from the left-hand strike's tuned 0.25 / 0.10, set higher because a menu
+has no musical need for sensitivity and a wrong choice is worse than a missed one. **Expect to retune them on the
+first headset session.**
+
+### Consequences and risks the student should know about
+
+- **A learner-chosen tempo confounds timing scores across participants** (onset windows are absolute milliseconds,
+  so a slower tempo is an easier test). `MenuConfig` has **Show Tempo Card** and **Show Free Play** toggles: untick
+  both for the study build (§3.10: visual restraint; M8: no interaction parameters change once participants start).
+- **A right-hand fist now exits a lesson**, so a clenched right hand mid-phrase is a new way to be thrown out. The
+  1 s hold and the open-hand latch are the mitigation; only the headset can say whether it is enough.
+- **Strike vs touch targets.** In a right-hand lesson the learner strikes targets downward with the same hand; the
+  menu is not listening then (only the fist is), and on return the entry grace and the safe default card cover the
+  hand's follow-through. Not yet seen.
+- **Scene wiring is a one-click editor command**, as with the other setup tools: **Jazztures ▸ Menu ▸ Set Up
+  Gesture Menu (ADR-0051)** creates the config asset, adds the view and the input components (pointing at the
+  existing right hand and head), assigns them to `LessonFlowController`, and deletes the now-scriptless
+  `LessonSelector` / `ExitButton` objects. Until it is run and the scene saved, the scene has those two as
+  "Missing (Mono Script)" and the controller has no menu.
+
+### `TODO(OPEN)`
+
+- **The system tutorial** (student: "we'll need to do the system tutorial after"). It plays before the first menu,
+  teaches flick / strike / fist, then hands over to the navigator. The hook is `LessonFlowController.Start`, marked
+  `TODO(OPEN)`. Until it exists a learner meets the menu cold.
+- *Next* after a lesson's last mode opens the next lesson's mode screen rather than starting it — a one-line change
+  in `MenuNavigator.NextAfter` if the student wants it to start straight away.
+- Whether the session grouping (decision 10) should return to the display.
+
+### Not verified
+
+The recogniser and navigator are covered by `MenuGestureRecognizerTests` and `MenuNavigatorTests`. The Unity side
+(`MenuView`, `MetaXRMenuHandSource`, `MenuInputDriver`, `LessonFlowController`, `MenuSetup`) compiled in a scratch
+project against the Editor's own assemblies while the Editor was open; **none of it has run in the Editor**, the
+card layout (sizes, wrap width) is a guess to be adjusted in the Inspector, and **nothing has been tried with real
+hands**.
+
+---
+
 ## ADR-0050 — EXPLORATION (branch `explore/finger-bend-keys`): right hand plays by bending one finger per chord tone
 
 **Date:** 2026-10-12 · **Status:** **Proposed — exploration only.** Lives on `explore/finger-bend-keys`; it is
@@ -2197,6 +2752,10 @@ at M8 alongside the existing gesture thresholds; record them in `Docs/CALIBRATIO
 ---
 
 ## ADR-0024 — Lesson 1 is a single Gesture Learning phase
+
+> **Superseded in part (2026-10-19, ADR-0052 Revision 2):** Lesson 1 again offers Watch and Listen and Try Yourself,
+> as separate modes, and no longer lists Gesture Learning. The reason below for cutting Watch and Listen ("six bare voicings, nothing
+> to watch") no longer holds now the ghost forms and strikes each chord, and the menu makes every mode a choice.
 
 **Date:** 2026-09-10 · **Status:** Accepted (student design call) · **Milestone:** M5 ·
 **Changes the thesis:** §3.9's mode table for L1 (again — see ADR-0021), and Chapter 6 lesson pacing

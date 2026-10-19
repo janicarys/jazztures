@@ -99,6 +99,44 @@ namespace Jazztures.Core.Lessons
             return active;
         }
 
+        /// <summary>
+        /// The beats on which the ghost's left hand should strike the pad (ADR-0052), swing applied,
+        /// ascending. If the lesson scores a pulse (L2), those beats are the strikes — the dip
+        /// <i>is</i> the rhythm being asked for. Otherwise each chord is struck
+        /// <paramref name="afterPoseBeats"/> after its pose appears, which is time for the ghost to
+        /// form the shape first.
+        /// </summary>
+        public double[] StrikeBeats(double afterPoseBeats) => StrikeBeats(afterPoseBeats, useScoredPulse: true);
+
+        /// <summary>
+        /// As <see cref="StrikeBeats(double)"/>, but <paramref name="useScoredPulse"/> false always strikes the
+        /// chords, ignoring any scored pulse. Watch and Listen needs that: the system sounds the chords, not
+        /// the pulse, and the ghost's hand has to land exactly when a chord does (ADR-0052).
+        /// </summary>
+        public double[] StrikeBeats(double afterPoseBeats, bool useScoredPulse)
+        {
+            double[] beats;
+            if (useScoredPulse && !ScoredPulse.IsNone)
+            {
+                beats = ScoredPulse.BeatsBetween(0.0, DurationBeats, BeatsPerBar);
+            }
+            else
+            {
+                beats = new double[_chords.Length];
+                for (int i = 0; i < _chords.Length; i++)
+                {
+                    beats[i] = _chords[i].Beat.Position + afterPoseBeats;
+                }
+            }
+
+            for (int i = 0; i < beats.Length; i++)
+            {
+                beats[i] = SwingQuantizer.Swing(beats[i], Swing);
+            }
+
+            return beats;
+        }
+
         /// <summary>The beat a marker sits on, or null if no marker has that name.</summary>
         public double? MarkerBeat(string name)
         {

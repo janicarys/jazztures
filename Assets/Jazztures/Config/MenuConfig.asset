@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4bdc4824cd84d9419b572fb1b348357, type: 3}
+  m_Name: MenuConfig
+  m_EditorClassIdentifier: Jazztures.Config::Jazztures.Config.MenuConfig
+  _flickEnterSpeedMetresPerSecond: 0.7
+  _flickExitSpeedMetresPerSecond: 0.25
+  _strikeEnterSpeedMetresPerSecond: 0.45
+  _strikeExitSpeedMetresPerSecond: 0.18
+  _axisDominanceRatio: 1.8
+  _settleFrames: 3
+  _minInterGestureSeconds: 0.25
+  _oppositeFlickLockoutSeconds: 0.5
+  _entryGraceSeconds: 0.6
+  _highFramesToResumeAfterLoss: 3
+  _fistEnterAmount: 0.75
+  _fistExitAmount: 0.55
+  _fistHoldSecondsInMenu: 0.35
+  _fistHoldSecondsInRun: 1
+  _fistMissToleranceFrames: 2
+  _showFreePlay: 1
+  _showTempoCard: 1
+  _tempoPresetsBpm:
+  - 60
+  - 70
+  - 80
+  - 90
+  - 100
+  _allowUnvalidatedTempo: 0

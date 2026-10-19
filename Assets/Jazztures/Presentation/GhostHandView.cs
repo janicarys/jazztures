@@ -17,6 +17,9 @@ namespace Jazztures.Presentation
     ///   <item><b>Left hand</b> — a translucent articulated mesh (<see cref="HandPuppet"/>)
     ///   superimposed on the learner's own wrist, morphing between the ii / V / I target
     ///   poses. The fingers show the delta between where the hand is and where it should be.</item>
+    ///   <item><b>Left-hand strike</b> (ADR-0052) — between chords the ghost lifts off the learner's
+    ///   wrist, dips onto the strike pad and flashes it, then returns. A strike is a movement, not a
+    ///   pose, so it is described by <see cref="GhostFrame.StrikeProgress"/> rather than recorded.</item>
     ///   <item><b>Right hand</b> — no ghost fingertip. The demonstrated melody stop lights
     ///   (<see cref="TouchTarget.SetDemonstrated"/>); the learner chooses the reach.</item>
     /// </list>
@@ -50,6 +53,35 @@ namespace Jazztures.Presentation
         [SerializeField] private GhostPoseAsset _v;
         [SerializeField] private GhostPoseAsset _i;
 
+        [Header("Left-hand strike (ADR-0052)")]
+        [Tooltip("The strike pad. The ghost hand dips onto its top face and flashes it on contact - the same " +
+                 "flash a real hit gives. Optional: without it the ghost dips straight down instead.")]
+        [SerializeField] private ChordStrikeTarget _strikePad;
+
+        [Tooltip("StrikePad: the ghost hovers above the strike pad, ready to strike, wherever the learner's " +
+                 "hand is - so a strike is a straight drop, and the ghost also shows where to hold the hand. " +
+                 "Wrist: the ghost is superimposed on the learner's own wrist (ADR-0012) and a strike runs " +
+                 "from there to the pad, at an angle unless the hand is right above it. Falls back to Wrist " +
+                 "when no pad is assigned.")]
+        [SerializeField] private GhostAnchor _anchor = GhostAnchor.StrikePad;
+
+        [Tooltip("StrikePad only: how high above the pad's top face the ghost's wrist hovers while ready, " +
+                 "metres. The strike drops from here, so this is also the length of the strike.")]
+        [Min(0f)] [SerializeField] private float _stationHeightMetres = 0.18f;
+
+        [Tooltip("StrikePad only: shifts the hovering ghost and its contact point together, metres, in the " +
+                 "head's heading frame (x right, y up, z forward). The pad's centre is where the wrist goes; " +
+                 "pull the hand back (negative z) if its fingers overshoot the pad.")]
+        [SerializeField] private Vector3 _stationOffsetMetres = Vector3.zero;
+
+        [Tooltip("How far above the pad's top face the ghost's wrist stops at contact, metres. A hand's wrist " +
+                 "sits a few centimetres above its lowest edge (the pinky side, the knuckles, the palm), " +
+                 "so this makes that edge meet the pad.")]
+        [Min(0f)] [SerializeField] private float _contactHeightMetres = 0.05f;
+
+        [Tooltip("How far down the ghost dips when there is no pad assigned, metres.")]
+        [Min(0f)] [SerializeField] private float _fallbackDipMetres = 0.12f;
+
         [Header("Right-hand demo lights")]
         [Tooltip("Optional. The touch-target rig whose stops light while the demo plays a note.")]
         [SerializeField] private TouchTargetRig _rig;
@@ -68,6 +100,8 @@ namespace Jazztures.Presentation
         private float _morphT;
         private int _litIndex = -1;
         private bool _ghostVisible;
+        private float _strikeProgress;
+        private int _strikesSeen;
 
         private void Awake()
         {
@@ -125,10 +159,13 @@ namespace Jazztures.Presentation
             if (!frame.Visible)
             {
                 ClearDemoLight();
+                _strikeProgress = 0f;
+                _strikesSeen = 0;
                 return;
             }
 
             LightTarget(frame.LitTargetIndex);
+            FollowStrike(frame);
 
             GhostPoseAsset wantedAsset = AssetFor(frame.DemonstratedPose);
             HandPose wanted = wantedAsset != null ? wantedAsset.Pose : null;
@@ -172,9 +209,29 @@ namespace Jazztures.Presentation
             ApplyScratch();
         }
 
+        /// <summary>
+        /// Remember how far the ghost is through a strike, and flash the pad each time one lands. The
+        /// frame carries a running count rather than a one-frame flag, so a skipped frame cannot lose a hit.
+        /// </summary>
+        private void FollowStrike(GhostFrame frame)
+        {
+            _strikeProgress = (float)frame.StrikeProgress;
+
+            if (frame.StrikeCount > _strikesSeen && _strikePad != null)
+            {
+                _strikePad.Flash();
+            }
+
+            _strikesSeen = frame.StrikeCount; // also resyncs downward when a new phrase restarts the count
+        }
+
         private void ApplyScratch()
         {
-            if (_hand != null && _hand.GetRootPose(out Pose wrist))
+            if (_anchor == GhostAnchor.StrikePad && _strikePad != null)
+            {
+                PlaceAtStation();
+            }
+            else if (_hand != null && _hand.GetRootPose(out Pose wrist))
             {
                 // Position rides the learner's wrist (superimposition); orientation is the
                 // demonstrated one, re-expressed in world via current head yaw (§3.4). That
@@ -185,10 +242,40 @@ namespace Jazztures.Presentation
                     rotation = YawOnly(_head) * Quaternion.SlerpUnclamped(_previousWrist, _targetWrist, _morphT);
                 }
 
-                _puppet.SetRootPose(new Pose(wrist.position, rotation));
+                // The strike: lift off the learner's wrist toward the pad and back. At rest
+                // (progress 0) the ghost is exactly where it always was - on the wrist.
+                Vector3 position = wrist.position;
+                if (_strikeProgress > 0f)
+                {
+                    Vector3 contact = _strikePad != null
+                        ? _strikePad.TopCenterWorld + Vector3.up * _contactHeightMetres
+                        : wrist.position + Vector3.down * _fallbackDipMetres;
+                    position = Vector3.Lerp(wrist.position, contact, _strikeProgress);
+                }
+
+                _puppet.SetRootPose(new Pose(position, rotation));
             }
 
             _puppet.SetJointRotations(_scratch.JointRotations);
+        }
+
+        /// <summary>
+        /// ADR-0052: hold the ghost above the pad, in the demonstrated orientation, and drop it straight
+        /// onto the pad by <see cref="_strikeProgress"/>. Independent of the learner's hand, so it neither
+        /// jumps nor vanishes when that hand is lost, and it follows the pad as the pad follows the body.
+        /// </summary>
+        private void PlaceAtStation()
+        {
+            Quaternion yaw = _head != null ? YawOnly(_head) : Quaternion.identity;
+            Quaternion rotation = _haveTargetWrist
+                ? yaw * Quaternion.SlerpUnclamped(_previousWrist, _targetWrist, _morphT)
+                : yaw;
+
+            Vector3 top = _strikePad.TopCenterWorld + yaw * _stationOffsetMetres;
+            Vector3 ready = top + Vector3.up * _stationHeightMetres;
+            Vector3 contact = top + Vector3.up * _contactHeightMetres;
+
+            _puppet.SetRootPose(new Pose(Vector3.Lerp(ready, contact, _strikeProgress), rotation));
         }
 
         private GhostPoseAsset AssetFor(ChordFunction? function) => function switch

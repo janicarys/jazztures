@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac174e3d1c8645243937a0ac96abfe42, type: 3}
+  m_Name: Tutorial
+  m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.TutorialDefinition
+  _steps:
+  - text: Place your hands in front of you.
+    gate: 0
+    gateSeconds: 0
+    demo: 0
+    showsMenu: 0
+    forward: 0
+  - text: Move your hands to your side, out of view.
+    gate: 1
+    gateSeconds: 0
+    demo: 0
+    showsMenu: 0
+    forward: 0
+  - text: Bring your hands back in front of you.
+    gate: 0
+    gateSeconds: 0
+    demo: 0
+    showsMenu: 0
+    forward: 0
+  - text: When you put your hands in front of you, the VR headset can detect it.
+    gate: 2
+    gateSeconds: 5
+    demo: 0
+    showsMenu: 0
+    forward: 0
+  - text: To open the menu, make a fist with your right hand.
+    gate: 3
+    gateSeconds: 0
+    demo: 1
+    showsMenu: 0
+    forward: 0
+  - text: Now open your right hand with your thumb facing up.
+    gate: 4
+    gateSeconds: 0
+    demo: 2
+    showsMenu: 1
+    forward: 0
+  - text: To navigate the menu, flick your hand left or right.
+    gate: 5
+    gateSeconds: 0
+    demo: 3
+    showsMenu: 1
+    forward: 1
+  - text: Strike your hand down to select a lesson.
+    gate: 6
+    gateSeconds: 0
+    demo: 4
+    showsMenu: 1
+    forward: 3

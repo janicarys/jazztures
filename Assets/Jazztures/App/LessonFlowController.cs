@@ -1,5 +1,14 @@
+using System;
 using System.Collections.Generic;
+using Jazztures.Audio;
+using Jazztures.Config;
+using Jazztures.Core.Evaluation;
 using Jazztures.Core.Lessons;
+using Jazztures.Core.Menu;
+using Jazztures.Core.Ports;
+using Jazztures.Core.Tutorial;
+using Jazztures.Events;
+using Jazztures.Input;
 using Jazztures.Lessons;
 using Jazztures.Presentation;
 using UnityEngine;
@@ -7,357 +16,566 @@ using UnityEngine;
 namespace Jazztures.App
 {
     /// <summary>
-    /// Drives the app between the lesson selector and a running lesson (CLAUDE.md §3.9).
-    /// Lives in <c>Jazztures.App</c> because it needs both <c>Jazztures.Lessons</c> (the
-    /// catalog + runner) and <c>Jazztures.Presentation</c> (the selector view) — and
-    /// <c>Presentation</c> cannot see <c>Lessons</c>.
+    /// Drives the app between the gesture menu and a running lesson (CLAUDE.md §3.9; ADR-0051).
+    /// Lives in <c>Jazztures.App</c> because it needs <c>Jazztures.Lessons</c> (the catalog +
+    /// runner), <c>Jazztures.Presentation</c> (the menu view) and <c>Jazztures.Input</c> (the
+    /// menu's hand driver) — and none of those can see each other.
     ///
     /// <para>
-    /// Two levels: sessions → lessons (§3.9's S1 = L1+L2+L3 …). Choosing a lesson hides the
-    /// selector, enables the HUD and gesture pipeline, re-binds the <see cref="LessonRunner"/>,
-    /// and enables the right-hand melody surfaces only when the lesson's <c>ActiveHands</c>
-    /// includes Right — a left-hand lesson (L1) shows no touch-target markers. On completion
-    /// the selector returns to that session's lesson list.
+    /// The menu itself is pure domain: <see cref="MenuNavigator"/> holds the screens, the
+    /// highlight and the choices, and <see cref="MenuGestureRecognizer"/> turns the right hand into
+    /// flick / strike / fist. This class only translates between them and Unity: it builds the
+    /// <see cref="MenuModel"/> from the catalog, words the cards, renders them on
+    /// <see cref="MenuView"/>, and carries out the <see cref="MenuIntent"/>s the navigator raises —
+    /// starting one mode of one lesson (at the tempo the learner chose) or free play. When the
+    /// runner reports a mode finished it tells the navigator, which shows the post-run screen.
     /// </para>
     ///
     /// <para>
-    /// Beside the sessions sit two tester tools (ADR-0043): <b>Free play</b>, and a
-    /// <b>Timing test</b> menu of drill presets run by <see cref="TimingDrillRunner"/>, whose
-    /// first row switches the right-hand mechanic so one headset session can run the same
-    /// drill on each. A drill's result is shown after the run, under the menu (§3.7).
+    /// <b>The tutorial</b> (ADR-0053) runs first, on startup: a <see cref="TutorialRunner"/> walks a
+    /// newcomer through putting their hands in view and the three menu gestures, gated by what they
+    /// actually do. It runs on the <i>real</i> menu — the lesson menu appears when the learner makes the
+    /// fist, a flick really moves the highlight, the last strike really opens a lesson's modes — and
+    /// hands over there. Until the menu appears the sky is black; when it does, the sunrise comes up.
+    /// </para>
+    ///
+    /// <para>
+    /// The right hand has two jobs and the recogniser is told which: in a menu it flicks, strikes
+    /// and fists; while a lesson or free play runs it only fists (held longer), because the hand
+    /// is busy playing. The fist is the one way out of a running lesson — the overhead Exit
+    /// button it replaced is gone.
     /// </para>
     /// </summary>
     public sealed class LessonFlowController : MonoBehaviour
     {
-        /// <summary>The right-hand mechanics that exist today; the ladder's triggers join them at ADR-0043 step 7.</summary>
-        private enum RightHandMechanic
-        {
-            ArcTouch = 0,
-            ArcPinch = 1,
-        }
-
         [SerializeField] private LessonCatalog _catalog;
         [SerializeField] private LessonRunner _runner;
-        [SerializeField] private LessonSelector _selector;
 
         [Tooltip("The Lesson HUD — enabled only while a lesson runs.")]
         [SerializeField] private Behaviour _hud;
 
-        [Tooltip("The right-hand melody binder (TouchTargetBinder). Enabled only for a lesson " +
-                 "whose ActiveHands includes Right (§3.9) — so a left-hand lesson like L1 shows " +
-                 "no touch-target markers. Disabling it also hides the ten markers. The Timing " +
-                 "test's mechanic row switches its trigger at runtime.")]
+        [Tooltip("The right-hand melody binder (TouchTargetBinder, or the finger-bend binder on the exploration " +
+                 "branch). Enabled only for a lesson whose ActiveHands includes Right (§3.9) — so a left-hand " +
+                 "lesson like L1 shows no touch-target markers — and in free play. Disabling it also hides " +
+                 "the ten markers.")]
         [SerializeField] private Behaviour _melodyInput;
 
-        [Tooltip("PerformanceCompositionRoot — disabled on the selector screen so left-hand " +
-                 "poses don't trigger chords while you're choosing a lesson. (Disabling the " +
-                 "melody binder also hides the ten touch-target markers.)")]
+        [Tooltip("PerformanceCompositionRoot — disabled while a menu is open so left-hand poses don't " +
+                 "trigger chords while you're choosing.")]
         [SerializeField] private PerformanceCompositionRoot _performance;
-
-        [Tooltip("The overhead Exit control. Shown during any lesson, in free play and during a " +
-                 "timing drill; a pinch on it returns to the selector.")]
-        [SerializeField] private ExitButton _exitButton;
 
         [Tooltip("The free-play metronome (ADR-0043). Optional — leave empty for a silent free " +
                  "play. Lessons run their own metronome through LessonRunner.")]
         [SerializeField] private FreePlayMetronome _freePlayMetronome;
 
-        [Tooltip("Show the free-play click's +/- tempo buttons beside the session menu. A testing " +
-                 "affordance (ADR-0043), not part of the learner's task — untick to remove it " +
-                 "from the menu, e.g. in a study build (§3.10: visual restraint).")]
-        [SerializeField] private bool _showTempoControl = true;
+        [Header("Menu (ADR-0051)")]
+        [SerializeField] private MenuView _menuView;
 
-        [Tooltip("Runs the timing drills (ADR-0043). Optional — leave empty, or leave the catalog's " +
-                 "drill list empty, to have no \"Timing test\" row. A testing affordance, not part " +
-                 "of the learner's task: remove it for a study build (§3.10).")]
-        [SerializeField] private TimingDrillRunner _drillRunner;
+        [Tooltip("Feeds the right hand to the menu recogniser every frame.")]
+        [SerializeField] private MenuInputDriver _menuInput;
 
-        private const string BackRow = "←  Back";
-        private const string FreePlayRow = "Free play";
-        private const string TimingTestRow = "Timing test";
-        private const string TimingTitle = "Timing test";
+        [Tooltip("Menu tuning and what the menu offers. Optional — the built-in defaults apply without one.")]
+        [SerializeField] private MenuConfig _menuConfig;
 
-        private int _session = -1;
-        private bool _freePlay;
-        private bool _inTimingMenu;
-        private bool _inDrill;
-        private string _lastTimingResult = string.Empty;
+        [Tooltip("Where a Test Yourself attempt's score is raised (§3.7). Shown under the post-run menu, " +
+                 "after the attempt — never during it. Optional.")]
+        [SerializeField] private EvaluationResultChannel _evaluationChannel;
 
-        private RightHandMechanic _mechanic = RightHandMechanic.ArcTouch;
-        private bool _defaultPinchSpike;
-        private bool _warnedNoBinder;
+        [Tooltip("Authored lesson captions on their way to the HUD. A caption raised the instant a run ends " +
+                 "(a lesson's closing line) would be switched off with the HUD before it was ever drawn, so it " +
+                 "is shown under the post-run menu instead. Optional.")]
+        [SerializeField] private CueActionChannel _cueChannel;
 
-        private bool HasTimingTest =>
-            _drillRunner != null && _catalog != null && _catalog.TimingDrills.Count > 0;
+        [Header("Tutorial (ADR-0053)")]
+        [Tooltip("The tutorial script. Optional - leave empty for no tutorial.")]
+        [SerializeField] private TutorialDefinition _tutorial;
 
-        private void Awake()
+        [Tooltip("The tutorial's line of instruction. Required for the tutorial to run.")]
+        [SerializeField] private TutorialView _tutorialView;
+
+        [Tooltip("The ghost right hand that shows each gesture. Optional.")]
+        [SerializeField] private TutorialGhostView _tutorialGhost;
+
+        [Tooltip("The sky: black until the menu opens, then a sunrise. Optional.")]
+        [SerializeField] private SkyDome _sky;
+
+        private static readonly double[] DefaultTempoPresets = { 60.0, 70.0, 80.0, 90.0, 100.0 };
+
+        private readonly List<LessonDefinition> _lessons = new List<LessonDefinition>();
+        private readonly List<string> _labels = new List<string>();
+
+        private MenuNavigator _navigator;
+        private MenuGestureRecognizer _recognizer;
+        private IMusicalClock _clock;
+        private TutorialRunner _tutorialRunner;
+        private float _nextTutorialLog;
+        private bool _menuRevealed = true; // false while the tutorial is keeping the lesson menu off screen
+
+        private bool _menuDrawn;
+        private MenuScreen _drawnScreen;
+        private int _drawnLesson;
+        private string _lastResult = string.Empty;
+        private string _lastCaption = string.Empty;
+        private int _lastCaptionFrame = -1;
+        private string _closingCaption = string.Empty;
+
+        private void OnEnable()
         {
-            if (_selector != null) _selector.Chosen += OnChosen;
-            if (_selector != null) _selector.SideStepped += OnTempoStepped;
-            if (_runner != null) _runner.Completed += OnLessonCompleted;
-            if (_exitButton != null) _exitButton.Exited += OnExitPressed;
-            if (_drillRunner != null) _drillRunner.Finished += OnDrillFinished;
+            if (_evaluationChannel != null) _evaluationChannel.Register(OnEvaluated);
+            if (_cueChannel != null) _cueChannel.Register(OnCue);
+        }
+
+        private void OnDisable()
+        {
+            if (_evaluationChannel != null) _evaluationChannel.Unregister(OnEvaluated);
+            if (_cueChannel != null) _cueChannel.Unregister(OnCue);
         }
 
         private void Start()
         {
-            if (_catalog == null || _selector == null || _runner == null)
+            if (_catalog == null || _runner == null || _menuView == null || _menuInput == null)
             {
-                Debug.LogError($"{nameof(LessonFlowController)}: assign catalog, selector and runner.", this);
+                Debug.LogError(
+                    $"{nameof(LessonFlowController)}: assign catalog, runner, menu view and menu input " +
+                    "(Jazztures ▸ Menu ▸ Set Up Gesture Menu does it).", this);
                 enabled = false;
                 return;
             }
 
-            if (_melodyInput is TouchTargetBinder binder)
+            if (_menuConfig == null)
             {
-                _defaultPinchSpike = binder.PinchSpike;
+                Debug.LogWarning(
+                    $"{nameof(LessonFlowController)}: no {nameof(MenuConfig)} assigned — using the built-in menu defaults.", this);
             }
 
-            ShowSessions();
+            FlattenCatalog();
+
+            MenuGestureThresholds thresholds =
+                _menuConfig != null ? _menuConfig.ToThresholds() : MenuGestureThresholds.Default;
+
+            var infos = new List<MenuLessonInfo>(_lessons.Count);
+            foreach (LessonDefinition lesson in _lessons)
+            {
+                infos.Add(new MenuLessonInfo(lesson.Modes, lesson.TempoBpm));
+            }
+
+            var model = new MenuModel(
+                infos,
+                offerFreePlay: _menuConfig == null || _menuConfig.ShowFreePlay,
+                tempoPresets: _menuConfig != null ? _menuConfig.TempoPresets() : DefaultTempoPresets);
+
+            _clock = new DspMusicalClock();
+            _recognizer = new MenuGestureRecognizer(_clock, thresholds);
+            _recognizer.Recognized += OnGesture;
+            _menuInput.Bind(_recognizer);
+
+            _navigator = new MenuNavigator(model);
+            _navigator.Changed += Render;
+            _navigator.Bumped += OnBumped;
+            _navigator.IntentRaised += OnIntent;
+            _navigator.RunAborted += StopRunSystems;
+            _runner.Completed += OnRunCompleted;
+
+            StopRunSystems();
+
+            if (!BeginTutorial())
+            {
+                if (_sky != null) _sky.RevealImmediately(); // no tutorial: straight to the menu, and the sunrise
+                Render();
+            }
+        }
+
+        /// <summary>
+        /// Start the tutorial if it is wanted and possible. Returns false (and the app goes straight to the
+        /// menu) when it is switched off in <see cref="MenuConfig"/>, has no script or view, or its script
+        /// is not valid.
+        /// </summary>
+        private bool BeginTutorial()
+        {
+            if ((_menuConfig != null && !_menuConfig.ShowTutorial) || _tutorial == null || _tutorialView == null)
+            {
+                return false;
+            }
+
+            TutorialPlan plan;
+            try
+            {
+                plan = _tutorial.BuildPlan();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e, this);
+                return false; // never trap a learner behind a broken script
+            }
+
+            TutorialThresholds thresholds =
+                _menuConfig != null ? _menuConfig.ToTutorialThresholds() : TutorialThresholds.Default;
+
+            _tutorialRunner = new TutorialRunner(plan, _clock, thresholds);
+            _tutorialRunner.StepChanged += OnTutorialStep;
+            _tutorialRunner.Completed += OnTutorialCompleted;
+            _tutorialRunner.TimedOut += OnTutorialTimedOut;
+
+            _menuRevealed = false;
+            _tutorialView.SetMenuVisible(false);
+            if (_sky != null) _sky.SetDark();
+            Render();                 // keeps the menu off screen
+            _tutorialRunner.Start();  // raises StepChanged(0): the first line
+            return true;
+        }
+
+        private void OnTutorialTimedOut(int index) =>
+            Debug.LogWarning($"[Tutorial] step {index} was not met in time - moving on.", this);
+
+        private void OnTutorialStep(int index, TutorialStep step)
+        {
+            Debug.Log($"[Tutorial] step {index} ({step.Gate}): {step.Text}", this);
+            _tutorialView.Show(step.Text);
+            if (_tutorialGhost != null) _tutorialGhost.Play(step.Demo);
+
+            if (step.ShowsMenu && !_menuRevealed)
+            {
+                RevealMenu(); // the fist worked: the lessons appear, and the sun comes up
+            }
+        }
+
+        private void OnTutorialCompleted()
+        {
+            Debug.Log("[Tutorial] complete.", this);
+            _tutorialView.Hide();
+            if (_tutorialGhost != null) _tutorialGhost.Stop();
+            if (!_menuRevealed)
+            {
+                RevealMenu();
+            }
+        }
+
+        private void RevealMenu()
+        {
+            _menuRevealed = true;
+            if (_tutorialView != null) _tutorialView.SetMenuVisible(true); // the line moves under the menu
+            if (_sky != null) _sky.Reveal();
+            Render();
         }
 
         private void OnDestroy()
         {
-            if (_selector != null) _selector.Chosen -= OnChosen;
-            if (_selector != null) _selector.SideStepped -= OnTempoStepped;
-            if (_runner != null) _runner.Completed -= OnLessonCompleted;
-            if (_exitButton != null) _exitButton.Exited -= OnExitPressed;
-            if (_drillRunner != null) _drillRunner.Finished -= OnDrillFinished;
+            if (_recognizer != null) _recognizer.Recognized -= OnGesture;
+            if (_navigator != null)
+            {
+                _navigator.Changed -= Render;
+                _navigator.Bumped -= OnBumped;
+                _navigator.IntentRaised -= OnIntent;
+                _navigator.RunAborted -= StopRunSystems;
+            }
+
+            if (_runner != null) _runner.Completed -= OnRunCompleted;
+
+            if (_tutorialRunner != null)
+            {
+                _tutorialRunner.StepChanged -= OnTutorialStep;
+                _tutorialRunner.Completed -= OnTutorialCompleted;
+                _tutorialRunner.TimedOut -= OnTutorialTimedOut;
+            }
         }
 
-        private void ShowSessions()
+        private void Update()
         {
-            _session = -1;
-            ExitToSelector();
-            _inTimingMenu = false;
-            RestoreMechanic();
-
-            var rows = new List<string>();
-            foreach (LessonCatalog.Session s in _catalog.Sessions)
+            if (_tutorialRunner != null && _tutorialRunner.IsRunning)
             {
-                rows.Add(s.title);
+                MenuHandFrame frame = _menuInput.LastFrame;
+                _tutorialRunner.Feed(frame);
+                LogTutorialWait(frame);
             }
 
-            rows.Add(FreePlayRow); // after the numbered sessions
-            if (HasTimingTest)
+            if (_recognizer != null)
             {
-                rows.Add(TimingTestRow); // after Free play
+                _menuView.SetHoldProgress(_recognizer.FistProgress);
             }
-
-            _selector.Show(rows, "Choose a session");
-            _selector.ClearFooter();
-            RefreshTempoControl();
         }
 
         /// <summary>
-        /// The free-play click's tempo stepper, beside the session menu. Only here: it sets
-        /// free play's pulse, and a lesson carries its own tempo (§3.9), so it would mislead
-        /// on a lesson list.
+        /// The catalog groups lessons into sessions (§3.9), but the menu lists lessons flat, in
+        /// session order — the sessions stay in the catalog, so the grouping can come back.
         /// </summary>
-        private void RefreshTempoControl()
+        private void FlattenCatalog()
         {
-            if (!_showTempoControl || _freePlayMetronome == null || !_freePlayMetronome.IsConfigured)
+            _lessons.Clear();
+            foreach (LessonCatalog.Session session in _catalog.Sessions)
             {
-                _selector.ClearSideControl();
-                return;
-            }
-
-            _selector.SetSideControl(
-                $"Free-play\nclick\n{_freePlayMetronome.TempoBpm:0} BPM",
-                _freePlayMetronome.CanStepTempo(-1),
-                _freePlayMetronome.CanStepTempo(1));
-        }
-
-        private void OnTempoStepped(int direction)
-        {
-            // Only offered on the session menu; ignore a stray event from anywhere else.
-            if (_session >= 0 || _inTimingMenu || _inDrill || _freePlayMetronome == null)
-            {
-                return;
-            }
-
-            _freePlayMetronome.StepTempo(direction);
-            RefreshTempoControl();
-        }
-
-        private void ShowLessons(int session)
-        {
-            _session = session;
-            ExitToSelector();
-            _inTimingMenu = false;
-            RestoreMechanic();
-
-            var rows = new List<string>();
-            foreach (LessonDefinition lesson in _catalog.Sessions[session].lessons)
-            {
-                rows.Add(lesson != null ? lesson.Title : "(missing lesson)");
-            }
-
-            rows.Add(BackRow); // last, so the lesson numbers line up with the number keys
-
-            _selector.Show(rows, _catalog.Sessions[session].title);
-            _selector.ClearSideControl();
-            _selector.ClearFooter();
-        }
-
-        // --- Timing test -------------------------------------------------------------------
-
-        private void ShowTimingMenu()
-        {
-            _session = -1;
-            ExitToSelector();
-            _inTimingMenu = true;
-
-            var rows = new List<string> { MechanicRow() }; // row 0 cycles the mechanic
-            foreach (TimingDrillDefinition drill in _catalog.TimingDrills)
-            {
-                rows.Add(drill != null ? drill.DisplayName : "(missing drill)");
-            }
-
-            rows.Add(BackRow);
-
-            _selector.Show(rows, TimingTitle);
-            _selector.ClearSideControl();
-            _selector.SetFooter(_lastTimingResult);
-        }
-
-        private void OnTimingChosen(int index)
-        {
-            if (index == 0)
-            {
-                _mechanic = _mechanic == RightHandMechanic.ArcTouch
-                    ? RightHandMechanic.ArcPinch
-                    : RightHandMechanic.ArcTouch;
-                ShowTimingMenu(); // redraw with the new label
-                return;
-            }
-
-            int drillIndex = index - 1;
-            if (drillIndex < 0 || drillIndex >= _catalog.TimingDrills.Count)
-            {
-                ShowSessions(); // the Back row, or out of range
-                return;
-            }
-
-            TimingDrillDefinition drill = _catalog.TimingDrills[drillIndex];
-            if (drill != null)
-            {
-                StartDrill(drill);
-            }
-        }
-
-        private void StartDrill(TimingDrillDefinition drill)
-        {
-            _freePlay = false;
-            _selector.Hide();
-
-            if (_freePlayMetronome != null) _freePlayMetronome.End();
-            if (_hud != null) _hud.enabled = false;
-            if (_performance != null) _performance.enabled = true;
-            if (_melodyInput != null) _melodyInput.enabled = (drill.ActiveHands & ActiveHands.Right) != 0;
-            if (_exitButton != null) _exitButton.Show();
-            ApplyMechanic();
-
-            string commit = _performance != null ? _performance.CommitGesture.ToString() : "unknown";
-            _inDrill = _drillRunner.Run(drill, MechanicTag(), commit);
-
-            if (!_inDrill)
-            {
-                _lastTimingResult = $"{drill.DisplayName} could not start — see the Console.";
-                ShowTimingMenu();
-            }
-        }
-
-        private void OnDrillFinished(DrillOutcome outcome)
-        {
-            _inDrill = false;
-            _lastTimingResult = $"{outcome.Drill.Name}: {outcome.SummaryLine}"
-                + (outcome.Report != null && outcome.CsvPath == null ? " (CSV not saved)" : string.Empty);
-            ShowTimingMenu(); // the result arrives after the run, under the menu (§3.7)
-        }
-
-        // Short: a menu row is about 15 characters wide in the headset.
-        private string MechanicRow() => $"Mechanic: {MechanicLabel()}";
-
-        private string MechanicLabel() => _mechanic == RightHandMechanic.ArcPinch ? "pinch" : "touch";
-
-        /// <summary>The machine-readable form written into a run's CSV.</summary>
-        private string MechanicTag() => _mechanic == RightHandMechanic.ArcPinch ? "arc+pinch" : "arc+touch";
-
-        private void ApplyMechanic() => SetPinchSpike(_mechanic == RightHandMechanic.ArcPinch);
-
-        /// <summary>Leaving the Timing test puts the right hand back to however the scene was authored.</summary>
-        private void RestoreMechanic() => SetPinchSpike(_defaultPinchSpike);
-
-        private void SetPinchSpike(bool pinch)
-        {
-            if (_melodyInput is TouchTargetBinder binder)
-            {
-                binder.PinchSpike = pinch;
-            }
-            else if (!_warnedNoBinder && pinch)
-            {
-                _warnedNoBinder = true;
-                Debug.LogWarning(
-                    $"{nameof(LessonFlowController)}: the melody input is not a TouchTargetBinder, so the " +
-                    "Timing test's mechanic row has no effect.", this);
-            }
-        }
-
-        // --- Lessons and free play ---------------------------------------------------------
-
-        private void OnChosen(int index)
-        {
-            if (_inTimingMenu)
-            {
-                OnTimingChosen(index);
-                return;
-            }
-
-            if (_session < 0)
-            {
-                int sessions = _catalog.Sessions.Count;
-                if (index == sessions) // the Free play row, appended after the sessions
+                foreach (LessonDefinition lesson in session.lessons)
                 {
-                    EnterFreePlay();
+                    if (lesson == null)
+                    {
+                        Debug.LogWarning($"{nameof(LessonFlowController)}: a null lesson in '{session.title}' was skipped.", this);
+                    }
+                    else if (lesson.Modes.Count == 0)
+                    {
+                        Debug.LogWarning($"{nameof(LessonFlowController)}: '{lesson.Title}' lists no modes and was skipped.", this);
+                    }
+                    else
+                    {
+                        _lessons.Add(lesson);
+                    }
                 }
-                else if (HasTimingTest && index == sessions + 1) // the Timing test row, after Free play
+            }
+        }
+
+        // --- Input -------------------------------------------------------------------------
+
+        private void OnGesture(MenuGesture gesture)
+        {
+            // During the tutorial the real menu is live, but a step lets through only the gestures taught so
+            // far: a stray strike while the learner is still learning to flick must not pick a lesson.
+            TutorialForward forward = TutorialForward.Flick | TutorialForward.Strike;
+            if (_tutorialRunner != null && _tutorialRunner.IsRunning)
+            {
+                forward = _tutorialRunner.CurrentStep.Value.Forward;
+
+                // "Strike to select a lesson": a strike that would land on Free play (a flick can reach it) is
+                // not that, and is ignored rather than quietly starting free play.
+                if (gesture == MenuGesture.Strike && _menuRevealed && !SelectedIsLesson())
                 {
-                    ShowTimingMenu();
-                }
-                else if (index >= 0 && index < sessions)
-                {
-                    ShowLessons(index);
+                    return;
                 }
 
-                return;
+                _tutorialRunner.Notify(gesture); // may complete the step - or the tutorial
             }
 
-            List<LessonDefinition> lessons = _catalog.Sessions[_session].lessons;
-
-            if (index < 0 || index >= lessons.Count) // the Back row, or out of range
-            {
-                ShowSessions();
-                return;
-            }
-
-            if (lessons[index] == null)
+            bool isFlick = gesture == MenuGesture.FlickLeft || gesture == MenuGesture.FlickRight;
+            if ((isFlick && (forward & TutorialForward.Flick) == 0)
+                || (gesture == MenuGesture.Strike && (forward & TutorialForward.Strike) == 0))
             {
                 return;
             }
 
-            _freePlay = false;
-            _selector.Hide();
+            // Answer a strike on the card that was struck, before the screen (if any) changes.
+            if (gesture == MenuGesture.Strike && !_navigator.IsRunning)
+            {
+                _menuView.Pulse();
+            }
 
-            // Cut any tempo preview still ringing from the menu before the lesson starts.
+            _navigator.Handle(gesture);
+        }
+
+        /// <summary>
+        /// Once a second while the tutorial waits on the learner, say what it can see - so a step that will not
+        /// advance can be read off <c>adb logcat</c> (hand quality and angle off the gaze, fist, openness, thumb).
+        /// Rare and small; kept in release builds on purpose.
+        /// </summary>
+        private void LogTutorialWait(MenuHandFrame f)
+        {
+            if (Time.unscaledTime < _nextTutorialLog)
+            {
+                return;
+            }
+
+            _nextTutorialLog = Time.unscaledTime + 1f;
+            Debug.Log(
+                $"[Tutorial] waiting at step {_tutorialRunner.StepIndex}: right {f.Tracking} @{f.ViewAngleDegrees:0} deg, " +
+                $"left {f.LeftTracking} @{f.LeftViewAngleDegrees:0} deg, fist {f.FistAmount:0.00}, " +
+                $"most closed {f.MaxFingerClosure:0.00}, thumb {f.ThumbUpAngleDegrees:0} deg from up.", this);
+        }
+
+        private bool SelectedIsLesson() =>
+            _navigator.Items.Count > 0 && _navigator.Items[_navigator.Selected].Kind == MenuItemKind.Lesson;
+
+        private void OnBumped(int direction) => _menuView.Bump(direction);
+
+        // --- Rendering ---------------------------------------------------------------------
+
+        private void Render()
+        {
+            if (!_menuRevealed)
+            {
+                // The tutorial has not opened the menu yet: nothing on screen but its own line.
+                _menuView.Hide();
+                _menuDrawn = false;
+                SetInputContext(MenuInputContext.Menu);
+                return;
+            }
+
+            if (_navigator.IsRunning)
+            {
+                _menuView.Hide();
+                _menuDrawn = false;
+                SetInputContext(MenuInputContext.Running);
+                return;
+            }
+
+            SetInputContext(MenuInputContext.Menu);
+
+            _labels.Clear();
+            for (int i = 0; i < _navigator.Items.Count; i++)
+            {
+                _labels.Add(LabelOf(_navigator.Items[i]));
+            }
+
+            // A new screen fades and drifts in the direction the learner went; the same screen
+            // redrawn (a flick, the tempo card changing) lets the row glide instead.
+            MenuTransition transition = MenuTransition.None;
+            if (!_menuDrawn)
+            {
+                // Appearing from nothing: coming home reads as arriving from above, anything else as going in.
+                transition = _navigator.Screen == MenuScreen.Main ? MenuTransition.Shallower : MenuTransition.Deeper;
+            }
+            else if (_drawnScreen != _navigator.Screen || _drawnLesson != _navigator.LessonIndex)
+            {
+                transition = DepthOf(_navigator.Screen) >= DepthOf(_drawnScreen)
+                    ? MenuTransition.Deeper
+                    : MenuTransition.Shallower;
+            }
+
+            _menuDrawn = true;
+            _drawnScreen = _navigator.Screen;
+            _drawnLesson = _navigator.LessonIndex;
+
+            _menuView.Show(_labels, _navigator.Selected, TitleOf(_navigator.Screen), FooterOf(_navigator.Screen), transition);
+        }
+
+        /// <summary>How far in the tree a screen is. Going to a deeper (or equally deep, e.g. the next lesson) one is "in".</summary>
+        private static int DepthOf(MenuScreen screen)
+        {
+            switch (screen)
+            {
+                case MenuScreen.Main:
+                    return 0;
+                case MenuScreen.Modes:
+                    return 1;
+                default:
+                    return 2;
+            }
+        }
+
+        private void SetInputContext(MenuInputContext context)
+        {
+            if (_recognizer.Context != context)
+            {
+                _recognizer.SetContext(context);
+            }
+        }
+
+        private string LabelOf(MenuItem item)
+        {
+            switch (item.Kind)
+            {
+                case MenuItemKind.Lesson:
+                    return _lessons[item.LessonIndex].Title;
+                case MenuItemKind.FreePlay:
+                    return "Free play";
+                case MenuItemKind.Mode:
+                    return ModeName(item.Mode.GetValueOrDefault());
+                case MenuItemKind.Tempo:
+                    return $"Tempo\n{_navigator.TempoBpm(item.LessonIndex):0} BPM";
+                case MenuItemKind.Back:
+                    return "Back";
+                case MenuItemKind.BackToModes:
+                    return "Back to modes";
+                case MenuItemKind.Restart:
+                    return "Restart";
+                case MenuItemKind.Next:
+                    return item.Mode.HasValue ? $"Next\n{ModeName(item.Mode.Value)}" : "Next lesson";
+                default:
+                    return string.Empty;
+            }
+        }
+
+        private string TitleOf(MenuScreen screen)
+        {
+            int lesson = _navigator.LessonIndex;
+            switch (screen)
+            {
+                case MenuScreen.Main:
+                    return "Choose a lesson";
+                case MenuScreen.Modes:
+                    return lesson >= 0 ? _lessons[lesson].Title : string.Empty;
+                default:
+                    return lesson >= 0 ? $"{_lessons[lesson].Title} · {ModeName(_navigator.RunMode)}" : string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// The post-run screen reports what the run ended on: the lesson's closing line, if it had one,
+        /// and a Test Yourself score (§3.7) — both once it is over, never during.
+        /// </summary>
+        private string FooterOf(MenuScreen screen)
+        {
+            if (screen != MenuScreen.PostRun)
+            {
+                return string.Empty;
+            }
+
+            if (_closingCaption.Length > 0 && _lastResult.Length > 0)
+            {
+                return _closingCaption + "\n" + _lastResult;
+            }
+
+            return _closingCaption.Length > 0 ? _closingCaption : _lastResult;
+        }
+
+        /// <summary>
+        /// Learner-facing names (§1.5 — no jargon). These are the card labels; the HUD's own phase
+        /// banner words an instruction ("Your turn") rather than a choice.
+        /// </summary>
+        private static string ModeName(LearningMode mode)
+        {
+            switch (mode)
+            {
+                case LearningMode.GestureLearning:
+                    return "Learn the shapes";
+                case LearningMode.WatchAndListen:
+                    return "Watch and listen";
+                case LearningMode.TryYourself:
+                    return "Try yourself";
+                case LearningMode.TestYourself:
+                    return "Test yourself";
+                case LearningMode.ComposeOnTheFly:
+                    return "Play freely";
+                default:
+                    return string.Empty;
+            }
+        }
+
+        // --- Runs --------------------------------------------------------------------------
+
+        private void OnIntent(MenuIntent intent)
+        {
+            if (intent.Kind == MenuIntentKind.StartFreePlay)
+            {
+                StartFreePlay();
+                return;
+            }
+
+            if (intent.LessonIndex < 0 || intent.LessonIndex >= _lessons.Count)
+            {
+                _navigator.GoHome();
+                return;
+            }
+
+            StartLesson(_lessons[intent.LessonIndex], intent.Mode, intent.TempoBpm);
+        }
+
+        private void StartLesson(LessonDefinition lesson, LearningMode mode, double tempoBpm)
+        {
+            _lastResult = string.Empty;
+            _closingCaption = string.Empty;
+
             if (_freePlayMetronome != null) _freePlayMetronome.End();
 
             // HUD + performance on first, so they catch the lesson's opening phase/cue events.
             if (_hud != null) _hud.enabled = true;
             if (_performance != null) _performance.enabled = true;
-            if (_exitButton != null) _exitButton.Show();
 
-            _runner.LoadLesson(lessons[index]);
+            try
+            {
+                _runner.LoadLesson(lesson, mode, tempoBpm);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e, this);
+                _navigator.GoHome(); // never leave the learner on a blank screen
+                return;
+            }
 
             // Right-hand melody surfaces only for a lesson that uses the right hand.
             bool usesRightHand = (_runner.ActiveHands & ActiveHands.Right) != 0;
@@ -365,55 +583,57 @@ namespace Jazztures.App
         }
 
         /// <summary>
-        /// The sandbox (§3.8 — Compose on the Fly): both hands live, no ghost, no HUD, no
-        /// lesson structure. Runs until the learner pinches the Exit button.
+        /// The sandbox (§3.8 — Compose-on-the-Fly): both hands live, no ghost, no HUD, no lesson
+        /// structure. Runs until the learner makes a fist.
         /// </summary>
-        private void EnterFreePlay()
+        private void StartFreePlay()
         {
-            _freePlay = true;
-            _session = -1;
-            _selector.Hide();
-
             _runner.StopLesson(); // no lesson; StopLesson also frees the note gate
 
             if (_hud != null) _hud.enabled = false;
             if (_performance != null) _performance.enabled = true;
             if (_melodyInput != null) _melodyInput.enabled = true; // both hands
-            if (_exitButton != null) _exitButton.Show();
             if (_freePlayMetronome != null) _freePlayMetronome.Begin();
         }
 
-        private void OnLessonCompleted() => ReturnToSelector();
-
-        private void OnExitPressed() => ReturnToSelector();
-
-        private void ReturnToSelector()
+        private void OnRunCompleted()
         {
-            if (_inDrill)
+            if (!_navigator.IsRunning)
             {
-                _lastTimingResult = "Run stopped early - nothing recorded.";
-                ShowTimingMenu(); // stops the drill; back to the menu it was started from
+                return;
             }
-            else if (!_freePlay && _session >= 0)
+
+            // A caption raised in this same frame is the lesson's closing line (the cue that fires when
+            // its last phase ends): the HUD is about to be switched off, so keep it for the menu.
+            _closingCaption = Time.frameCount == _lastCaptionFrame ? _lastCaption : string.Empty;
+
+            StopRunSystems();
+            _navigator.RunCompleted(); // shows the post-run menu
+        }
+
+        private void OnCue(CueAction action)
+        {
+            if (action.Kind == CueActionKind.ShowText)
             {
-                ShowLessons(_session); // back to this session's lesson list
-            }
-            else
-            {
-                ShowSessions();
+                _lastCaption = action.Text ?? string.Empty;
+                _lastCaptionFrame = Time.frameCount;
             }
         }
 
-        private void ExitToSelector()
+        private void OnEvaluated(AttemptResult result)
         {
-            _freePlay = false;
-            _inDrill = false;
-            if (_drillRunner != null) _drillRunner.Abort();
+            _lastResult = result.IsEmpty
+                ? string.Empty
+                : $"{result.OnTimeCount} on time · {result.CloseCount} close · {result.OffCount} off";
+        }
+
+        /// <summary>Everything a lesson or free play switches on, switched off — the menu is the idle state.</summary>
+        private void StopRunSystems()
+        {
             if (_runner != null) _runner.StopLesson();
             if (_hud != null) _hud.enabled = false;
             if (_melodyInput != null) _melodyInput.enabled = false; // also hides the target markers
             if (_performance != null) _performance.enabled = false;
-            if (_exitButton != null) _exitButton.Hide();
             if (_freePlayMetronome != null) _freePlayMetronome.End();
         }
     }

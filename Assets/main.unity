@@ -199,6 +199,7 @@ Transform:
   - {fileID: 1001962248}
   - {fileID: 1391259294}
   - {fileID: 698819754}
+  - {fileID: 536244853}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &119089429
@@ -247,6 +248,110 @@ Transform:
   m_Children:
   - {fileID: 2021757682}
   m_Father: {fileID: 1692988749}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &143583603
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 143583605}
+  - component: {fileID: 143583604}
+  m_Layer: 0
+  m_Name: Tutorial Ghost
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &143583604
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 143583603}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c1adb334e37bb645808bdcb82b66758, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.TutorialGhostView
+  _puppet: {fileID: 769705325}
+  _head: {fileID: 368964558}
+  _openPose: {fileID: 11400000, guid: 2574d55bf7453444a9b4bfa3bb4a7828, type: 2}
+  _fistPose: {fileID: 11400000, guid: d0f94a2c050fc9f45b4a52127318d458, type: 2}
+  _stationMetres: {x: 0.3, y: -0.24, z: 0.45}
+  _flickWidthMetres: 0.09
+  _flickYawDegrees: 22
+  _strikeHoverMetres: 0.06
+  _strikeDropMetres: 0.2
+  _holdBobMetres: 0.008
+  _moveCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 3
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _strikeDropCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 3
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _handoverSeconds: 0.4
+--- !u!4 &143583605
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 143583603}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 769705326}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &171344506
 GameObject:
@@ -375,6 +480,62 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+--- !u!1 &243406264
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 243406266}
+  - component: {fileID: 243406265}
+  m_Layer: 0
+  m_Name: Tutorial View
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &243406265
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 243406264}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e0766f4f342b46c4c82e6bf4e04085ec, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.TutorialView
+  _head: {fileID: 368964558}
+  _distanceMetres: 0.8
+  _heightWithoutMenuMetres: -0.05
+  _heightOffsetMetres: -0.34
+  _followEaseSeconds: 0.4
+  _characterSize: 0.0065
+  _fontSize: 90
+  _wrapChars: 30
+  _color: {r: 0.96, g: 0.95, b: 0.92, a: 1}
+  _fadeOutSeconds: 0.15
+  _fadeInSeconds: 0.35
+  _driftMetres: 0.025
+--- !u!4 &243406266
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 243406264}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &269153594
 GameObject:
   m_ObjectHideFlags: 0
@@ -552,6 +713,70 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 284365586}
   m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &297705496
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 297705499}
+  - component: {fileID: 297705498}
+  - component: {fileID: 297705497}
+  m_Layer: 0
+  m_Name: Menu Input
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &297705497
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 297705496}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0e3b11eb2f493d4f95185d666ac3000, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Input::Jazztures.Input.MetaXRMenuHandSource
+  _rightHand: {fileID: 1265530301}
+  _leftHand: {fileID: 1054031027}
+  _head: {fileID: 368964558}
+  _flickReachMetres: 0.16
+  _speedSampleFrames: 3
+--- !u!114 &297705498
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 297705496}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9661b3c7323bdf342af23a6b5527aae8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Input::Jazztures.Input.MenuInputDriver
+  _handSource: {fileID: 297705497}
+  _deskKeys: 1
+--- !u!4 &297705499
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 297705496}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &368964557
 GameObject:
   m_ObjectHideFlags: 0
@@ -887,7 +1112,63 @@ MonoBehaviour:
   _ii: {fileID: 11400000, guid: 2574d55bf7453444a9b4bfa3bb4a7828, type: 2}
   _v: {fileID: 11400000, guid: d0f94a2c050fc9f45b4a52127318d458, type: 2}
   _i: {fileID: 11400000, guid: 624119ac0ea674340aa55cbb128bf684, type: 2}
+  _strikePad: {fileID: 2008555717}
+  _anchor: 1
+  _stationHeightMetres: 0.18
+  _stationOffsetMetres: {x: 0, y: 0, z: 0}
+  _contactHeightMetres: 0.05
+  _fallbackDipMetres: 0.12
   _rig: {fileID: 0}
+--- !u!1 &536244852
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 536244853}
+  - component: {fileID: 536244854}
+  m_Layer: 0
+  m_Name: Chord Name Label
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &536244853
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 536244852}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 119089428}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &536244854
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 536244852}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c7ec3ce4ea92e644ba794344b7afebb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.ChordNameLabel
+  _leftHand: {fileID: 1054031027}
+  _config: {fileID: 11400000, guid: 253f90023ed61b241865e2b5f3639010, type: 2}
+  _chordChanged: {fileID: 11400000, guid: 5ae3de7f447f0864aa9394c89016b234, type: 2}
+  _noteTriggered: {fileID: 11400000, guid: 43f958cab8fb0b246b9829f3181537d2, type: 2}
+  _head: {fileID: 368964558}
+  _follow: {fileID: 119089426}
 --- !u!1 &573008090
 GameObject:
   m_ObjectHideFlags: 0
@@ -967,6 +1248,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Jazztures.Input::Jazztures.Input.FingerBendBinder
   _rightHand: {fileID: 1265530301}
   _config: {fileID: 11400000, guid: 253f90023ed61b241865e2b5f3639010, type: 2}
+  _requireHighConfidence: 0
 --- !u!114 &698819753
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1180,6 +1462,83 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &769705324
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 143583605}
+    m_Modifications:
+    - target: {fileID: 5036333638054362876, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: d7c3bd818aad3bf43865a07d0d6797cb, type: 2}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9220527422184078088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_Name
+      value: Right Ghost Hand
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+--- !u!114 &769705325 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1553514597374498569, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+  m_PrefabInstance: {fileID: 769705324}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3bf6df4a5ac85847831e1fb5fa00ff8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!4 &769705326 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+  m_PrefabInstance: {fileID: 769705324}
+  m_PrefabAsset: {fileID: 0}
 --- !u!114 &771001001
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1201,6 +1560,9 @@ MonoBehaviour:
   _autoAdvance: 1
   _phraseTailSeconds: 1
   _gateSettleBeats: 1.5
+  _ghostStrikeAfterPoseBeats: 2
+  _ghostStrikeApproachBeats: 0.5
+  _ghostStrikeReturnBeats: 0.5
   _logCues: 1
   _startOnBind: 0
 --- !u!114 &771001002
@@ -1742,63 +2104,6 @@ MonoBehaviour:
   _fingerTips: 1400000015000000
   _pinchSpike: 1
   _pinchSelectRadiusMetres: 0.18
---- !u!1 &1033326364
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1033326366}
-  - component: {fileID: 1033326365}
-  m_Layer: 0
-  m_Name: ExitButton
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1033326365
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1033326364}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 907cb8505ac191b43a819b42c2395c1b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.ExitButton
-  _head: {fileID: 368964558}
-  _heightMetres: 0.34
-  _forwardMetres: 0.12
-  _followEaseSeconds: 0.25
-  _rightHand: {fileID: 1265530301}
-  _leftHand: {fileID: 1054031027}
-  _reachRadiusMetres: 0.13
-  _cooldownSeconds: 0.8
-  _discRadiusMetres: 0.055
-  _characterSize: 0.004
-  _idleColor: {r: 0.46, g: 0.13, b: 0.15, a: 0.66}
-  _armedColor: {r: 1, g: 0.42, b: 0.36, a: 0.96}
-  _textColor: {r: 1, g: 0.95, b: 0.92, a: 1}
---- !u!4 &1033326366
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1033326364}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.41443, y: 0, z: 1.54616}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1054031026
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2451,14 +2756,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Jazztures.App::Jazztures.App.LessonFlowController
   _catalog: {fileID: 11400000, guid: 309c59715a97ba04eb432e4e18ce4ca5, type: 2}
   _runner: {fileID: 771001001}
-  _selector: {fileID: 2121604859}
   _hud: {fileID: 771002003}
   _melodyInput: {fileID: 698819752}
   _performance: {fileID: 119089426}
-  _exitButton: {fileID: 1033326365}
   _freePlayMetronome: {fileID: 1391259296}
-  _showTempoControl: 1
-  _drillRunner: {fileID: 771001003}
+  _menuView: {fileID: 1677165494}
+  _menuInput: {fileID: 297705498}
+  _menuConfig: {fileID: 11400000, guid: 19ba83332fe08784d8cbfecd3163bb2e, type: 2}
+  _evaluationChannel: {fileID: 11400000, guid: 1ea4d3c94029498a9bb32b0204ede4fb, type: 2}
+  _cueChannel: {fileID: 11400000, guid: a26cad29c63a42859e3d90fab0fe3a7b, type: 2}
+  _tutorial: {fileID: 11400000, guid: 1bf49c6138d8b9e4685d1a945000aa0c, type: 2}
+  _tutorialView: {fileID: 243406265}
+  _tutorialGhost: {fileID: 143583604}
+  _sky: {fileID: 2033061024}
 --- !u!114 &1391259296
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2714,6 +3024,84 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
+--- !u!1 &1677165493
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1677165495}
+  - component: {fileID: 1677165494}
+  m_Layer: 0
+  m_Name: Menu View
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1677165494
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1677165493}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 56d0e5e2a7bab3d43aa2f29cde2ab9a8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.MenuView
+  _head: {fileID: 368964558}
+  _distanceMetres: 0.8
+  _heightOffsetMetres: -0.05
+  _followEaseSeconds: 0.4
+  _cardWidthMetres: 0.3
+  _cardHeightMetres: 0.17
+  _cardGapMetres: 0.04
+  _visibleEachSide: 2
+  _neighbourScale: 0.72
+  _scrollEaseSeconds: 0.08
+  _wrapChars: 10
+  _titleScale: 0.8
+  _footerScale: 0.7
+  _footerWrapChars: 44
+  _captionGapMetres: 0.1
+  _fadeOutSeconds: 0.1
+  _fadeInSeconds: 0.18
+  _slideMetres: 0.06
+  _pulseSeconds: 0.22
+  _pulseScale: 0.12
+  _pulseColor: {r: 1, g: 1, b: 1, a: 1}
+  _bumpCards: 0.2
+  _bumpSeconds: 0.14
+  _holdBarWidthMetres: 0.3
+  _holdBarHeightMetres: 0.012
+  _holdBarColor: {r: 1, g: 0.82, b: 0.45, a: 0.9}
+  _plateMaterial: {fileID: 2100000, guid: f6236b26e7de43fe9e8fd9a3245dbb2a, type: 2}
+  _characterSize: 0.005
+  _fontSize: 90
+  _idleColor: {r: 0.8, g: 0.8, b: 0.84, a: 1}
+  _focusColor: {r: 1, g: 0.97, b: 0.85, a: 1}
+  _titleColor: {r: 0.62, g: 0.66, b: 0.72, a: 1}
+  _plateIdleColor: {r: 0.16, g: 0.17, b: 0.2, a: 0.55}
+  _plateFocusColor: {r: 0.3, g: 0.32, b: 0.24, a: 0.85}
+--- !u!4 &1677165495
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1677165493}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1692988748
 GameObject:
   m_ObjectHideFlags: 0
@@ -3239,6 +3627,75 @@ Transform:
   m_Children: []
   m_Father: {fileID: 125284774}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2033061023
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2033061025}
+  - component: {fileID: 2033061024}
+  m_Layer: 0
+  m_Name: Sky Dome
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2033061024
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2033061023}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0867804082e39f042a3af91400f23694, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.SkyDome
+  _head: {fileID: 368964558}
+  _cameras:
+  - {fileID: 916207277}
+  - {fileID: 368964559}
+  - {fileID: 709526537}
+  - {fileID: 1618160657}
+  _radiusMetres: 80
+  _segments: 48
+  _rings: 24
+  _material: {fileID: 0}
+  _zenith: {r: 0.16, g: 0.17, b: 0.42, a: 1}
+  _upper: {r: 0.45, g: 0.35, b: 0.62, a: 1}
+  _mid: {r: 0.8, g: 0.46, b: 0.55, a: 1}
+  _coral: {r: 0.99, g: 0.62, b: 0.45, a: 1}
+  _horizon: {r: 1, g: 0.77, b: 0.46, a: 1}
+  _belowHorizon: {r: 0.55, g: 0.28, b: 0.28, a: 1}
+  _nadir: {r: 0.11, g: 0.07, b: 0.11, a: 1}
+  _sunGlow: {r: 1, g: 0.86, b: 0.55, a: 1}
+  _sunElevationDegrees: 4
+  _sunCoreDegrees: 5
+  _sunHaloDegrees: 32
+  _sunStrength: 0.7
+  _revealSeconds: 4
+  _riseCurve: 2
+  _brightness: 0.45
+--- !u!4 &2033061025
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2033061023}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2109847783
 GameObject:
   m_ObjectHideFlags: 0
@@ -3327,80 +3784,6 @@ MonoBehaviour:
     RotationOffset: {x: 0, y: 0, z: 0}
     UpVectorType: 1
     FeatureThresholds: {fileID: 11400000, guid: 3d8f1a6c04e94b27a9c5e0f81b2d7a4e, type: 2}
---- !u!1 &2121604858
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2121604860}
-  - component: {fileID: 2121604859}
-  m_Layer: 0
-  m_Name: LessonSelector
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &2121604859
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2121604858}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cc84166c13f8a3740aae876f2ee9df1b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.LessonSelector
-  _rightHand: {fileID: 1265530301}
-  _head: {fileID: 368964558}
-  _distanceMetres: 0.8
-  _heightOffsetMetres: -0.05
-  _followEaseSeconds: 0.4
-  _rowSpacingMetres: 0.09
-  _rowWidthMetres: 0.34
-  _rayWidthMetres: 0.006
-  _rayLengthMetres: 2.5
-  _hoverGraceSeconds: 0.18
-  _selectCooldownSeconds: 0.4
-  _rayColor: {r: 0.55, g: 0.7, b: 1, a: 0.5}
-  _rayFocusColor: {r: 1, g: 0.95, b: 0.7, a: 0.95}
-  _sideButtonSizeMetres: 0.09
-  _sideGapMetres: 0.05
-  _sideButtonPitchMetres: 0.11
-  _sideHitMarginMetres: 0.015
-  _sideReadoutScale: 0.45
-  _sideDisabledColor: {r: 0.45, g: 0.45, b: 0.48, a: 0.6}
-  _footerScale: 0.4
-  _footerWrapChars: 44
-  _footerGapMetres: 0.07
-  _plateMaterial: {fileID: 2100000, guid: f6236b26e7de43fe9e8fd9a3245dbb2a, type: 2}
-  _characterSize: 0.006
-  _fontSize: 90
-  _idleColor: {r: 0.78, g: 0.78, b: 0.82, a: 1}
-  _focusColor: {r: 1, g: 0.97, b: 0.85, a: 1}
-  _titleColor: {r: 0.62, g: 0.66, b: 0.72, a: 1}
-  _plateIdleColor: {r: 0.16, g: 0.17, b: 0.2, a: 0.55}
-  _plateFocusColor: {r: 0.3, g: 0.32, b: 0.24, a: 0.8}
---- !u!4 &2121604860
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2121604858}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.4, z: 0.8}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2129737039
 GameObject:
   m_ObjectHideFlags: 0
@@ -3466,7 +3849,10 @@ SceneRoots:
   - {fileID: 839083463}
   - {fileID: 712729946}
   - {fileID: 771002002}
-  - {fileID: 2121604860}
-  - {fileID: 1033326366}
   - {fileID: 2129737041}
   - {fileID: 2008555718}
+  - {fileID: 1677165495}
+  - {fileID: 297705499}
+  - {fileID: 243406266}
+  - {fileID: 2033061025}
+  - {fileID: 143583605}

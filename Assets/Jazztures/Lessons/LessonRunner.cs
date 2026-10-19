@@ -59,10 +59,33 @@ namespace Jazztures.Lessons
         [Min(0f)]
         [SerializeField] private float _gateSettleBeats = 1.5f;
 
+        [Header("Ghost strike (ADR-0052)")]
+        [Tooltip("Beats after a chord's pose appears before the ghost hand strikes the pad for it - time for " +
+                 "the ghost to form the shape first. Keep it at least GhostHandView's morph beats plus a " +
+                 "little; the default is the 1.5-beat morph plus half a beat of grace. Lessons that score a " +
+                 "pulse (L2) strike on the pulse instead and ignore this, except in Watch and Listen, where the ghost " +
+                 "always strikes the chords: there this is rounded up to whole beats and is also how far the " +
+                 "system's playback trails the ghost, so the chord sounds as the hand lands.")]
+        [Min(0f)]
+        [SerializeField] private float _ghostStrikeAfterPoseBeats = 2.0f;
+
+        [Tooltip("Beats the ghost hand takes to travel onto the pad, ending in contact.")]
+        [Min(0.05f)]
+        [SerializeField] private float _ghostStrikeApproachBeats = 0.5f;
+
+        [Tooltip("Beats the ghost hand takes to lift back off the pad.")]
+        [Min(0.05f)]
+        [SerializeField] private float _ghostStrikeReturnBeats = 0.5f;
+
         [Tooltip("Log captions and highlight cues to the Console (HUD not built yet).")]
         [SerializeField] private bool _logCues = true;
 
         [SerializeField] private bool _startOnBind = true;
+
+        // ADR-0051: the menu starts a lesson one mode at a time, at a tempo the learner may have
+        // stepped. Unset (the default) the lesson runs every authored mode at its authored tempo.
+        private LearningMode? _onlyMode;
+        private double _tempoBpm;
 
         private IMusicalClock _clock;
         private ModeGatedNoteSink _gate;
@@ -77,6 +100,8 @@ namespace Jazztures.Lessons
         private IMetronomeOutput _metronomeOutput;
 
         private ScriptedHarmony _scriptedHarmony;
+        private GhostStrikeSchedule _strikes = GhostStrikeSchedule.None;
+        private double _playbackLeadBeats; // Watch and Listen: how many beats the system's playback trails the ghost
         private OnsetCapture _capture;
         private bool _melodyDemonstrating; // Watch and Listen: the system plays the melody, so the learner is not scored
         private bool _scriptStarted;
@@ -154,8 +179,9 @@ namespace Jazztures.Lessons
                 return;
             }
 
-            _plan = _lesson.BuildPlan();
-            _timeline = _lesson.BuildTimeline();
+            double tempoBpm = _tempoBpm > 0.0 ? _tempoBpm : _lesson.TempoBpm;
+            _plan = _onlyMode.HasValue ? _lesson.BuildPlan(_onlyMode.Value, tempoBpm) : _lesson.BuildPlan();
+            _timeline = _lesson.BuildTimeline(tempoBpm);
             _cuePlayer = new LessonCuePlayer(_lesson.BuildScript(), _timeline);
             _cuePlayer.ActionFired += OnCueAction;
 
@@ -198,7 +224,17 @@ namespace Jazztures.Lessons
         /// state-machine from scratch, so no handlers leak; <see cref="StopLesson"/> first
         /// kills anything the previous lesson still has sounding.
         /// </summary>
-        public void LoadLesson(LessonDefinition lesson)
+        public void LoadLesson(LessonDefinition lesson) => Load(lesson, null, 0.0);
+
+        /// <summary>
+        /// Run just <paramref name="mode"/> of <paramref name="lesson"/> at <paramref name="tempoBpm"/>
+        /// (ADR-0051). <see cref="Completed"/> fires when that one mode ends. The lesson's metronome,
+        /// timeline and onset windows all follow the tempo given here.
+        /// </summary>
+        public void LoadLesson(LessonDefinition lesson, LearningMode mode, double tempoBpm) =>
+            Load(lesson, mode, tempoBpm);
+
+        private void Load(LessonDefinition lesson, LearningMode? mode, double tempoBpm)
         {
             if (lesson == null)
             {
@@ -208,6 +244,8 @@ namespace Jazztures.Lessons
 
             StopLesson();
             _lesson = lesson;
+            _onlyMode = mode;
+            _tempoBpm = tempoBpm;
             StartLesson();
         }
 
@@ -243,6 +281,8 @@ namespace Jazztures.Lessons
             StopScriptedHarmony();
             StopMetronome();
             _metronome = null;
+            _strikes = GhostStrikeSchedule.None;
+            _playbackLeadBeats = 0.0;
             _ghostChannel?.Raise(GhostFrame.Hidden);
 
             // A stopped lesson is the free instrument again: don't leave the note gate in
@@ -276,6 +316,38 @@ namespace Jazztures.Lessons
             ModePolicy policy = phase.Policy;
             _capturing = policy.DeferFeedback; // Test Yourself captures for end-of-attempt scoring
 
+            // ADR-0052: the ghost shows the strike that sounds the chord - but only where the learner
+            // plays the left hand.
+            //
+            // Learn the shapes / Try Yourself: the pose appears on the chord's beat and the ghost strikes
+            // a couple of beats later, once it has formed the shape; the learner's own strike makes the
+            // sound.
+            //
+            // Watch and Listen: the system sounds the chord, and the ghost has to land on the pad at that
+            // very instant - so it needs its two beats to form the shape FIRST. The ghost keeps its usual
+            // timing (pose on the chord's beat, strike after it) and the system's playback is simply
+            // started that many beats later, so the chord sounds as the hand lands. Whole beats, so a
+            // metronome (which keeps its own start) stays on the grid.
+            _playbackLeadBeats = 0.0;
+            _strikes = GhostStrikeSchedule.None;
+            if (policy.GhostHandsVisible && (_plan.Hands & ActiveHands.Left) != 0)
+            {
+                bool systemSoundsChords = policy.SystemPlayback == SystemPlayback.Full;
+                double afterPose = systemSoundsChords
+                    ? System.Math.Ceiling(_ghostStrikeAfterPoseBeats)
+                    : _ghostStrikeAfterPoseBeats;
+
+                if (systemSoundsChords)
+                {
+                    _playbackLeadBeats = afterPose;
+                }
+
+                _strikes = new GhostStrikeSchedule(
+                    _timeline.StrikeBeats(afterPose, useScoredPulse: !systemSoundsChords),
+                    _ghostStrikeApproachBeats,
+                    _ghostStrikeReturnBeats);
+            }
+
             if (_phaseChannel != null)
             {
                 _phaseChannel.Raise(new LessonPhaseInfo(_plan.Id, phase));
@@ -294,7 +366,7 @@ namespace Jazztures.Lessons
             if (policy.SystemPlayback == SystemPlayback.Full)
             {
                 _playback = new TimelinePlayback(_timeline, _clock, _gate);
-                _playback.Start(_phaseStartDsp);
+                _playback.Start(_phaseStartDsp + _plan.Tempo.BeatsToSeconds(_playbackLeadBeats));
                 _melodyDemonstrating = true;
             }
             else if (policy.SystemPlayback == SystemPlayback.HarmonyOnly)
@@ -470,7 +542,9 @@ namespace Jazztures.Lessons
                 }
             }
 
-            _ghostChannel.Raise(new GhostFrame(beatNow, pose, poseChangedAt, LitTargetAt(beatNow)));
+            _ghostChannel.Raise(new GhostFrame(
+                beatNow, pose, poseChangedAt, LitTargetAt(beatNow - _playbackLeadBeats),
+                _strikes.ProgressAt(beatNow), _strikes.ContactsUpTo(beatNow)));
         }
 
         private int LitTargetAt(double beatNow)
@@ -503,8 +577,10 @@ namespace Jazztures.Lessons
                 return false;
             }
 
+            // The last ghost strike lands after the last chord: don't end the phrase mid-strike.
+            double endBeat = System.Math.Max(_timeline.DurationBeats, _strikes.EndBeat);
             double tailBeats = _plan.Tempo.SecondsToBeats(_phraseTailSeconds);
-            return _lessonBeat >= _timeline.DurationBeats + tailBeats;
+            return _lessonBeat >= endBeat + tailBeats;
         }
 
         private void EndCurrentPhase()

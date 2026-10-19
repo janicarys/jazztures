@@ -5,7 +5,10 @@
         "Jazztures.Core",
         "Jazztures.Audio",
         "Jazztures.Input",
-        "Jazztures.App"
+        "Jazztures.App",
+        "Jazztures.Config",
+        "Jazztures.Lessons",
+        "Jazztures.Presentation"
     ],
     "includePlatforms": [
         "Editor"
