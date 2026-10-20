@@ -13,15 +13,16 @@ MonoBehaviour:
   m_Name: Lesson_L1_Chords
   m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.LessonDefinition
   _id: L1
-  _title: ii-V-I chords
-  _conceptExplanation: Three hand shapes, one per chord. Open palm to the right prepares.
-    A fist is the tension. Open palm down is the release. Make a shape, then tap the
-    pad to play the chord. Use them in any order.
+  _title: Chords
+  _conceptExplanation: 'Chords are the basic foundation of '
   _tempoBpm: 80
   _swingRatio: 0.5
   _beatsPerBar: 4
   _hands: 1
   _useMetronome: 0
+  _scoredPulse:
+    _kind: 0
+    _positionsInBar: []
   _modes: 0100000002000000
   _chords:
   - beat: 0
@@ -108,7 +109,7 @@ MonoBehaviour:
     narrowToTarget: 0
     targetIndex: 0
     actionKind: 0
-    text: 'Prepare, tension, release. That is a ii-V-I.'
+    text: Prepare, tension, release. That is a ii-V-I.
     slot: 0
     actionTargetIndex: 0
     color: 0

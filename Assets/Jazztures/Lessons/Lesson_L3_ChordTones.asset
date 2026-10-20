@@ -14,20 +14,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.LessonDefinition
   _id: L3
   _title: Chord tones
-  _conceptExplanation: 'The right-hand targets are the notes that belong to the current
-    chord: root, third, fifth, seventh, ninth. Reach for them over the changes.'
+  _conceptExplanation: 'Curl your fingers to hit notes '
   _tempoBpm: 80
   _swingRatio: 0.5
   _beatsPerBar: 4
   _hands: 2
   _useMetronome: 0
+  _scoredPulse:
+    _kind: 0
+    _positionsInBar: []
   _modes: 0100000002000000
   _chords:
   - beat: 0
     function: 0
-  - beat: 4
-    function: 1
   - beat: 8
+    function: 1
+  - beat: 16
     function: 2
   _notes:
   - beat: 0
@@ -39,16 +41,40 @@ MonoBehaviour:
   - beat: 2
     targetIndex: 2
     velocity: 90
-  - beat: 4
-    targetIndex: 0
+  - beat: 3
+    targetIndex: 3
     velocity: 90
-  - beat: 5
-    targetIndex: 2
+  - beat: 4
+    targetIndex: 4
     velocity: 90
   - beat: 8
     targetIndex: 0
     velocity: 90
   - beat: 9
+    targetIndex: 1
+    velocity: 90
+  - beat: 10
+    targetIndex: 2
+    velocity: 90
+  - beat: 11
+    targetIndex: 3
+    velocity: 90
+  - beat: 12
+    targetIndex: 4
+    velocity: 90
+  - beat: 16
+    targetIndex: 0
+    velocity: 90
+  - beat: 17
+    targetIndex: 1
+    velocity: 90
+  - beat: 18
+    targetIndex: 2
+    velocity: 90
+  - beat: 19
+    targetIndex: 3
+    velocity: 90
+  - beat: 20
     targetIndex: 4
     velocity: 90
   _markers: []

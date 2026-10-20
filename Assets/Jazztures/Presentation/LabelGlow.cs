@@ -24,9 +24,15 @@ namespace Jazztures.Presentation
         private readonly Color _lit;
         private readonly float _seconds;
         private readonly float _pop;
+        private readonly float _quietAlpha;
+        private readonly float _quietScale;
 
         public LabelGlow(MelodyConfig config)
         {
+            _quietAlpha = config != null ? config.GhostQuietAlpha : 0.3f;
+            _quietScale = config != null ? config.GhostQuietScale : 0.8f;
+            CueSeconds = Mathf.Max(0.01f, config != null ? config.GhostCueSeconds : 0.15f);
+
             Color color = config != null ? config.LabelColor : DefaultColor;
             float brightness = config != null ? config.LabelRestingBrightness : 0.72f;
 
@@ -43,14 +49,29 @@ namespace Jazztures.Presentation
         public float Decay(float flash, float deltaSeconds) =>
             flash > 0f ? Mathf.Max(0f, flash - deltaSeconds / _seconds) : 0f;
 
+        /// <summary>Seconds a cued label takes to move between quiet and full strength.</summary>
+        public float CueSeconds { get; }
+
         /// <summary>Colour and size <paramref name="label"/> for <paramref name="flash"/> (1 = just lit, 0 = resting).</summary>
-        public void Apply(TextMesh label, float flash)
+        public void Apply(TextMesh label, float flash) => Apply(label, flash, 1f);
+
+        /// <summary>
+        /// As <see cref="Apply(TextMesh, float)"/>, for a label that is not always the one to look at
+        /// (the ghost's finger letters): <paramref name="emphasis"/> 1 is the label as it normally rests, 0 is
+        /// quiet - faded and a little smaller. The fade and the size are two channels (§3.10), so the cue does
+        /// not rest on colour alone. A lit label is lit whatever its emphasis: it has just sounded.
+        /// </summary>
+        public void Apply(TextMesh label, float flash, float emphasis)
         {
             // Smoothstep: stays bright for the first part of the decay, then eases off, rather than
             // draining away linearly from the first frame.
             float lit = flash * flash * (3f - 2f * flash);
-            label.color = Color.Lerp(Resting, _lit, lit);
-            label.transform.localScale = Vector3.one * (1f + _pop * lit);
+            Color color = Color.Lerp(Resting, _lit, lit);
+            float strength = Mathf.Lerp(_quietAlpha, 1f, Mathf.Max(emphasis, lit));
+            color.a *= strength;
+            label.color = color;
+            label.transform.localScale = Vector3.one
+                * (Mathf.Lerp(_quietScale, 1f, emphasis) * (1f + _pop * lit));
         }
     }
 }

@@ -99,7 +99,10 @@ namespace Jazztures.Presentation
         private readonly GhostLabel[] _labels = new GhostLabel[FingerCount];
         private readonly Transform[] _distal = new Transform[FingerCount];
         private readonly Transform[] _intermediate = new Transform[FingerCount];
+        private readonly string[,] _letters = new string[3, FingerCount]; // [chord function, finger] -> note letter
         private ChordFunction? _lettersFor;
+        private int _lettersNextFinger = GhostPressSchedule.NoFinger;
+        private ChordFunction? _lettersNextFor;
         private bool _hasLetters;
         private HandPose _open;
         private HandPose _fist;
@@ -140,6 +143,17 @@ namespace Jazztures.Presentation
 
                 _wrist = _openPose.RightWristRotationHeadLocal;
                 _ready = _head != null;
+            }
+
+            // Every letter the ghost can show, named once: the letters change as the cue moves from finger to
+            // finger, and building a chord's tone set each time would allocate on the beat.
+            for (int fn = 0; fn < _letters.GetLength(0); fn++)
+            {
+                ChordToneSet set = ChordToneSet.For(Progression.ChordFor((ChordFunction)fn));
+                for (int f = 0; f < FingerCount; f++)
+                {
+                    _letters[fn, f] = PitchNames.Of(set[f].Pitch.Class);
+                }
             }
 
             for (int f = 0; f < FingerCount; f++)
@@ -207,15 +221,25 @@ namespace Jazztures.Presentation
                 }
 
                 _wasLanded[f] = landed;
+
+                // Only the finger to play stands out: the one pressing now and the one coming next. The
+                // others fade, so the learner's eye is on one letter at a time and has a beat's warning of
+                // the next, which the finger's own short approach does not give.
+                _labels[f].Cue(f == frame.PressFinger || f == frame.NextFinger);
             }
 
             Apply();
 
-            if (!_hasLetters || frame.MelodyPose != _lettersFor)
+            if (!_hasLetters
+                || frame.MelodyPose != _lettersFor
+                || frame.NextFinger != _lettersNextFinger
+                || frame.NextMelodyPose != _lettersNextFor)
             {
                 _lettersFor = frame.MelodyPose;
+                _lettersNextFinger = frame.NextFinger;
+                _lettersNextFor = frame.NextMelodyPose;
                 _hasLetters = true;
-                SetLetters(frame.MelodyPose);
+                SetLetters(frame);
             }
 
             PlaceLabels(true, dt);
@@ -223,24 +247,21 @@ namespace Jazztures.Presentation
 
         /// <summary>
         /// Name each finger's note for the chord the demonstrated notes belong to: finger <c>f</c> plays slot
-        /// <c>f</c> of an octave (thumb = root … pinky = 9th), so "finger 3 is the 7th" whatever the chord.
+        /// <c>f</c> of an octave (thumb = root … pinky = 9th), so "finger 3 is the 7th" whatever the chord. The
+        /// finger that is next names its note for the chord that note belongs to, which in the beat before a
+        /// chord change is already the new chord's - the letter shown ahead must be the one that will sound.
         /// </summary>
-        private void SetLetters(ChordFunction? function)
+        private void SetLetters(GhostFrame frame)
         {
-            if (function is not { } fn)
-            {
-                for (int f = 0; f < FingerCount; f++)
-                {
-                    _labels[f].Text = string.Empty;
-                }
-
-                return;
-            }
-
-            ChordToneSet set = ChordToneSet.For(Progression.ChordFor(fn));
             for (int f = 0; f < FingerCount; f++)
             {
-                _labels[f].Text = PitchNames.Of(set[f].Pitch.Class);
+                ChordFunction? function = f == frame.NextFinger && frame.NextMelodyPose.HasValue
+                    ? frame.NextMelodyPose
+                    : frame.MelodyPose;
+
+                _labels[f].Text = function is { } fn && (int)fn < _letters.GetLength(0)
+                    ? _letters[(int)fn, f]
+                    : string.Empty;
             }
         }
 
@@ -290,7 +311,11 @@ namespace Jazztures.Presentation
             {
                 _depth[f] = 0f;
                 _wasLanded[f] = false;
-                _labels[f]?.Reset();
+                if (_labels[f] != null)
+                {
+                    _labels[f].Cue(false); // a new phrase starts with every letter quiet
+                    _labels[f].Reset();
+                }
             }
         }
 

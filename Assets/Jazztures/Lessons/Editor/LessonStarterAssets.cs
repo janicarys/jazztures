@@ -81,8 +81,13 @@ namespace Jazztures.Lessons.Editor
             SetEnum(so, "_hands", (int)ActiveHands.Right);
 
             SetModes(so, LearningMode.WatchAndListen, LearningMode.TryYourself);
-            SetChords(so, (0f, ChordFunction.Two), (4f, ChordFunction.Five), (8f, ChordFunction.One));
-            SetNotes(so, (0f, 0), (1f, 1), (2f, 2), (4f, 0), (5f, 2), (8f, 0), (9f, 4));
+            // Two bars per chord: root, 3rd, 5th, 7th, 9th on beats 0-4 (targets 0-4), then rest
+            // while the 9th rings.
+            SetChords(so, (0f, ChordFunction.Two), (8f, ChordFunction.Five), (16f, ChordFunction.One));
+            SetNotes(so,
+                (0f, 0), (1f, 1), (2f, 2), (3f, 3), (4f, 4),
+                (8f, 0), (9f, 1), (10f, 2), (11f, 3), (12f, 4),
+                (16f, 0), (17f, 1), (18f, 2), (19f, 3), (20f, 4));
 
             so.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(lesson);

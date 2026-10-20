@@ -174,6 +174,45 @@ namespace Jazztures.Config
                  "apart (§3.10). 0 = colour only. Cosmetic.")]
         [Range(0f, 1f)] [SerializeField] private float _labelLitPop = 0.35f;
 
+        [Header("Ghost letters — only the finger to play now or next stands out (ADR-0059)")]
+        [Tooltip("How opaque the ghost right hand's letters are for the fingers that are neither pressing nor " +
+                 "next, 1 = not faded. The finger to play stays at full strength, so which one it is reads " +
+                 "from the fade as well as from the finger moving. Cosmetic.")]
+        [Range(0.05f, 1f)] [SerializeField] private float _ghostQuietAlpha = 0.3f;
+
+        [Tooltip("How big those faded letters are against the one to play, 1 = the same size. Size is a second " +
+                 "channel beside the fade, so the cue still reads if the fade is hard to see against a bright " +
+                 "background (§3.10). Cosmetic.")]
+        [Range(0.3f, 1f)] [SerializeField] private float _ghostQuietScale = 0.8f;
+
+        [Tooltip("Seconds a ghost letter takes to move between faded and full strength, so the cue slides from " +
+                 "one finger to the next rather than flickering. Cosmetic.")]
+        [Min(0.01f)] [SerializeField] private float _ghostCueSeconds = 0.15f;
+
+        [Header("Note lanes — notes travel in along lanes out of the fingertips (ADR-0060, exploration)")]
+        [Tooltip("Beats ahead the lanes show a note: a lane is this many beats long. [TUNABLE] - unmeasured.")]
+        [Range(1f, 8f)] [SerializeField] private float _laneLookAheadBeats = 3f;
+
+        [Tooltip("Metres a note travels per beat, so the spacing of the letters on a lane is the spacing of the " +
+                 "notes in the score whatever the tempo. A lane is Look Ahead Beats x this long. [TUNABLE] - unmeasured.")]
+        [Range(0.05f, 0.6f)] [SerializeField] private float _laneMetresPerBeat = 0.2f;
+
+        [Tooltip("Beats a letter stays at the fingertip after it arrives, glowing, before it fades. Cosmetic.")]
+        [Range(0f, 1.5f)] [SerializeField] private float _laneLingerBeats = 0.4f;
+
+        [Tooltip("Width of a lane, metres. Cosmetic.")]
+        [Range(0.001f, 0.02f)] [SerializeField] private float _laneWidthMetres = 0.004f;
+
+        [Tooltip("Opacity of a lane with no note coming. Not zero, so the five lanes read as the five fingers " +
+                 "even between notes. Cosmetic.")]
+        [Range(0f, 1f)] [SerializeField] private float _laneIdleAlpha = 0.10f;
+
+        [Tooltip("Opacity of a lane with a note on its way. Cosmetic.")]
+        [Range(0f, 1f)] [SerializeField] private float _laneActiveAlpha = 0.45f;
+
+        [Tooltip("How far above its lane a letter floats, metres, so the line does not strike through it. Cosmetic.")]
+        [Range(0f, 0.08f)] [SerializeField] private float _laneLetterHoverMetres = 0.02f;
+
         [Header("Melody engine — mirrors Jazztures.Core.Melody consts, kept in sync by hand")]
         [Tooltip("Minimum fingertip speed to fire a note, m/s — 'was this a deliberate " +
                  "strike?'. Mirrors MelodyEngine.EntryVelocityGateMetresPerSecond. Distinct " +
@@ -270,6 +309,26 @@ namespace Jazztures.Config
         public float LabelLitSeconds => _labelLitSeconds;
 
         public float LabelLitPop => _labelLitPop;
+
+        public float GhostQuietAlpha => _ghostQuietAlpha;
+
+        public float GhostQuietScale => _ghostQuietScale;
+
+        public float GhostCueSeconds => _ghostCueSeconds;
+
+        public float LaneLookAheadBeats => _laneLookAheadBeats;
+
+        public float LaneMetresPerBeat => _laneMetresPerBeat;
+
+        public float LaneLingerBeats => _laneLingerBeats;
+
+        public float LaneWidthMetres => _laneWidthMetres;
+
+        public float LaneIdleAlpha => _laneIdleAlpha;
+
+        public float LaneActiveAlpha => _laneActiveAlpha;
+
+        public float LaneLetterHoverMetres => _laneLetterHoverMetres;
 
         public float EntryVelocityGateMetresPerSecond => _entryVelocityGateMetresPerSecond;
 

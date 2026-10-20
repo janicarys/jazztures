@@ -730,7 +730,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &297105953
 Transform:
   m_ObjectHideFlags: 0
@@ -766,6 +766,7 @@ MonoBehaviour:
   _openPose: {fileID: 11400000, guid: 624119ac0ea674340aa55cbb128bf684, type: 2}
   _fistPose: {fileID: 11400000, guid: d0f94a2c050fc9f45b4a52127318d458, type: 2}
   _stationMetres: {x: 0.25, y: -0.3, z: 0.45}
+  _config: {fileID: 0}
   _restCurl: 0.12
   _pressCurl: 0.6
   _handOverSeconds: 0.2
@@ -1174,6 +1175,7 @@ MonoBehaviour:
   _stationOffsetMetres: {x: 0, y: 0, z: 0}
   _contactHeightMetres: 0.05
   _fallbackDipMetres: 0.12
+  _config: {fileID: 0}
   _rig: {fileID: 0}
 --- !u!1 &536244852
 GameObject:
@@ -1225,6 +1227,56 @@ MonoBehaviour:
   _noteTriggered: {fileID: 11400000, guid: 43f958cab8fb0b246b9829f3181537d2, type: 2}
   _head: {fileID: 368964558}
   _follow: {fileID: 119089426}
+--- !u!1 &566953042
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 566953043}
+  - component: {fileID: 566953044}
+  m_Layer: 0
+  m_Name: Note Lanes
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &566953043
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 566953042}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 698819754}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &566953044
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 566953042}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 97e5d8d0b0fd3a4468535d2f26ccfa83, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.NoteLanes
+  _rightHand: {fileID: 1265530301}
+  _ghostChannel: {fileID: 11400000, guid: ff61668f9b6a4853accc8af87d511f03, type: 2}
+  _config: {fileID: 11400000, guid: 253f90023ed61b241865e2b5f3639010, type: 2}
+  _head: {fileID: 368964558}
+  _follow: {fileID: 698819752}
+  _ownLetters: {fileID: 698819753}
 --- !u!1 &573008090
 GameObject:
   m_ObjectHideFlags: 0
@@ -1338,6 +1390,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 297105953}
+  - {fileID: 566953043}
   m_Father: {fileID: 119089428}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &709526535
@@ -1700,6 +1753,7 @@ MonoBehaviour:
   _ghostStrikeReturnBeats: 0.5
   _ghostPressApproachBeats: 0.25
   _ghostPressReturnBeats: 0.35
+  _ghostNextLookAheadBeats: 1
   _logCues: 1
   _startOnBind: 0
 --- !u!114 &771001002

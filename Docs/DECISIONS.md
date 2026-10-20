@@ -8,6 +8,105 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0060 — EXPLORATION (branch `explore/finger-bend-keys`): the right-hand cue as lanes out of the fingertips
+
+**Date:** 2026-10-20 · **Status:** **Proposed — exploration only.** Lives on `explore/finger-bend-keys`; it is not a thesis
+decision and must not be merged as one. The schedule is headless-tested (787 tests), every Unity assembly compiles in a
+scratch project — **not run in the Editor, not seen on a headset** · **Milestone:** M5 · **Replaces, for the experiment:**
+ADR-0055 (ghost finger press), ADR-0058 (ghost letters), ADR-0059 (next-finger preview) as the lesson's right-hand cue ·
+**Changes the thesis:** it *would* — see below. `CLAUDE.md` is deliberately **not** edited here.
+
+### The report and the tension
+After ADR-0059 the student found Try Yourself on the right hand "still very noisy" and proposed "emulating piano roll
+through lanes that shoot out from the user's fingers with the letters coming in".
+
+CLAUDE.md §1.3 `[THESIS]` records the earlier three-lane design as **cut** after co-design feedback that it "added novice
+complexity and made the system feel like a rhythm game", and says not to reintroduce lanes. Those lanes were the three keys
+(C, B♭, A♭), not note lanes, so this is not the same feature - but a lane of arriving notes is the idiom the feedback was
+about, and §3.10 asks every added element to be justified against Chapter 4. The student chose to build it as an exploration
+(asked, rule 3), on the premise that it is only a net reduction in noise if it *replaces* the ghost right hand. **Before it
+could ship**, someone must cite what in the co-design findings distinguishes a lane of arriving letters from the rhythm-game
+look that was rejected.
+
+### What is built
+- **`Presentation/NoteLanes`** - five faint lanes run out in front of the learner's own fingertips, along the heading (§3.4);
+  each note of the phrase is a letter that travels in along its finger's lane and **reaches the fingertip on the beat** -
+  the cue to bend that finger. Lane length is a number of *beats* at a fixed distance per beat, so the spacing of the letters
+  is the spacing of the notes in the score whatever the tempo. The note due next is at full strength, the ones behind it quiet
+  (ADR-0059's fade); an arrived letter glows gold at the fingertip, lingers, and fades. A lane brightens while a note is on it.
+  Lanes are not drawn while the hand is untracked (§3.5). Pooled lines and labels, nothing allocated per frame.
+- **The ghost right hand is switched off** by the setup (below), not deleted, so the two can be compared on the headset.
+  The letters over the learner's own fingertips (`FingerNoteLabels`) are **hidden while the lanes are up** - the arriving
+  letter already names the note at that fingertip - and come back when no lesson is running (`Suppressed`). That hide is a
+  default of mine, not the student's ask: it is one assignment in `NoteLanes.LateUpdate` if the student wants them kept.
+- **Core:** `GhostPressSchedule` now exposes every press (`Count`, `OnsetAt`, `FingerAt`, `ChordAt`, `FirstAtOrAfter`) and
+  `GhostFrame` carries it with `MelodyBeat` (the beat the notes are shown on - the ghost's less the playback lead), so the
+  view measures the notes against the beat they sound on. The letter for a note names the chord *that note* belongs to.
+- **`MelodyConfig ▸ Note lanes`** - look-ahead 3 beats, 0.2 m per beat (a 0.6 m lane), linger 0.4 beat, width 4 mm, idle /
+  active opacity 0.10 / 0.45, letter hover 2 cm. All `[TUNABLE]`, unmeasured. The quiet letters use ADR-0059's
+  `Ghost letters` values.
+- **`Jazztures ▸ Experiments ▸ Use Note Lanes Instead of the Ghost Right Hand` / `Use the Ghost Right Hand Again`**
+  (`Experiments/Editor/NoteLanesSetup`) - adds or removes the `Note Lanes` child under the finger-bend input and flips the
+  ghost right hand. Needs `Use Finger-Bend Input` run first; re-running that switches the ghost back on. Undoable; save the scene.
+
+### `TODO(OPEN)` and not verified
+- **Everything on a headset:** whether the lanes read at arm's length; whether 3 beats at 0.2 m per beat is the right pace;
+  whether the quiet letters behind the next one are still legible once perspective has shrunk them.
+- **Lane anchoring** is each fingertip's tracked position, unsmoothed, with the lane running along the head's heading, not the
+  finger's. Tracking jitter will move the lane's origin and the arrival point; smooth it if it shows.
+- **Parallel lanes** a finger's width apart. Letters on different lanes are at different distances (different times), so they
+  should not collide, but two notes close together on adjacent fingers may crowd. A slight fan is the fix.
+- **Test Yourself** still hides the ghost (§3.8), so it shows no lanes either - the learner plays from memory, as before.
+- **Watch and Listen** shows the lanes too; the letters arrive as the notes sound.
+- **Chapter 4 / Chapter 6:** if the ghost right hand was described there, the paper now describes something the experiment
+  does not show. Not touched (rule 7).
+
+---
+
+## ADR-0059 — The ghost right hand announces the next finger a beat ahead and fades the letters that aren't the cue
+
+**Date:** 2026-10-20 · **Status:** Accepted (student's call); the schedule is headless-tested, the Unity assemblies compile
+in a scratch project — **not run in the Editor, not tried on a headset** · **Milestone:** M5 · **Extends:** ADR-0055 (the
+ghost's finger press), ADR-0058 (the ghost's letters) · **Changes the thesis:** nothing in `[THESIS]`. §3.10 asks that every
+added visual element be justified against Chapter 4; this adds no element, only emphasis on one already there (below).
+
+### The report
+Try Yourself on the right hand is hard to follow: with a labelled hand and a labelled ghost for each of the learner's two
+hands (ADR-0054, ADR-0058) there is a lot of text on screen, and the ghost finger only starts to move 0.25 beats (≈ 190 ms at
+80 BPM) before its note lands. In Try Yourself that press *is* the cue, so the learner finds out which finger is next about when
+it is already due. The student asked whether to show "an incoming list of the notes to hit".
+
+### Decision: not a list
+A scrolling list of upcoming notes is the rhythm-game idiom the three-lane design was cut for (§1.3), and it moves the
+learner's eyes off the hands onto a new HUD element (§3.10). Both problems are fixed where the cue already is:
+
+1. **Next-finger preview.** `GhostPressSchedule.TryGetNext(beat, lookAheadBeats, …)` (Core, tested) returns the nearest press
+   still ahead and within the look-ahead; `LessonRunner` publishes it as `GhostFrame.NextFinger` and, because the beat before a
+   chord change has the *next* note already in the new chord, `GhostFrame.NextMelodyPose` — the chord the next note belongs
+   to. `RightGhostHandView` names the next finger's letter for that chord, so the letter shown ahead is the one that will sound.
+   Look-ahead is `LessonRunner ▸ Ghost Next Look Ahead Beats`, default **1.0** `[TUNABLE]`: with notes a beat apart the next
+   finger is marked from the instant the last one lands. 0 turns it off. While a press is under way its finger is still "next",
+   so the mark carries straight into the press.
+2. **Quiet letters.** On the ghost right hand, only the finger pressing and the finger next are at full strength; the other
+   letters fade and shrink a little (`MelodyConfig ▸ Ghost letters`: opacity 0.3, size 0.8, ease 0.15 s — all cosmetic). Two
+   channels, fade and size, so the cue does not rest on colour (§3.10). A letter that lights as its finger lands still goes
+   gold and swells, whatever its emphasis. Every letter starts quiet at the start of a phrase.
+
+### Not changed
+The learner's own fingertip letters and the left hand's chord name are as they were; the left ghost's name label is untouched
+(`GhostLabel` is at full strength unless a view cues it). Watch and Listen gets the same preview and fade — it is the same
+ghost.
+
+### Notes
+- If the look-ahead is more than the gap between notes, only the nearest is marked, never two.
+- Between phrases of notes — a rest in the lesson, as L3 has before each chord change — every ghost letter is quiet.
+- **Chapter 4:** if it argues the ghost carries no text at all, this and ADR-0058 contradict it. The learner-facing claim here is
+  attention management (one letter at a time), not extra information.
+- Not run in the Editor or on a headset. The fade values and the 1-beat look-ahead are guesses; the thing to look at first is
+  whether the faded letters are still legible at arm's length.
+
+---
+
 ## ADR-0058 — The ghost hands carry the same labels as the learner's: note letters on the right, the chord's name on the left
 
 **Date:** 2026-10-20 · **Status:** Accepted (student's request); the right ghost's letters exist only on
@@ -541,6 +640,26 @@ wrist, so even a recorded movement had no way to play. The recorder remains the 
   strike in whatever pose is on file.
 - `Jazztures ▸ Lessons ▸ Create Session 1 Starter Lessons` still describes the *old* Lesson 1 (W&L → Try Yourself,
   three chords) and overwrites an existing asset's fields: do not run it over the shipped assets.
+
+### Revision 3 (2026-10-20) — the ghost strikes wherever the system sounds a chord, including right-hand lessons
+
+The student, on Lesson 3: "the chord tone lesson doesn't show the left hand ghost striking the plane. In any instance
+where the system actuates a chord, the ghost hand should strike the plane." Decision 5 had scoped the strike to lessons
+where the learner plays the left hand, and said right-hand-only lessons "get no dip" — but L3's Watch and Listen
+(full playback) and Try Yourself (harmony only, §3.8 footnote / ADR-0043 decision 3) both have the *system* sound the
+chords, so the pad lit and the chord rang with no hand striking it.
+
+- `LessonRunner` now strikes when the ghost is visible and **either** the learner plays the left hand **or** the system
+  sounds the chords (`SystemPlayback.Full` or `HarmonyOnly`). The pad flash and chord-name glow follow, as before.
+- Where the system sounds the chords the ghost must land as the chord sounds, so the Revision 2 rule applies: the
+  strike is 2 whole beats after the pose, and the system's playback trails the ghost by that lead. `HarmonyOnly` used to
+  start at beat 0; its chord playback and `ScriptedHarmony` now start `lead` beats late, and the ghost right hand's lit
+  targets and finger presses trail by the same amount, so each note still sits over its own chord (ADR-0058).
+- **Cost:** a right-hand lesson's Watch and Listen and Try Yourself now open with 2 beats (1.5 s at 80 BPM) before the
+  first chord, as left-hand Watch and Listen already does.
+- **Not covered:** Test Yourself hides the ghost (§3.8), so a right-hand lesson's Test Yourself still plays its harmony
+  with no hand striking. That follows the mode table; the student can say if it should differ.
+- Compiled in a scratch project; not run in the Editor, not seen on a headset.
 
 ### Revision 2 (same day) — Watch and Listen is back in Lesson 1, and the ghost strikes in it
 

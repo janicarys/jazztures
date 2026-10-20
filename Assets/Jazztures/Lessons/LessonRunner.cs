@@ -70,9 +70,10 @@ namespace Jazztures.Lessons
         [Tooltip("Beats after a chord's pose appears before the ghost hand strikes the pad for it - time for " +
                  "the ghost to form the shape first. Keep it at least GhostHandView's morph beats plus a " +
                  "little; the default is the 1.5-beat morph plus half a beat of grace. Lessons that score a " +
-                 "pulse (L2) strike on the pulse instead and ignore this, except in Watch and Listen, where the ghost " +
-                 "always strikes the chords: there this is rounded up to whole beats and is also how far the " +
-                 "system's playback trails the ghost, so the chord sounds as the hand lands.")]
+                 "pulse (L2) strike on the pulse instead and ignore this, except where the system sounds the chords " +
+                 "(Watch and Listen; a right-hand lesson's Try Yourself), where the ghost always strikes the chords: " +
+                 "there this is rounded up to whole beats and is also how far the system's playback trails the " +
+                 "ghost, so the chord sounds as the hand lands.")]
         [Min(0f)]
         [SerializeField] private float _ghostStrikeAfterPoseBeats = 2.0f;
 
@@ -94,6 +95,14 @@ namespace Jazztures.Lessons
         [Tooltip("Beats the ghost finger takes to lift back off its key.")]
         [Min(0.05f)]
         [SerializeField] private float _ghostPressReturnBeats = 0.35f;
+
+        [Tooltip("Beats ahead the ghost right hand's letter for the next note is marked as 'up next' (ADR-0059). " +
+                 "The finger itself only starts moving the approach beats above before its note, which is too " +
+                 "little time to read the cue and reach for the finger; this is the warning that comes before " +
+                 "it. 1 means the next note is marked from the moment the last one lands, for notes a beat " +
+                 "apart. 0 turns the mark off. [TUNABLE] - unmeasured.")]
+        [Min(0f)]
+        [SerializeField] private float _ghostNextLookAheadBeats = 1.0f;
 
         [Tooltip("Log captions and highlight cues to the Console (HUD not built yet).")]
         [SerializeField] private bool _logCues = true;
@@ -120,7 +129,7 @@ namespace Jazztures.Lessons
         private ScriptedHarmony _scriptedHarmony;
         private GhostStrikeSchedule _strikes = GhostStrikeSchedule.None;
         private GhostPressSchedule _presses = GhostPressSchedule.None;
-        private double _playbackLeadBeats; // Watch and Listen: how many beats the system's playback trails the ghost
+        private double _playbackLeadBeats; // where the system sounds the chords: how many beats its playback trails the ghost
         private OnsetCapture _capture;
         private bool _melodyDemonstrating; // Watch and Listen: the system plays the melody, so the learner is not scored
         private bool _scriptStarted;
@@ -341,23 +350,25 @@ namespace Jazztures.Lessons
             ModePolicy policy = phase.Policy;
             _capturing = policy.DeferFeedback; // Test Yourself captures for end-of-attempt scoring
 
-            // ADR-0052: the ghost shows the strike that sounds the chord - but only where the learner
-            // plays the left hand.
+            // ADR-0052: the ghost shows the strike that sounds the chord - wherever the learner strikes
+            // it (they play the left hand) or the system does (it sounds the chords itself).
             //
             // Learn the shapes / Try Yourself: the pose appears on the chord's beat and the ghost strikes
             // a couple of beats later, once it has formed the shape; the learner's own strike makes the
             // sound.
             //
-            // Watch and Listen: the system sounds the chord, and the ghost has to land on the pad at that
-            // very instant - so it needs its two beats to form the shape FIRST. The ghost keeps its usual
+            // Where the system sounds the chords - Watch and Listen, and a right-hand lesson's Try Yourself,
+            // where the harmony plays and the melody is the learner's - the ghost has to land on the pad at
+            // that very instant, so it needs its two beats to form the shape FIRST. The ghost keeps its usual
             // timing (pose on the chord's beat, strike after it) and the system's playback is simply
             // started that many beats later, so the chord sounds as the hand lands. Whole beats, so a
             // metronome (which keeps its own start) stays on the grid.
             _playbackLeadBeats = 0.0;
             _strikes = GhostStrikeSchedule.None;
-            if (policy.GhostHandsVisible && (_plan.Hands & ActiveHands.Left) != 0)
+            bool systemSoundsChords = policy.SystemPlayback == SystemPlayback.Full
+                                      || policy.SystemPlayback == SystemPlayback.HarmonyOnly;
+            if (policy.GhostHandsVisible && ((_plan.Hands & ActiveHands.Left) != 0 || systemSoundsChords))
             {
-                bool systemSoundsChords = policy.SystemPlayback == SystemPlayback.Full;
                 double afterPose = systemSoundsChords
                     ? System.Math.Ceiling(_ghostStrikeAfterPoseBeats)
                     : _ghostStrikeAfterPoseBeats;
@@ -410,12 +421,16 @@ namespace Jazztures.Lessons
                 // sound (on the Accompaniment channel, so they are never the learner's
                 // onsets) and the same timeline selects them for the melody to follow —
                 // the chord the learner hears is the chord their notes are constrained to.
+                //
+                // Where the ghost is shown it strikes each chord (ADR-0052), so the harmony trails it by
+                // the same lead and the chord sounds as the hand lands.
+                double harmonyStartDsp = _phaseStartDsp + _plan.Tempo.BeatsToSeconds(_playbackLeadBeats);
                 _playback = new TimelinePlayback(_timeline, _clock, _gate, includeMelody: false);
-                _playback.Start(_phaseStartDsp);
+                _playback.Start(harmonyStartDsp);
 
                 if (_scriptedHarmony != null)
                 {
-                    _scriptedHarmony.Start(_timeline, _phaseStartDsp);
+                    _scriptedHarmony.Start(_timeline, harmonyStartDsp);
                     _scriptStarted = true;
                 }
                 else
@@ -585,10 +600,19 @@ namespace Jazztures.Lessons
             // by the lead; the chord they belong to is that beat's chord, not the pose's (ADR-0058).
             double melodyBeat = beatNow - _playbackLeadBeats;
             double pressProgress = _presses.ProgressAt(melodyBeat, out int pressFinger);
+
+            // The finger to play next, announced ahead of its press (ADR-0059), and the chord its note belongs to.
+            ChordFunction? nextPose = null;
+            if (_presses.TryGetNext(melodyBeat, _ghostNextLookAheadBeats, out int nextFinger, out double nextOnset))
+            {
+                nextPose = _timeline.ChordFunctionAt(nextOnset);
+            }
+
             _ghostChannel.Raise(new GhostFrame(
                 beatNow, pose, poseChangedAt, LitTargetAt(melodyBeat),
                 _strikes.ProgressAt(beatNow), _strikes.ContactsUpTo(beatNow),
-                pressFinger, pressProgress, _timeline.ChordFunctionAt(System.Math.Max(0.0, melodyBeat))));
+                pressFinger, pressProgress, _timeline.ChordFunctionAt(System.Math.Max(0.0, melodyBeat)),
+                nextFinger, nextPose, _presses, melodyBeat));
         }
 
         private int LitTargetAt(double beatNow)

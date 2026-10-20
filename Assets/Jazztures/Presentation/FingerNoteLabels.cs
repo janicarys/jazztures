@@ -58,6 +58,13 @@ namespace Jazztures.Presentation
             HandJointId.HandRingTip, HandJointId.HandPinkyTip,
         };
 
+        /// <summary>
+        /// True hides the letters while something else is already naming the notes at the fingertips - the
+        /// note lanes (ADR-0060) bring each letter in to the finger that plays it, so a second one hanging over
+        /// the same fingertip would only repeat it. Set by that view, every frame it is up.
+        /// </summary>
+        public bool Suppressed { get; set; }
+
         private readonly TextMesh[] _labels = new TextMesh[Tips.Length];
         private readonly int[] _midi = new int[Tips.Length];
         private readonly float[] _flash = new float[Tips.Length];
@@ -184,7 +191,8 @@ namespace Jazztures.Presentation
 
         private void LateUpdate()
         {
-            bool shown = _hand != null && _hand.IsTrackedDataValid && (_follow == null || _follow.isActiveAndEnabled);
+            bool shown = !Suppressed && _hand != null && _hand.IsTrackedDataValid
+                         && (_follow == null || _follow.isActiveAndEnabled);
             Vector3 viewer = _head != null ? _head.position : Vector3.zero;
 
             for (int f = 0; f < _labels.Length; f++)

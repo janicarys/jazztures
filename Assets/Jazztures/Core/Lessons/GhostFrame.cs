@@ -39,7 +39,11 @@ namespace Jazztures.Core.Lessons
             int strikeCount = 0,
             int pressFinger = GhostPressSchedule.NoFinger,
             double pressProgress = 0.0,
-            ChordFunction? melodyPose = null)
+            ChordFunction? melodyPose = null,
+            int nextFinger = GhostPressSchedule.NoFinger,
+            ChordFunction? nextMelodyPose = null,
+            GhostPressSchedule? pressSchedule = null,
+            double melodyBeat = 0.0)
         {
             Beat = beat;
             DemonstratedPose = demonstratedPose;
@@ -50,6 +54,10 @@ namespace Jazztures.Core.Lessons
             PressFinger = pressFinger < 0 ? GhostPressSchedule.NoFinger : pressFinger;
             PressProgress = pressFinger < 0 ? 0.0 : pressProgress < 0.0 ? 0.0 : pressProgress > 1.0 ? 1.0 : pressProgress;
             MelodyPose = melodyPose;
+            NextFinger = nextFinger < 0 ? GhostPressSchedule.NoFinger : nextFinger;
+            NextMelodyPose = nextFinger < 0 ? null : nextMelodyPose;
+            PressSchedule = pressSchedule;
+            MelodyBeat = melodyBeat;
             Visible = true;
         }
 
@@ -101,8 +109,34 @@ namespace Jazztures.Core.Lessons
         /// </summary>
         public ChordFunction? MelodyPose { get; }
 
+        /// <summary>
+        /// The finger the ghost will press next, 0 (thumb) .. 4 (pinky), or <see cref="GhostPressSchedule.NoFinger"/>
+        /// when no press is close enough to announce - the learner's look-ahead: the finger itself only starts to
+        /// move a fraction of a beat before its note. While that press is under way this is still its finger.
+        /// </summary>
+        public int NextFinger { get; }
+
+        /// <summary>
+        /// The chord function the <see cref="NextFinger"/>'s note belongs to - what its letter should name. It
+        /// differs from <see cref="MelodyPose"/> in the beat before a chord change, when the next note is already
+        /// the new chord's but the current notes are the old one's. Null when there is no next finger.
+        /// </summary>
+        public ChordFunction? NextMelodyPose { get; }
+
+        /// <summary>
+        /// Every finger press of the lesson, in time order (ADR-0060): what the note lanes draw coming in. Null when
+        /// the frame carries none. Immutable, so sharing the reference costs the frame nothing.
+        /// </summary>
+        public GhostPressSchedule? PressSchedule { get; }
+
+        /// <summary>
+        /// The beat the lesson's notes are shown on - <see cref="Beat"/> less however far the system's playback
+        /// trails the ghost - and so the beat to measure <see cref="PressSchedule"/>'s onsets against.
+        /// </summary>
+        public double MelodyBeat { get; }
+
         public override string ToString() => Visible
-            ? $"ghost @ beat {Beat:0.##}: pose {DemonstratedPose?.ToString() ?? "-"}, lit {LitTargetIndex}, strike {StrikeProgress:0.##} ({StrikeCount}), press {(PressFinger < 0 ? "-" : PressFinger.ToString())} {PressProgress:0.##}"
+            ? $"ghost @ beat {Beat:0.##}: pose {DemonstratedPose?.ToString() ?? "-"}, lit {LitTargetIndex}, strike {StrikeProgress:0.##} ({StrikeCount}), press {(PressFinger < 0 ? "-" : PressFinger.ToString())} {PressProgress:0.##}, next {(NextFinger < 0 ? "-" : NextFinger.ToString())}"
             : "ghost hidden";
     }
 }
