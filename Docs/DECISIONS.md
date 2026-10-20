@@ -8,6 +8,206 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0058 — The ghost hands carry the same labels as the learner's: note letters on the right, the chord's name on the left
+
+**Date:** 2026-10-20 · **Status:** Accepted (student's request); the right ghost's letters exist only on
+`explore/finger-bend-keys`, like the hand itself (ADR-0055) — compiled in a scratch project against the Editor's own
+assemblies; **not run in the Editor, not tried on a headset** · **Milestone:** M5 · **Extends:** ADR-0044 / ADR-0050 (finger
+letters), ADR-0054 (chord name, glow), ADR-0055 / ADR-0052 (the ghosts) · **Changes the thesis:** nothing in `[THESIS]`. As with
+ADR-0054, **if Chapter 4 argues the ghost carries no text, this contradicts it.**
+
+### The request
+"Can you have the labels appear over the ghost hands as well?"
+
+### What was built
+- **Right ghost: a letter over each fingertip** - the note that finger plays (thumb = root … pinky = 9th, ADR-0050), re-pitched
+  with the chord the demonstrated notes belong to, in the same size, colour and glow as the letters over the learner's own
+  fingers. It **lights as the finger lands on its key** - the moment the note sounds in Watch and Listen, and the cue to play
+  in Try Yourself, where nothing sounds and the learner's own letters never flash.
+- **Left ghost: the chord's name** ("Dm7", "G7", "Cmaj7") floating above the hand, as the learner's own hand carries it
+  (`ChordNameLabel`). It shows from the moment the ghost takes the pose - through the lead-in too - and **lights as the ghost's
+  strike lands**, which is the moment the chord sounds in Watch and Listen.
+- **`GhostLabel`** (Presentation, internal) is the one floating label both use: a `TextMesh` with `LabelGlow` and the
+  learner's label settings (`MelodyConfig`), turned to face the head. Both views own their labels; they are pure subscribers to
+  the ghost channel (§2.3).
+- **`GhostFrame.MelodyPose`** (Core, tested) - the chord the demonstrated *notes* belong to. It is the ghost's pose except where
+  the system's playback trails the ghost (Watch and Listen on a lesson that strikes chords, ADR-0052 revision 2): there the ghost
+  has already posed the next chord while a note of the last is still to be shown, and a letter taken from the pose would name the
+  wrong note for the lead's length before every chord change. `LessonRunner` fills it from the playback's beat.
+- **Scene wiring:** the labels work with no scene change, in the built-in look. **`Jazztures ▸ Labels ▸ Set Up Ghost Hand Labels`**
+  copies the scene's existing label settings into both ghosts so they match the learner's exactly (idempotent, undoable - save
+  the scene); `Use Finger-Bend Input` does it for a right ghost it creates.
+
+### Justification (visual restraint, §3.10)
+The ghost is the demonstration, and a demonstration that names nothing leaves "which note?" to be worked out from where a
+finger is - for a novice with no note names. The labels are redundant, never the only carrier (the finger moves; the sound
+plays), and they are the same notation as the learner's own (ADR-0044: letters, no octave numbers; ADR-0054: chord names, no
+theory words, §1.5). The cost is a second set of letters on screen while the learner's own are up; whether that is too much is for
+a pilot, and the ghost's labels are one component away from off.
+
+### `TODO(OPEN)` and not verified
+- The fingertip is estimated from the last two joints of each finger (the rig has no tip joint): the last bone's length beyond
+  the distal joint is taken as 0.75 of the one before it, and the letter hangs 3.5 cm above, as over the real fingers. Look at it
+  on the thumb first.
+- The chord name hangs 11 cm above the middle knuckle, as on the real hand; the ghost hovers above the pad, so check it against the
+  lesson caption.
+- Nothing here has run in the Editor or on a headset.
+
+---
+
+## ADR-0057 — The right ghost hand's joint rotations are mirrored from the left-hand captures, not copied
+
+**Date:** 2026-10-20 · **Status:** Accepted (bug fix, student's report) — compiled in a scratch project against the Editor's
+own assemblies; **not run in the Editor, not tried on a headset** · **Milestone:** M5 · **Corrects:** ADR-0053 decision 5, and
+ADR-0055 which repeated it · **Changes the thesis:** nothing.
+
+### The report
+"The right hand looks distorted, most notably the thumb."
+
+### Cause
+Both right ghost hands (`RightGhostHandView`, ADR-0055, and `TutorialGhostView`, ADR-0053) were driven by the left-hand ghost
+captures (`Input/Poses/Ghost/*.asset`), and both copied the **joint rotations unchanged**, mirroring only the wrist, on the
+belief (ADR-0053) that "a `HandPose`'s joint rotations carry across hands unchanged". They do not. The SDK is compiled against
+the OpenXR hand skeleton (`ISDK_OPENXR_HAND` is set by the Interaction assembly's own `versionDefines`), where the two hands share
+their distal and dorsal axes and differ in the way the thumb side points (left +X, right −X — read from the compiled
+`Constants`). A rotation therefore has to be reflected to change hands, and the SDK does exactly that wherever it changes a
+pose's hand: `HandGrabUtils.MirrorHandGrabPose` runs every joint through `HandMirroring.Mirror`, and `ShadowHand.FromJoints` does
+the same with `flipHandedness`. Neither ghost prefab carries a compensating rotation offset (every `rotationOffset` is zero in
+both). `HandPose.CopyFrom(…, mirrorHandedness)`, which the ADR leaned on, only carries the *label* and the finger freedom.
+
+### Why it is the thumb
+Flexion, which is nearly all a finger does between open and fist, is a rotation about the axis the mirror leaves alone, so the
+fingers were close to right. The thumb's metacarpal turns through a large sideways angle. Measured on the captured *I* pose, the
+error from not mirroring is **133°** on that joint (**169°** in *V*), 24-26° on the next two thumb joints, 58° on the pinky's
+metacarpal, and under 8° on most finger joints.
+
+### The fix
+`GhostPoseAsset` gained `CreateRightHandPose()` (every joint through `HandMirroring.Mirror`) and `RightWristRotationHeadLocal`
+(`HandMirroring.Reflect` across the head-local left-right plane — the same result as the hand-rolled negation it replaces, now
+from the SDK, so it stays right if the skeleton define changes). Both right-hand ghosts use them; the tutorial's private
+`MirrorAcrossLeftRight` is gone. Left ghost: untouched.
+
+### Not verified
+That the mirror is the right one is read from the SDK source and the compiled constants, not seen: `HandMirroring` calls
+`Quaternion.LookRotation`, a native Unity call, so it cannot be run outside the Editor. Look at both right hands, the thumb
+first. If the thumb is *still* wrong, the next suspect is the blend, not the mirror: the press moves each pressed finger
+60 % of the way from the *I* pose to the *V* fist, and the fist's thumb is tucked across the palm rather than pressed down
+(`Press Curl` and `Rest Curl` on `RightGhostHandView`).
+
+---
+
+## ADR-0056 — Every phrase opens with four beats of silence; floating panels never trail the head by more than 20 cm
+
+**Date:** 2026-10-20 · **Status:** Accepted (student's request) — compiled in a scratch project against the Editor's own
+assemblies; **not run in the Editor, not tried on a headset** · **Milestone:** M5 · **Extends:** ADR-0043 (the shared
+phrase start), ADR-0021 (text panels) · **Changes the thesis:** nothing in `[THESIS]`. A session's lessons each run four
+beats longer (≈ 3 s at 80 BPM), which the ≤ 2 h session budget absorbs.
+
+### The request
+"Can all the lessons have four beats of silence before starting? Also, the interface takes a bit to adjust to the
+player's viewport."
+
+### 1 — The lead-in
+- **What it is:** `LessonRunner` moves the phrase's one shared start time (`_phaseStartDsp`, ADR-0043) later by
+  `_leadInBeats` (default **4**, at the lesson's own tempo). The system's playback, the scripted harmony, the metronome and
+  the onset capture are all anchored to that time, so **nothing sounds before it** - no chord, no melody, **no metronome
+  click** (silence, not a count-in; a count-in would be a one-line change to start the click earlier). Applied to every
+  phase the runner starts, which with the menu's one-mode runs (ADR-0051) is once per lesson attempt.
+- **The phrase position is now signed.** It used to be clamped at 0 through the 0.15 s pre-roll, which was harmless; held at 0
+  for three seconds it would have kept a beat-0 note lit, and a beat-0 strike's hand on the pad, for the whole silence. It
+  now starts negative and counts up to 0. The ghost's *pose* is read at max(beat, 0), so it waits in the pose the phrase
+  opens with - ready, not already striking or lit - and its strikes, lit targets and finger presses (ADR-0052/0055) follow the
+  signed beat, so they begin on time. Tests pin that a beat-0 press or strike has not begun in the lead-in.
+- **Captions** still fire when the phase starts, so the lesson's opening line is on screen through the silence. In Try Yourself
+  on a left-hand lesson the learner's own strikes are silent until the first expected pose arrives (the correctness gate has no
+  expected pose before beat 0) - which is the silence asked for; the right-hand lessons are silent for want of a chord.
+- **Test Yourself:** a note played inside the lead-in is kept by `OnsetCapture` at a negative time, as before, so anticipating
+  the start can still be scored as an extra. Unchanged by this ADR; worth a look at the first pilot.
+- **Not changed:** the timing drills (`TimingDrillRunner`) - they measure latency, not a lesson - and free play.
+- **Config:** one field on the runner, beside the ghost-strike ones; set it to 0 to start at once.
+
+### 2 — The interface and the viewport
+**Found, not observed:** I could not reproduce this without a headset, so these are the causes the code shows, fixed together.
+1. **`LessonHud` kept a stale position while it was switched off.** The flow turns it off between lessons; on the next one its
+   caption appeared where it had last been and eased (0.5 s time constant, about a second and a half to look arrived) to the
+   learner's present view. The menu and tutorial already restarted at the view when shown; the HUD did not. It now does.
+2. **An ease has no bound on how far behind it can be.** All three panels (`LessonHud`, `MenuView`, `TutorialView`) eased with a
+   0.4-0.5 s time constant, so a panel placed before the headset's pose settled, or a head that turned quickly, left the panel out
+   of view for a second or more. They now share `Presentation/PanelFollow`: the same ease, **leashed** so the panel never trails the
+   point it belongs at by more than `_maxTrailMetres` (default 0.2 m, about 14-17° at the panels' distances). Within the leash a small
+   head movement still moves the panel exactly as softly as before (checked: 1.37 mm in a frame either way); beyond it the panel is
+   carried along at the head's pace. The three copies of the placement code became one.
+- **Measured** with `PanelFollow` run outside Unity at 90 fps: a panel placed 1.6 m off is within 0.2 m at once and within 5 cm in
+  0.57 s (was 1.39 s); across a 90° turn in half a second the worst trail is 0.20 m (was 0.64 m) and it settles 0.56 s after the
+  head stops (was 1.02 s).
+- **If it still feels slow,** the two knobs are each panel's `Max Trail Metres` (smaller = tighter) and `Follow Ease Seconds`. The
+  strike pad and the melody arc are not these panels: they are body-anchored on purpose and recentre only after a 35° turn held
+  for 0.6 s (ADR-0015/0040), so they will still lag a turn - say if that is the thing you meant.
+
+### Not verified
+`dotnet test` passes (762). `Presentation`, `Lessons` and the editor command compile in a scratch project. The lead-in and the
+panel follow have not run in the Editor or on a headset; whether 4 beats feels right at each lesson's tempo, and whether 0.2 m
+is the right leash, are for the first session on device.
+
+---
+
+## ADR-0055 — EXPLORATION (branch `explore/finger-bend-keys`): the lesson's ghost right hand presses the cued finger
+
+**Date:** 2026-10-20 · **Status:** **Proposed — exploration only**, same footing as ADR-0050 (it exists only because
+that input does) · **Milestone:** M5 · **Extends:** ADR-0012 (ghost hands), ADR-0050 (finger-bend input), ADR-0052
+(the detached ghost) · **Changes the thesis:** nothing in `[THESIS]`. **Supersedes, for this branch only,** ADR-0012's
+"right hand: no ghost fingertip" row — `CLAUDE.md` §7 still says it and is deliberately not edited here (as with
+ADR-0050).
+
+### The request
+"The fingers on the right ghost hand should move to press the keys when cued by the lesson."
+
+### What was there
+Only the left ghost followed the lesson (`GhostHandView`). The right hand's cue was `GhostFrame.LitTargetIndex`, which
+lights a touch-target sphere — but with finger bends there are no spheres (ADR-0050 hides them), so in Try Yourself the
+learner had no cue at all, and in Watch and Listen only the letter over their own fingertip flashed. The tutorial has a
+right ghost (`TutorialGhostView`), but it does not read the lesson.
+
+### What was built
+- **`Core/Lessons/GhostPressSchedule`** (tested) — each melody note becomes a press of the finger that plays it
+  (target index mod 5: thumb = root … pinky = 9th, the same map as `FingerBendBinder`). It is one
+  `GhostStrikeSchedule` per finger, so it has the strike's envelope: the finger accelerates down and is **fully down
+  exactly on the note's swung onset**, then lifts on an ease. The fingertip meets the key as the note sounds; in Try
+  Yourself, where nothing sounds, the press is the cue to do it now.
+- **`GhostFrame`** gained `PressFinger` / `PressProgress`. `LessonRunner` builds the schedule per phase (only where the
+  lesson includes the right hand and the mode shows ghosts), publishes it shifted by the playback lead like the lit
+  target, and does not end a phrase while the last finger is still lifting. Timing: `_ghostPressApproachBeats` 0.25,
+  `_ghostPressReturnBeats` 0.35, on the runner beside the strike's two — the same place ADR-0052 put its equivalents.
+- **`Presentation/RightGhostHandView`** — a pure subscriber. A palm-down open hand hovers right of centre in the
+  learner's heading frame (not on their wrist, for ADR-0052's reasons); the pressing finger's joints blend from the open
+  pose toward the fist, the rest stay put. **No poses were recorded:** the open hand is the left ghost's *I* capture, the
+  bend its *V* capture, as the tutorial ghost reuses *ii* and *V* — recapture either and this follows. (These were first
+  copied onto the right hand unchanged; that was wrong and is corrected by ADR-0057.) A finger that stops
+  being the cue before it has lifted eases up over 0.2 s rather than snapping when another takes over (quick passages).
+  Shown only while the finger-bend input is enabled, i.e. a lesson that uses the right hand (the flow already toggles it).
+- **Scene wiring:** `Jazztures ▸ Experiments ▸ Use Finger-Bend Input` now also adds the view (idempotent, undoable) as a
+  child of `Finger Bend Input`, with its own copy of the SDK's right ghost hand, so `Use Touch Targets Again` takes it
+  away too. **Re-run that command once and save the scene** — nothing in `main.unity` was edited by hand.
+
+### Justification (visual restraint, §3.10)
+It replaces a cue that was missing, not an extra one: with the touch targets gone the right hand had no demonstration at
+all. It carries no letters; the note names stay on the learner's own fingertips (ADR-0050/0054), so the ghost is movement
+only. Whether the ghost *and* the flashing fingertip letter in Watch and Listen is one cue too many is for a pilot.
+
+### `TODO(OPEN)`
+- **The upper octave.** Targets 5..9 press the same finger as 0..4 (the same degree). ADR-0050 gives the finger input one
+  octave, so the learner cannot reach those pitches; no shipped lesson uses them (L3 uses 0–4). Pick a convention if a
+  lesson ever does.
+- **Station and look.** The hover position (0.25, −0.30, 0.45 m from the head), the 0.12 resting curl and the 0.6 press
+  curl are guesses; a fist's thumb tuck is not a thumb press. All Inspector fields.
+
+### Not verified
+`dotnet test` passes (759), including 23 new tests for the schedule and the frame (a mutation that ignores swing fails
+the swing test). `Presentation`, `Lessons` and the editor command compiled in a scratch project against the Editor's own
+assemblies; **none of it has run in the Editor or on a headset, and the setup command has not been run.**
+
+---
+
 ## ADR-0054 — The left hand carries its chord's name, and both hands' labels light up when they sound
 
 **Date:** 2026-10-19 · **Status:** Accepted (student's request) — every Unity assembly compiles in a scratch
@@ -106,10 +306,10 @@ until they open the menu, where we have a warm sunrise palette.**
    left hand (ADR-0047) — plus all four long fingers under 0.35 closure. Not hand-rolled joint maths (§3.4).
    **The menu itself never checks hand shape** (flicks and strikes are palm motions): this step teaches a *ready posture*
    the recogniser does not enforce. If the student means it to be required, that is a change to ADR-0051.
-5. **The ghost right hand reuses the poses already recorded.** The SDK ships `OpenXRGhost-HandRight`, and a `HandPose`'s
-   joint rotations carry across hands unchanged (`HandPose.CopyFrom(…, mirrorHandedness)`), so the *ii* capture (open palm,
-   thumb up) is the open hand and the *V* capture the fist; the wrist orientation is mirrored (a reflection across the
-   learner's left-right plane negates two quaternion components). No recording was needed — and re-capturing those two
+5. **The ghost right hand reuses the poses already recorded.** The SDK ships `OpenXRGhost-HandRight`, so the *ii* capture
+   (open palm, thumb up) is the open hand and the *V* capture the fist. ~~A `HandPose`'s joint rotations carry across hands
+   unchanged~~ — **wrong, corrected by ADR-0057:** only the wrist was mirrored here and the joints were copied as they were,
+   which distorts the thumb badly; both are now mirrored. No recording was needed — and re-capturing those two
    poses updates the tutorial. The ghost hovers to the right and below the menu, in the learner's heading frame, **not**
    tied to their hand (ADR-0052's reasoning: it must not jump or vanish when the real hand does, which is what the first
    steps are about). Four looping demos: close into a fist and open; hold open with the thumb up (a slow bob so it reads as

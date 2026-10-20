@@ -59,6 +59,13 @@ namespace Jazztures.Lessons
         [Min(0f)]
         [SerializeField] private float _gateSettleBeats = 1.5f;
 
+        [Header("Lead-in (ADR-0056)")]
+        [Tooltip("Beats of silence, at the lesson's tempo, before each phrase starts. Nothing sounds in them - no " +
+                 "chord, no melody, no metronome click - so the learner can get their hands up and read the " +
+                 "caption; the ghost waits in its first pose. 0 starts at once.")]
+        [Min(0f)]
+        [SerializeField] private float _leadInBeats = 4f;
+
         [Header("Ghost strike (ADR-0052)")]
         [Tooltip("Beats after a chord's pose appears before the ghost hand strikes the pad for it - time for " +
                  "the ghost to form the shape first. Keep it at least GhostHandView's morph beats plus a " +
@@ -76,6 +83,17 @@ namespace Jazztures.Lessons
         [Tooltip("Beats the ghost hand takes to lift back off the pad.")]
         [Min(0.05f)]
         [SerializeField] private float _ghostStrikeReturnBeats = 0.5f;
+
+        [Header("Ghost finger press (ADR-0055)")]
+        [Tooltip("Beats the ghost right hand's finger takes to go down onto its key, ending with the key down on " +
+                 "the note's onset - so the fingertip meets the key as the note sounds. Only used when the right " +
+                 "hand plays by bending fingers (ADR-0050).")]
+        [Min(0.05f)]
+        [SerializeField] private float _ghostPressApproachBeats = 0.25f;
+
+        [Tooltip("Beats the ghost finger takes to lift back off its key.")]
+        [Min(0.05f)]
+        [SerializeField] private float _ghostPressReturnBeats = 0.35f;
 
         [Tooltip("Log captions and highlight cues to the Console (HUD not built yet).")]
         [SerializeField] private bool _logCues = true;
@@ -101,6 +119,7 @@ namespace Jazztures.Lessons
 
         private ScriptedHarmony _scriptedHarmony;
         private GhostStrikeSchedule _strikes = GhostStrikeSchedule.None;
+        private GhostPressSchedule _presses = GhostPressSchedule.None;
         private double _playbackLeadBeats; // Watch and Listen: how many beats the system's playback trails the ghost
         private OnsetCapture _capture;
         private bool _melodyDemonstrating; // Watch and Listen: the system plays the melody, so the learner is not scored
@@ -282,6 +301,7 @@ namespace Jazztures.Lessons
             StopMetronome();
             _metronome = null;
             _strikes = GhostStrikeSchedule.None;
+            _presses = GhostPressSchedule.None;
             _playbackLeadBeats = 0.0;
             _ghostChannel?.Raise(GhostFrame.Hidden);
 
@@ -303,9 +323,14 @@ namespace Jazztures.Lessons
             double preRoll = _metronome != null && _metronomeOutput != null
                 ? _metronomeOutput.PreRollSeconds
                 : 0.0;
-            _phaseStartDsp = _clock.Now + preRoll;
-            _lessonBeat = 0.0;
-            _lastRealBeat = 0.0;
+
+            // ADR-0056: the phrase starts after a silent lead-in. Everything below - the system's
+            // playback, the scripted harmony, the metronome, the onset capture - is anchored to this one
+            // time, so moving it is all it takes for none of them to sound before it. The phrase position
+            // starts negative and counts up through the lead-in to 0.
+            _phaseStartDsp = _clock.Now + preRoll + _plan.Tempo.BeatsToSeconds(_leadInBeats);
+            _lastRealBeat = _plan.Tempo.SecondsToBeats(_clock.Now - _phaseStartDsp);
+            _lessonBeat = _lastRealBeat;
             _waitingForInput = false;
             _capture.Begin(_phaseStartDsp);
             _cuePlayer.Reset();
@@ -346,6 +371,16 @@ namespace Jazztures.Lessons
                     _timeline.StrikeBeats(afterPose, useScoredPulse: !systemSoundsChords),
                     _ghostStrikeApproachBeats,
                     _ghostStrikeReturnBeats);
+            }
+
+            // ADR-0055: where the learner plays the right hand, the ghost right hand presses a finger per
+            // note, landing on the note's onset. Whether the view shows it depends on the right-hand input
+            // (finger bends, ADR-0050); the runner just says what the notes ask for.
+            _presses = GhostPressSchedule.None;
+            if (policy.GhostHandsVisible && (_plan.Hands & ActiveHands.Right) != 0)
+            {
+                _presses = GhostPressSchedule.FromTimeline(
+                    _timeline, _ghostPressApproachBeats, _ghostPressReturnBeats);
             }
 
             if (_phaseChannel != null)
@@ -427,9 +462,9 @@ namespace Jazztures.Lessons
 
             // The phrase position. Normally it tracks real time; in a gesture-gated mode it
             // holds on each demonstrated pose until the learner confirms that pose (§3.8).
-            // Clamped at 0: during the pre-roll before a shared start time (ADR-0043) the
-            // phrase has not begun, so the cursor must not creep forward.
-            double realBeat = System.Math.Max(0.0, _plan.Tempo.SecondsToBeats(_clock.Now - _phaseStartDsp));
+            // Negative before the shared start time (the lead-in, ADR-0056, and the metronome's
+            // pre-roll, ADR-0043): the phrase has not begun, and it counts up to 0 as that passes.
+            double realBeat = _plan.Tempo.SecondsToBeats(_clock.Now - _phaseStartDsp);
             double advanced = realBeat - _lastRealBeat;
             _lastRealBeat = realBeat;
             _lessonBeat = NextLessonBeat(phase, _lessonBeat + (advanced > 0.0 ? advanced : 0.0));
@@ -532,19 +567,28 @@ namespace Jazztures.Lessons
                 return;
             }
 
-            ChordFunction? pose = _timeline.ChordFunctionAt(beatNow);
+            // In the lead-in (negative beat) the ghost waits in the pose the phrase opens with - ready,
+            // not already striking or lighting a target: those follow the signed beat below, and none
+            // of them has begun.
+            double poseBeat = System.Math.Max(0.0, beatNow);
+            ChordFunction? pose = _timeline.ChordFunctionAt(poseBeat);
             double poseChangedAt = 0.0;
             for (int i = 0; i < _timeline.Chords.Count; i++)
             {
-                if (_timeline.Chords[i].Beat.Position <= beatNow)
+                if (_timeline.Chords[i].Beat.Position <= poseBeat)
                 {
                     poseChangedAt = _timeline.Chords[i].Beat.Position;
                 }
             }
 
+            // The notes (lit targets, finger presses) are shown on the playback's beat, which trails the ghost's
+            // by the lead; the chord they belong to is that beat's chord, not the pose's (ADR-0058).
+            double melodyBeat = beatNow - _playbackLeadBeats;
+            double pressProgress = _presses.ProgressAt(melodyBeat, out int pressFinger);
             _ghostChannel.Raise(new GhostFrame(
-                beatNow, pose, poseChangedAt, LitTargetAt(beatNow - _playbackLeadBeats),
-                _strikes.ProgressAt(beatNow), _strikes.ContactsUpTo(beatNow)));
+                beatNow, pose, poseChangedAt, LitTargetAt(melodyBeat),
+                _strikes.ProgressAt(beatNow), _strikes.ContactsUpTo(beatNow),
+                pressFinger, pressProgress, _timeline.ChordFunctionAt(System.Math.Max(0.0, melodyBeat))));
         }
 
         private int LitTargetAt(double beatNow)
@@ -577,8 +621,11 @@ namespace Jazztures.Lessons
                 return false;
             }
 
-            // The last ghost strike lands after the last chord: don't end the phrase mid-strike.
-            double endBeat = System.Math.Max(_timeline.DurationBeats, _strikes.EndBeat);
+            // The last ghost strike lands after the last chord: don't end the phrase mid-strike. The
+            // same for a finger still lifting off its last key (its schedule is on the playback's beat).
+            double endBeat = System.Math.Max(
+                System.Math.Max(_timeline.DurationBeats, _strikes.EndBeat),
+                _presses.EndBeat + _playbackLeadBeats);
             double tailBeats = _plan.Tempo.SecondsToBeats(_phraseTailSeconds);
             return _lessonBeat >= endBeat + tailBeats;
         }

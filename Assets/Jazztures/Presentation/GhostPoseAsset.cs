@@ -1,4 +1,5 @@
 using Oculus.Interaction.HandGrab;
+using Oculus.Interaction.Input;
 using UnityEngine;
 
 namespace Jazztures.Presentation
@@ -41,6 +42,37 @@ namespace Jazztures.Presentation
                                 + _wristRotationHeadLocal.y * _wristRotationHeadLocal.y
                                 + _wristRotationHeadLocal.z * _wristRotationHeadLocal.z
                                 + _wristRotationHeadLocal.w * _wristRotationHeadLocal.w > 0.01f;
+
+        /// <summary>
+        /// This capture for the <b>right</b> hand: the same shape, mirrored (ADR-0057). The captures are of the
+        /// left hand, and a right-hand rig does not take left-hand joint rotations as they are: the two skeletons
+        /// share their distal and dorsal axes and differ in which way the thumb side points, so a rotation has to
+        /// be reflected across it. Copying them unchanged leaves the fingers nearly right (their flexion is
+        /// unaffected) and the thumb, whose metacarpal turns through a large sideways angle, far wrong. This is what
+        /// the SDK does itself when it mirrors a grab pose (<c>HandGrabUtils.MirrorHandGrabPose</c>).
+        /// </summary>
+        public HandPose CreateRightHandPose()
+        {
+            var right = new HandPose(Handedness.Right);
+            right.CopyFrom(_pose, mirrorHandedness: true); // finger freedom; the label stays Right
+
+            Quaternion[] source = _pose.JointRotations;
+            Quaternion[] mirrored = right.JointRotations;
+            for (int i = 0; i < source.Length && i < mirrored.Length; i++)
+            {
+                mirrored[i] = HandMirroring.Mirror(source[i]);
+            }
+
+            return right;
+        }
+
+        /// <summary>
+        /// <see cref="WristRotationHeadLocal"/> for the right hand: the mirror image of the left wrist across the
+        /// learner's left-right plane (the head-local X axis), in the right hand's own skeleton. Identity if no
+        /// wrist was captured.
+        /// </summary>
+        public Quaternion RightWristRotationHeadLocal =>
+            HasWrist ? HandMirroring.Reflect(_wristRotationHeadLocal, Vector3.right) : Quaternion.identity;
 
 #if UNITY_EDITOR
         /// <summary>Editor only — the Ghost Pose Recorder writes a fresh capture here.</summary>

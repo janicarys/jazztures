@@ -13,13 +13,12 @@ namespace Jazztures.Presentation
     /// subscriber's view: it is told which demo to play and reads nothing.
     ///
     /// <para>
-    /// <b>No new poses were recorded.</b> The SDK ships a right ghost hand (<c>OpenXRGhost-HandRight</c>)
-    /// and a <see cref="HandPose"/>'s joint rotations carry across hands unchanged
-    /// (<see cref="HandPose.CopyFrom"/> with <c>mirrorHandedness</c>), so the left-hand ghost poses already
-    /// authored through the Ghost Pose Recorder are reused: the <i>ii</i> capture (open palm, thumb up) is
-    /// the open hand, the <i>V</i> capture the fist. Only the wrist orientation needs mirroring — a
-    /// reflection across the learner's left-right plane, which negates two quaternion components. Re-capture
-    /// those two poses and the tutorial follows.
+    /// <b>No new poses were recorded.</b> The SDK ships a right ghost hand (<c>OpenXRGhost-HandRight</c>),
+    /// so the left-hand ghost poses already authored through the Ghost Pose Recorder are reused: the <i>ii</i>
+    /// capture (open palm, thumb up) is the open hand, the <i>V</i> capture the fist. They are mirrored to the
+    /// right hand - every joint rotation and the wrist (<see cref="GhostPoseAsset.CreateRightHandPose"/>,
+    /// ADR-0057); copied unchanged, the thumb comes out badly distorted. Re-capture those two poses and the
+    /// tutorial follows.
     /// </para>
     ///
     /// <para>
@@ -125,16 +124,14 @@ namespace Jazztures.Presentation
             }
             else
             {
-                // The joint rotations carry across hands unchanged; only the handedness label differs.
-                _open = new HandPose(Handedness.Right);
-                _open.CopyFrom(_openPose.Pose, mirrorHandedness: true);
-                _fist = new HandPose(Handedness.Right);
-                _fist.CopyFrom(_fistPose.Pose, mirrorHandedness: true);
+                // The captures are of the left hand: mirror them, joints and wrist, for the right (ADR-0057).
+                _open = _openPose.CreateRightHandPose();
+                _fist = _fistPose.CreateRightHandPose();
                 _scratch = new HandPose(Handedness.Right);
                 _scratch.CopyFrom(_open, mirrorHandedness: true);
 
-                _openWrist = MirrorAcrossLeftRight(_openPose.HasWrist ? _openPose.WristRotationHeadLocal : Quaternion.identity);
-                _fistWrist = MirrorAcrossLeftRight(_fistPose.HasWrist ? _fistPose.WristRotationHeadLocal : Quaternion.identity);
+                _openWrist = _openPose.RightWristRotationHeadLocal;
+                _fistWrist = _fistPose.RightWristRotationHeadLocal;
                 _ready = _head != null;
             }
 
@@ -283,12 +280,6 @@ namespace Jazztures.Presentation
                 }
             }
         }
-
-        /// <summary>
-        /// Reflect a rotation across the learner's left-right plane: the rotation a mirror-image hand would
-        /// have. For a quaternion that negates the two components perpendicular to the mirrored axis.
-        /// </summary>
-        private static Quaternion MirrorAcrossLeftRight(Quaternion q) => new Quaternion(q.x, -q.y, -q.z, q.w);
 
         /// <summary>How far through a movement the hand is, <paramref name="u"/> being how far through the time it is (0..1).</summary>
         private float Move(float u) => Follow(_moveCurve, u);

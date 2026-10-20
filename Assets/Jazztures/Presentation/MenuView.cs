@@ -44,6 +44,10 @@ namespace Jazztures.Presentation
         [Min(0.2f)] [SerializeField] private float _distanceMetres = 0.8f;
         [SerializeField] private float _heightOffsetMetres = -0.05f;
         [Min(0f)] [SerializeField] private float _followEaseSeconds = 0.4f;
+        [Tooltip("The panel never trails the point it belongs at by more than this, metres. Within it the panel eases " +
+                 "softly; beyond it, it is carried along with the head, so it is never far out of view - after a quick " +
+                 "turn, or when it first appears (ADR-0056).")]
+        [Min(0f)] [SerializeField] private float _maxTrailMetres = 0.2f;
 
         [Header("Cards")]
         [Min(0.1f)] [SerializeField] private float _cardWidthMetres = 0.30f;
@@ -356,29 +360,9 @@ namespace Jazztures.Presentation
                 return;
             }
 
-            Vector3 forward = _head.forward;
-            forward.y = 0f;
-            if (forward.sqrMagnitude < 1e-6f)
-            {
-                return;
-            }
-
-            forward.Normalize();
-            Vector3 wanted = _head.position + forward * _distanceMetres + Vector3.up * _heightOffsetMetres;
-
-            if (!_hasTargetPosition)
-            {
-                _targetPosition = wanted;
-                _hasTargetPosition = true;
-            }
-            else
-            {
-                float k = _followEaseSeconds <= 0f ? 1f : 1f - Mathf.Exp(-Time.deltaTime / _followEaseSeconds);
-                _targetPosition = Vector3.Lerp(_targetPosition, wanted, k);
-            }
-
-            transform.position = _targetPosition;
-            transform.rotation = Quaternion.LookRotation(_targetPosition - _head.position, Vector3.up);
+            PanelFollow.Follow(
+                transform, _head, _distanceMetres, _heightOffsetMetres, _followEaseSeconds, _maxTrailMetres,
+                Time.deltaTime, ref _targetPosition, ref _hasTargetPosition);
         }
 
         // --- content and transition ---------------------------------------------------------

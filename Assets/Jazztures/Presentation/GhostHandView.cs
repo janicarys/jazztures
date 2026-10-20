@@ -1,3 +1,4 @@
+using Jazztures.Config;
 using Jazztures.Core.Harmony;
 using Jazztures.Core.Lessons;
 using Jazztures.Events;
@@ -20,6 +21,8 @@ namespace Jazztures.Presentation
     ///   <item><b>Left-hand strike</b> (ADR-0052) — between chords the ghost lifts off the learner's
     ///   wrist, dips onto the strike pad and flashes it, then returns. A strike is a movement, not a
     ///   pose, so it is described by <see cref="GhostFrame.StrikeProgress"/> rather than recorded.</item>
+    ///   <item><b>Chord name</b> (ADR-0058) — the name of the chord the ghost is posing floats above it, as the
+    ///   learner's own left hand's does (<see cref="ChordNameLabel"/>), and lights up as the ghost's strike lands.</item>
     ///   <item><b>Right hand</b> — no ghost fingertip. The demonstrated melody stop lights
     ///   (<see cref="TouchTarget.SetDemonstrated"/>); the learner chooses the reach.</item>
     /// </list>
@@ -82,6 +85,11 @@ namespace Jazztures.Presentation
         [Tooltip("How far down the ghost dips when there is no pad assigned, metres.")]
         [Min(0f)] [SerializeField] private float _fallbackDipMetres = 0.12f;
 
+        [Header("Chord name label (ADR-0058)")]
+        [Tooltip("Label size and colours come from here - the same settings as the learner's own chord name. " +
+                 "Left empty, the built-in defaults apply. Jazztures ▸ Labels ▸ Set Up Ghost Hand Labels fills it in.")]
+        [SerializeField] private MelodyConfig _config;
+
         [Header("Right-hand demo lights")]
         [Tooltip("Optional. The touch-target rig whose stops light while the demo plays a note.")]
         [SerializeField] private TouchTargetRig _rig;
@@ -102,6 +110,15 @@ namespace Jazztures.Presentation
         private bool _ghostVisible;
         private float _strikeProgress;
         private int _strikesSeen;
+
+        // How the chord name is drawn, not how anything behaves - cosmetic, so not [TUNABLE]. As ChordNameLabel.
+        private const float NameHoverAboveHandMetres = 0.11f;
+        private const float NameSizeVersusLetter = 1.25f;
+
+        private GhostLabel _chordName;
+        private Transform _nameAnchor;
+        private ChordFunction? _namedFor;
+        private bool _hasName;
 
         private void Awake()
         {
@@ -141,7 +158,27 @@ namespace Jazztures.Presentation
                     "wrist orientation can't be shown, so ii and I will look identical (ADR-0014).", this);
             }
 
+            _chordName = new GhostLabel(transform, "Ghost Chord Name", _config, NameSizeVersusLetter);
+            _nameAnchor = FindJoint(HandJointId.HandMiddle1); // the middle knuckle: the middle of the hand, as the real label uses
+            if (_nameAnchor == null)
+            {
+                _nameAnchor = _puppet.transform;
+            }
+
             SetGhostVisible(false);
+        }
+
+        private Transform FindJoint(HandJointId id)
+        {
+            foreach (HandJointMap map in _puppet.JointMaps)
+            {
+                if (map.id == id)
+                {
+                    return map.transform;
+                }
+            }
+
+            return null;
         }
 
         private void OnEnable() => _ghostChannel?.Register(OnGhost);
@@ -154,11 +191,39 @@ namespace Jazztures.Presentation
 
         private void OnGhost(GhostFrame frame)
         {
+            ShowFrame(frame);
+            UpdateChordName(frame); // after the pose: the name hangs off the hand where it now is
+        }
+
+        /// <summary>
+        /// Name the chord the ghost is posing, over its hand. Shown while the ghost is and it holds a pose; the
+        /// glow is lit by <see cref="FollowStrike"/> as the ghost's strike lands.
+        /// </summary>
+        private void UpdateChordName(GhostFrame frame)
+        {
+            if (!_hasName || frame.DemonstratedPose != _namedFor)
+            {
+                _namedFor = frame.DemonstratedPose;
+                _hasName = true;
+                _chordName.Text = _namedFor is { } function ? Progression.ChordFor(function).ToString() : string.Empty;
+            }
+
+            Vector3 viewer = _head != null ? _head.position : Vector3.zero;
+            _chordName.Place(
+                frame.Visible,
+                _nameAnchor.position + Vector3.up * NameHoverAboveHandMetres,
+                viewer,
+                Time.deltaTime);
+        }
+
+        private void ShowFrame(GhostFrame frame)
+        {
             SetGhostVisible(frame.Visible);
 
             if (!frame.Visible)
             {
                 ClearDemoLight();
+                _chordName.Reset();
                 _strikeProgress = 0f;
                 _strikesSeen = 0;
                 return;
@@ -217,9 +282,14 @@ namespace Jazztures.Presentation
         {
             _strikeProgress = (float)frame.StrikeProgress;
 
-            if (frame.StrikeCount > _strikesSeen && _strikePad != null)
+            if (frame.StrikeCount > _strikesSeen)
             {
-                _strikePad.Flash();
+                if (_strikePad != null)
+                {
+                    _strikePad.Flash();
+                }
+
+                _chordName.Flash(); // the chord's name lights as the ghost's hand lands: its chord sounds
             }
 
             _strikesSeen = frame.StrikeCount; // also resyncs downward when a new phrase restarts the count

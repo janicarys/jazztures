@@ -124,6 +124,90 @@ namespace Jazztures.App.Editor
                 "Save the scene (Ctrl+S) to keep it.");
         }
 
+        /// <summary>
+        /// Gives both ghost hands the learner's own label look (ADR-0058): copies the label settings
+        /// (<c>MelodyConfig</c>) the finger letters and the chord name already use into the left ghost
+        /// (<see cref="GhostHandView"/>, the chord name) and the right ghost (<see cref="RightGhostHandView"/>, the
+        /// note letters). The labels work without it, in the built-in look; this makes them match. Idempotent and
+        /// undoable; it changes the scene, which must then be saved.
+        /// </summary>
+        [MenuItem("Jazztures/Labels/Set Up Ghost Hand Labels")]
+        public static void ApplyGhostLabels()
+        {
+            Object config = FindLabelConfig();
+            if (config == null)
+            {
+                Debug.LogError(
+                    "Label setup: could not find the label settings (no finger letters, chord name or touch-target binder with a " +
+                    "config assigned). Nothing was changed.");
+                return;
+            }
+
+            var left = Object.FindFirstObjectByType<GhostHandView>(FindObjectsInactive.Include);
+            var right = Object.FindFirstObjectByType<RightGhostHandView>(FindObjectsInactive.Include);
+            if (left == null && right == null)
+            {
+                Debug.LogError(
+                    "Label setup: no ghost hand in the open scene. Run Jazztures ▸ Menu ▸ Set Up Gesture Menu, and Jazztures ▸ " +
+                    "Experiments ▸ Use Finger-Bend Input, first. Nothing was changed.");
+                return;
+            }
+
+            Undo.SetCurrentGroupName("Set up ghost hand labels");
+            int group = Undo.GetCurrentGroup();
+
+            int wired = 0;
+            if (left != null)
+            {
+                Undo.RecordObject(left, "Ghost chord name look");
+                SetReference(new SerializedObject(left), "_config", config);
+                wired++;
+            }
+
+            if (right != null)
+            {
+                Undo.RecordObject(right, "Ghost finger letters look");
+                SetReference(new SerializedObject(right), "_config", config);
+                wired++;
+            }
+
+            Undo.CollapseUndoOperations(group);
+            var scene = (left != null ? left.gameObject : right.gameObject).scene;
+            EditorSceneManager.MarkSceneDirty(scene);
+            Debug.Log(
+                $"Label setup: {wired} ghost hand(s) now use the learner's label look" +
+                (left == null ? " (no left ghost in the scene)" : string.Empty) +
+                (right == null ? " (no right ghost in the scene - run Use Finger-Bend Input)" : string.Empty) +
+                ". Save the scene (Ctrl+S) to keep it.");
+        }
+
+        /// <summary>The label settings the scene's own labels already use.</summary>
+        private static Object FindLabelConfig()
+        {
+            var letters = Object.FindFirstObjectByType<FingerNoteLabels>(FindObjectsInactive.Include);
+            if (letters != null)
+            {
+                Object config = new SerializedObject(letters).FindProperty("_config").objectReferenceValue;
+                if (config != null)
+                {
+                    return config;
+                }
+            }
+
+            var name = Object.FindFirstObjectByType<ChordNameLabel>(FindObjectsInactive.Include);
+            if (name != null)
+            {
+                Object config = new SerializedObject(name).FindProperty("_config").objectReferenceValue;
+                if (config != null)
+                {
+                    return config;
+                }
+            }
+
+            var touch = Object.FindFirstObjectByType<TouchTargetBinder>(FindObjectsInactive.Include);
+            return touch != null ? new SerializedObject(touch).FindProperty("_config").objectReferenceValue : null;
+        }
+
         private static void SetReference(SerializedObject owner, string property, Object value)
         {
             SerializedProperty p = owner.FindProperty(property);

@@ -29,6 +29,10 @@ namespace Jazztures.Presentation
         [Tooltip("Height relative to the head, metres, once the menu is up: below eye line, under the menu's footer.")]
         [SerializeField] private float _heightOffsetMetres = -0.34f;
         [Min(0f)] [SerializeField] private float _followEaseSeconds = 0.4f;
+        [Tooltip("The panel never trails the point it belongs at by more than this, metres. Within it the panel eases " +
+                 "softly; beyond it, it is carried along with the head, so it is never far out of view - after a quick " +
+                 "turn, or when it first appears (ADR-0056).")]
+        [Min(0f)] [SerializeField] private float _maxTrailMetres = 0.2f;
 
         [Header("Type")]
         [Min(0.001f)] [SerializeField] private float _characterSize = 0.0065f;
@@ -178,30 +182,10 @@ namespace Jazztures.Presentation
                 return;
             }
 
-            Vector3 forward = _head.forward;
-            forward.y = 0f;
-            if (forward.sqrMagnitude < 1e-6f)
-            {
-                return;
-            }
-
-            forward.Normalize();
             float height = _menuVisible ? _heightOffsetMetres : _heightWithoutMenuMetres;
-            Vector3 wanted = _head.position + forward * _distanceMetres + Vector3.up * height;
-
-            if (!_hasTargetPosition)
-            {
-                _targetPosition = wanted;
-                _hasTargetPosition = true;
-            }
-            else
-            {
-                float k = _followEaseSeconds <= 0f ? 1f : 1f - Mathf.Exp(-Time.deltaTime / _followEaseSeconds);
-                _targetPosition = Vector3.Lerp(_targetPosition, wanted, k);
-            }
-
-            transform.position = _targetPosition;
-            transform.rotation = Quaternion.LookRotation(_targetPosition - _head.position, Vector3.up);
+            PanelFollow.Follow(
+                transform, _head, _distanceMetres, height, _followEaseSeconds, _maxTrailMetres,
+                Time.deltaTime, ref _targetPosition, ref _hasTargetPosition);
         }
 
         private void ApplyColor()

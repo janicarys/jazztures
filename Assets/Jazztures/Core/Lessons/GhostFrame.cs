@@ -18,6 +18,12 @@ namespace Jazztures.Core.Lessons
     /// <see cref="StrikeProgress"/> says how far the ghost hand is toward the pad, and
     /// <see cref="StrikeCount"/> how many strikes have landed so far this phrase.
     /// </para>
+    ///
+    /// <para>
+    /// With the finger-bend right hand (ADR-0050) the ghost right hand presses a finger per note
+    /// (ADR-0055): <see cref="PressFinger"/> is the finger that is moving and
+    /// <see cref="PressProgress"/> how far down it is.
+    /// </para>
     /// </summary>
     public readonly struct GhostFrame
     {
@@ -30,7 +36,10 @@ namespace Jazztures.Core.Lessons
             double poseChangedAtBeat,
             int litTargetIndex,
             double strikeProgress = 0.0,
-            int strikeCount = 0)
+            int strikeCount = 0,
+            int pressFinger = GhostPressSchedule.NoFinger,
+            double pressProgress = 0.0,
+            ChordFunction? melodyPose = null)
         {
             Beat = beat;
             DemonstratedPose = demonstratedPose;
@@ -38,6 +47,9 @@ namespace Jazztures.Core.Lessons
             LitTargetIndex = litTargetIndex;
             StrikeProgress = strikeProgress < 0.0 ? 0.0 : strikeProgress > 1.0 ? 1.0 : strikeProgress;
             StrikeCount = strikeCount < 0 ? 0 : strikeCount;
+            PressFinger = pressFinger < 0 ? GhostPressSchedule.NoFinger : pressFinger;
+            PressProgress = pressFinger < 0 ? 0.0 : pressProgress < 0.0 ? 0.0 : pressProgress > 1.0 ? 1.0 : pressProgress;
+            MelodyPose = melodyPose;
             Visible = true;
         }
 
@@ -68,8 +80,29 @@ namespace Jazztures.Core.Lessons
         /// </summary>
         public int StrikeCount { get; }
 
+        /// <summary>
+        /// The ghost right hand's finger that is pressing a key right now, 0 (thumb) .. 4 (pinky), or
+        /// <see cref="GhostPressSchedule.NoFinger"/> when none is moving.
+        /// </summary>
+        public int PressFinger { get; }
+
+        /// <summary>
+        /// How far down <see cref="PressFinger"/> is, 0 (up) to 1 (the key is down - the note's onset).
+        /// Always 0 when <see cref="PressFinger"/> is none.
+        /// </summary>
+        public double PressProgress { get; }
+
+        /// <summary>
+        /// The chord function the demonstrated <b>notes</b> belong to right now, or null before the first chord
+        /// (ADR-0058) - what the labels on the ghost right hand's fingers name. It is
+        /// <see cref="DemonstratedPose"/> except where the system's playback trails the ghost (Watch and Listen on
+        /// a lesson that strikes chords): the ghost has moved on to the next chord's pose while a note that
+        /// belongs to the last chord is still to be shown, and the letters must follow the note.
+        /// </summary>
+        public ChordFunction? MelodyPose { get; }
+
         public override string ToString() => Visible
-            ? $"ghost @ beat {Beat:0.##}: pose {DemonstratedPose?.ToString() ?? "-"}, lit {LitTargetIndex}, strike {StrikeProgress:0.##} ({StrikeCount})"
+            ? $"ghost @ beat {Beat:0.##}: pose {DemonstratedPose?.ToString() ?? "-"}, lit {LitTargetIndex}, strike {StrikeProgress:0.##} ({StrikeCount}), press {(PressFinger < 0 ? "-" : PressFinger.ToString())} {PressProgress:0.##}"
             : "ghost hidden";
     }
 }

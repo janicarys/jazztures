@@ -20,10 +20,18 @@ namespace Jazztures.Experiments.Editor
     /// from what the touch-target binder already references (hand, config, channels, head), so the
     /// two inputs are always driven by the same objects.
     /// </para>
+    ///
+    /// <para>
+    /// It also gives the lesson a ghost right hand that presses the cued finger (ADR-0055), as a child of the
+    /// same <c>Finger Bend Input</c> object, so switching back to the touch targets takes it away too.
+    /// </para>
     /// </summary>
     public static class FingerBendSetup
     {
         private const string ChildName = "Finger Bend Input";
+        private const string GhostChildName = "Right Ghost Hand View";
+        private const string GhostPoseDir = "Assets/Jazztures/Input/Poses/Ghost";
+        private const string GhostMaterialPath = "Assets/Jazztures/Presentation/Materials/GhostHand.mat";
 
         [MenuItem("Jazztures/Experiments/Use Finger-Bend Input (ADR-0050)")]
         public static void UseFingerBend() => Switch(fingerBend: true);
@@ -72,6 +80,7 @@ namespace Jazztures.Experiments.Editor
 
                 FingerBendBinder binder = EnsureFingerBendInput(
                     root, rightHand, config, chordChanged, noteChannel, head, rig);
+                EnsureRightGhost(binder, head, config);
 
                 SetReference(rootSo, "_fingerBend", binder);
                 if (flow != null)
@@ -157,6 +166,111 @@ namespace Jazztures.Experiments.Editor
             SetReference(labelsSo, "_hideTouchTargets", rig);
 
             return binder;
+        }
+
+        /// <summary>
+        /// The ghost right hand the lesson uses to show which finger to press (ADR-0055): a
+        /// <see cref="RightGhostHandView"/> and a copy of the SDK's right ghost hand under the finger-bend input,
+        /// wired to the lesson's ghost channel (read off the left ghost, which listens to the same one), the
+        /// head, and the <c>I</c> and <c>V</c> ghost poses.
+        /// </summary>
+        private static void EnsureRightGhost(FingerBendBinder binder, Transform head, Object config)
+        {
+            var leftGhost = Object.FindFirstObjectByType<GhostHandView>(FindObjectsInactive.Include);
+            Object channel = leftGhost != null
+                ? new SerializedObject(leftGhost).FindProperty("_ghostChannel").objectReferenceValue
+                : null;
+            if (channel == null)
+            {
+                Debug.LogWarning("Finger-bend setup: no GhostHandView with a ghost channel in the scene - the lesson's ghost right hand was not added. Run Jazztures ▸ Menu ▸ Set Up Gesture Menu first, then this again.");
+                return;
+            }
+
+            Transform parent = binder.transform;
+            Transform child = parent.Find(GhostChildName);
+            GameObject go;
+            if (child == null)
+            {
+                go = new GameObject(GhostChildName);
+                Undo.RegisterCreatedObjectUndo(go, "Create right ghost hand view");
+                go.transform.SetParent(parent, worldPositionStays: false);
+            }
+            else
+            {
+                go = child.gameObject;
+                Undo.RecordObject(go, "Show right ghost hand view");
+                go.SetActive(true);
+            }
+
+            RightGhostHandView view = go.GetComponent<RightGhostHandView>();
+            if (view == null)
+            {
+                view = Undo.AddComponent<RightGhostHandView>(go);
+            }
+
+            Component puppet = FindPuppet(go);
+            if (puppet == null)
+            {
+                GameObject prefab = FindSdkGhostPrefab();
+                if (prefab == null)
+                {
+                    Debug.LogWarning("Finger-bend setup: could not find the SDK prefab OpenXRGhost-HandRight (Meta XR Interaction SDK), so the lesson's ghost right hand has no mesh. Add one under 'Right Ghost Hand View' and assign its HandPuppet.");
+                }
+                else
+                {
+                    var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, go.transform);
+                    Undo.RegisterCreatedObjectUndo(instance, "Create right ghost hand");
+                    instance.name = "Right Ghost Hand";
+
+                    var material = AssetDatabase.LoadAssetAtPath<Material>(GhostMaterialPath);
+                    if (material != null)
+                    {
+                        foreach (Renderer renderer in instance.GetComponentsInChildren<Renderer>(true))
+                        {
+                            renderer.sharedMaterial = material; // the same ghost look as the left hand
+                        }
+                    }
+
+                    puppet = FindPuppet(instance);
+                }
+            }
+
+            var so = new SerializedObject(view);
+            SetReference(so, "_ghostChannel", channel);
+            SetReference(so, "_puppet", puppet);
+            SetReference(so, "_head", head);
+            SetReference(so, "_follow", binder);
+            SetReference(so, "_config", config); // the label look (ADR-0058)
+            SetReference(so, "_openPose", AssetDatabase.LoadAssetAtPath<GhostPoseAsset>($"{GhostPoseDir}/I.asset"));
+            SetReference(so, "_fistPose", AssetDatabase.LoadAssetAtPath<GhostPoseAsset>($"{GhostPoseDir}/V.asset"));
+        }
+
+        /// <summary>The <c>HandPuppet</c> under <paramref name="root"/>, found by name so this assembly needs no SDK reference.</summary>
+        private static Component FindPuppet(GameObject root)
+        {
+            foreach (Component component in root.GetComponentsInChildren<Component>(true))
+            {
+                if (component != null && component.GetType().Name == "HandPuppet")
+                {
+                    return component;
+                }
+            }
+
+            return null;
+        }
+
+        private static GameObject FindSdkGhostPrefab()
+        {
+            foreach (string guid in AssetDatabase.FindAssets("OpenXRGhost-HandRight t:Prefab"))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (path.StartsWith("Packages/") && path.EndsWith("OpenXRGhost-HandRight.prefab"))
+                {
+                    return AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                }
+            }
+
+            return null;
         }
 
         private static void SetReference(SerializedObject owner, string property, Object value)

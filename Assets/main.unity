@@ -514,6 +514,7 @@ MonoBehaviour:
   _heightWithoutMenuMetres: -0.05
   _heightOffsetMetres: -0.34
   _followEaseSeconds: 0.4
+  _maxTrailMetres: 0.2
   _characterSize: 0.0065
   _fontSize: 90
   _wrapChars: 30
@@ -713,6 +714,61 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 284365586}
   m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &297105952
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 297105953}
+  - component: {fileID: 297105954}
+  m_Layer: 0
+  m_Name: Right Ghost Hand View
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &297105953
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 297105952}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 770508759}
+  m_Father: {fileID: 698819754}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &297105954
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 297105952}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cb51cad7e77bb48449fb870b9b8c4c17, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.RightGhostHandView
+  _ghostChannel: {fileID: 11400000, guid: ff61668f9b6a4853accc8af87d511f03, type: 2}
+  _puppet: {fileID: 770508760}
+  _head: {fileID: 368964558}
+  _follow: {fileID: 698819752}
+  _openPose: {fileID: 11400000, guid: 624119ac0ea674340aa55cbb128bf684, type: 2}
+  _fistPose: {fileID: 11400000, guid: d0f94a2c050fc9f45b4a52127318d458, type: 2}
+  _stationMetres: {x: 0.25, y: -0.3, z: 0.45}
+  _restCurl: 0.12
+  _pressCurl: 0.6
+  _handOverSeconds: 0.2
 --- !u!1 &297705496
 GameObject:
   m_ObjectHideFlags: 0
@@ -1280,7 +1336,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 297105953}
   m_Father: {fileID: 119089428}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &709526535
@@ -1539,6 +1596,83 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
   m_PrefabInstance: {fileID: 769705324}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &770508758
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 297105953}
+    m_Modifications:
+    - target: {fileID: 5036333638054362876, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: d7c3bd818aad3bf43865a07d0d6797cb, type: 2}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9220527422184078088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+      propertyPath: m_Name
+      value: Right Ghost Hand
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+--- !u!4 &770508759 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 5054374844314730088, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+  m_PrefabInstance: {fileID: 770508758}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &770508760 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1553514597374498569, guid: a577701db3e23d8489feb76cd34e2336, type: 3}
+  m_PrefabInstance: {fileID: 770508758}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3bf6df4a5ac85847831e1fb5fa00ff8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!114 &771001001
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1560,9 +1694,12 @@ MonoBehaviour:
   _autoAdvance: 1
   _phraseTailSeconds: 1
   _gateSettleBeats: 1.5
+  _leadInBeats: 4
   _ghostStrikeAfterPoseBeats: 2
   _ghostStrikeApproachBeats: 0.5
   _ghostStrikeReturnBeats: 0.5
+  _ghostPressApproachBeats: 0.25
+  _ghostPressReturnBeats: 0.35
   _logCues: 1
   _startOnBind: 0
 --- !u!114 &771001002
@@ -1646,6 +1783,7 @@ MonoBehaviour:
   _distanceMetres: 1.1
   _heightOffsetMetres: -0.15
   _followEaseSeconds: 0.5
+  _maxTrailMetres: 0.2
   _wrapChars: 34
   _holdSeconds: 3.5
   _fadeSeconds: 0.8
@@ -3057,6 +3195,7 @@ MonoBehaviour:
   _distanceMetres: 0.8
   _heightOffsetMetres: -0.05
   _followEaseSeconds: 0.4
+  _maxTrailMetres: 0.2
   _cardWidthMetres: 0.3
   _cardHeightMetres: 0.17
   _cardGapMetres: 0.04
