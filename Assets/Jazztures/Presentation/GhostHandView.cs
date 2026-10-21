@@ -224,6 +224,7 @@ namespace Jazztures.Presentation
             {
                 ClearDemoLight();
                 _chordName.Reset();
+                _seededPose = false; // reappear in the pose it is next shown with, not morph from the last one
                 _strikeProgress = 0f;
                 _strikesSeen = 0;
                 return;

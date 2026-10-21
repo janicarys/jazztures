@@ -14,7 +14,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.LessonDefinition
   _id: L1
   _title: Chords
-  _conceptExplanation: 'Chords are the basic foundation of '
+  _conceptExplanation: 
+  _conceptSlides:
+  - text: A chord is made from three or more notes.
+    seconds: 5
+  - text: Each chord is built from one note called the "root note".
+    seconds: 6
+  - text: Chords are the basic building blocks of harmony.
+    seconds: 6
+  - text: Let's introduce you to three chords we'll use through the lessons.
+    seconds: 6
   _tempoBpm: 80
   _swingRatio: 0.5
   _beatsPerBar: 4
@@ -53,13 +62,13 @@ MonoBehaviour:
     narrowToTarget: 0
     targetIndex: 0
     actionKind: 0
-    text: Shape first, then tap the pad. That plays the chord.
+    text: The first chord is D minor seventh (Dmin7).
     slot: 0
     actionTargetIndex: 0
     color: 0
     flag: 0
   - triggerKind: 0
-    beat: 6
+    beat: 4
     marker: 
     learnerAction: 0
     narrowToFunction: 0
@@ -67,7 +76,35 @@ MonoBehaviour:
     narrowToTarget: 0
     targetIndex: 0
     actionKind: 0
-    text: Open palm right prepares. Fist is the tension. Palm down releases.
+    text: The second chord is G seventh (G7). Make a fist: this is the tense one.
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 8
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: The third chord is C major seventh (Cmaj7). Palm down: home, the tension drops away.
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 2
+    beat: 0
+    marker: 
+    learnerAction: 3
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 
     slot: 0
     actionTargetIndex: 0
     color: 0

@@ -23,7 +23,8 @@ namespace Jazztures.Core.Lessons
             IEnumerable<LearningMode> modes,
             Tempo tempo,
             SwingRatio swing,
-            ActiveHands hands)
+            ActiveHands hands,
+            IEnumerable<ConceptSlide>? conceptSlides = null)
         {
             if (string.IsNullOrWhiteSpace(title))
             {
@@ -54,6 +55,19 @@ namespace Jazztures.Core.Lessons
             Id = id;
             Title = title;
             ConceptExplanation = conceptExplanation;
+
+            // Authored slides win; a plain explanation is one slide that takes no lesson time.
+            var slides = new List<ConceptSlide>(conceptSlides ?? Array.Empty<ConceptSlide>());
+            if (slides.Count == 0 && !string.IsNullOrWhiteSpace(conceptExplanation))
+            {
+                slides.Add(new ConceptSlide(conceptExplanation, 0f));
+            }
+
+            ConceptSlides = slides;
+            foreach (ConceptSlide slide in slides)
+            {
+                ConceptSeconds += slide.Seconds;
+            }
             Tempo = tempo;
             Swing = swing;
             Hands = hands;
@@ -65,6 +79,12 @@ namespace Jazztures.Core.Lessons
 
         /// <summary>Plain-language theory, shown alongside the exercise (co-design ask, §3.9).</summary>
         public string ConceptExplanation { get; }
+
+        /// <summary>The opening explanation as timed captions, in order (empty if the lesson has none).</summary>
+        public IReadOnlyList<ConceptSlide> ConceptSlides { get; }
+
+        /// <summary>Total seconds the slides hold the lesson back before its first phrase.</summary>
+        public float ConceptSeconds { get; }
 
         /// <summary>The mode phases, in the order the lesson steps through them (§3.8/§3.9).</summary>
         public IReadOnlyList<LearningMode> Modes => _modes;

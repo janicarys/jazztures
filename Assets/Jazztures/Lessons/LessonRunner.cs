@@ -134,6 +134,9 @@ namespace Jazztures.Lessons
         private bool _melodyDemonstrating; // Watch and Listen: the system plays the melody, so the learner is not scored
         private bool _scriptStarted;
         private double _phaseStartDsp;
+        private bool _showingSlides;
+        private int _slideIndex;
+        private double _nextSlideDsp;
         private double _lessonBeat;    // phrase position — gated (held) on each pose in Gesture Learning
         private double _lastRealBeat;  // clock-derived beat last frame, to measure real elapsed
         private bool _gateHeld;        // the gesture gate is holding the cursor right now
@@ -321,6 +324,7 @@ namespace Jazztures.Lessons
             _gate?.SetGestureCorrect(true);
 
             _running = false;
+            _showingSlides = false;
         }
 
         private void OnPhaseChanged(LessonPhase phase)
@@ -337,7 +341,11 @@ namespace Jazztures.Lessons
             // playback, the scripted harmony, the metronome, the onset capture - is anchored to this one
             // time, so moving it is all it takes for none of them to sound before it. The phrase position
             // starts negative and counts up through the lead-in to 0.
-            _phaseStartDsp = _clock.Now + preRoll + _plan.Tempo.BeatsToSeconds(_leadInBeats);
+            // The opening explanation plays first, on phase 0 only; the phrase waits for it.
+            _slideIndex = 0;
+            _nextSlideDsp = _clock.Now;
+            double slideSeconds = phase.Index == 0 && _cueChannel != null ? _plan.ConceptSeconds : 0.0;
+            _phaseStartDsp = _clock.Now + slideSeconds + preRoll + _plan.Tempo.BeatsToSeconds(_leadInBeats);
             _lastRealBeat = _plan.Tempo.SecondsToBeats(_clock.Now - _phaseStartDsp);
             _lessonBeat = _lastRealBeat;
             _waitingForInput = false;
@@ -399,12 +407,9 @@ namespace Jazztures.Lessons
                 _phaseChannel.Raise(new LessonPhaseInfo(_plan.Id, phase));
             }
 
-            // §3.9 co-design ask: the plain-language concept, shown as the lesson opens.
-            // The selector is titles only; this is where the theory lands.
-            if (phase.Index == 0 && _cueChannel != null && !string.IsNullOrWhiteSpace(_plan.ConceptExplanation))
-            {
-                _cueChannel.Raise(CueAction.ShowText(_plan.ConceptExplanation));
-            }
+            // §3.9 co-design ask: the plain-language concept, shown as the lesson opens, one slide at a
+            // time (TickConceptSlides). The selector is titles only; this is where the theory lands.
+            _showingSlides = phase.Index == 0 && _cueChannel != null;
 
             _playback = null;
             _melodyDemonstrating = false;
@@ -455,6 +460,30 @@ namespace Jazztures.Lessons
             _cuePlayer.Notify(LearnerAction.PhraseStarted);
         }
 
+        private void TickConceptSlides()
+        {
+            if (!_showingSlides)
+            {
+                return;
+            }
+
+            IReadOnlyList<ConceptSlide> slides = _plan.ConceptSlides;
+            if (_slideIndex >= slides.Count)
+            {
+                _showingSlides = false;
+                return;
+            }
+
+            if (_clock.Now < _nextSlideDsp)
+            {
+                return;
+            }
+
+            ConceptSlide slide = slides[_slideIndex++];
+            _cueChannel.Raise(CueAction.ShowText(slide.Text, holdSeconds: slide.Seconds));
+            _nextSlideDsp = _clock.Now + slide.Seconds;
+        }
+
         private void OnLessonCompleted()
         {
             StopLesson();
@@ -483,6 +512,8 @@ namespace Jazztures.Lessons
             double advanced = realBeat - _lastRealBeat;
             _lastRealBeat = realBeat;
             _lessonBeat = NextLessonBeat(phase, _lessonBeat + (advanced > 0.0 ? advanced : 0.0));
+
+            TickConceptSlides();
 
             _playback?.Tick();
             if (_scriptStarted)
@@ -587,6 +618,15 @@ namespace Jazztures.Lessons
             // of them has begun.
             double poseBeat = System.Math.Max(0.0, beatNow);
             ChordFunction? pose = _timeline.ChordFunctionAt(poseBeat);
+
+            // Before the first chord has begun the ghost already holds that chord's shape, so it appears in
+            // it rather than as a relaxed hand that morphs into it once the chord arrives.
+            if (pose == null && _timeline.Chords.Count > 0)
+            {
+                pose = _timeline.Chords[0].Function;
+                poseBeat = _timeline.Chords[0].Beat.Position;
+            }
+
             double poseChangedAt = 0.0;
             for (int i = 0; i < _timeline.Chords.Count; i++)
             {

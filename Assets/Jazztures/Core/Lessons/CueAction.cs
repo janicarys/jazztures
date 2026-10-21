@@ -14,7 +14,8 @@ namespace Jazztures.Core.Lessons
             int slot,
             int targetIndex,
             TensionColor color,
-            bool flag)
+            bool flag,
+            float holdSeconds = 0f)
         {
             Kind = kind;
             Text = text;
@@ -22,6 +23,7 @@ namespace Jazztures.Core.Lessons
             TargetIndex = targetIndex;
             Color = color;
             Flag = flag;
+            HoldSeconds = holdSeconds;
         }
 
         public CueActionKind Kind { get; }
@@ -41,14 +43,17 @@ namespace Jazztures.Core.Lessons
         /// <summary>On/off — <see cref="CueActionKind.SetScoring"/>.</summary>
         public bool Flag { get; }
 
-        public static CueAction ShowText(string text, int slot = 0)
+        /// <summary>How long the caption stays up, seconds - <see cref="CueActionKind.ShowText"/>. 0 = the presenter's default.</summary>
+        public float HoldSeconds { get; }
+
+        public static CueAction ShowText(string text, int slot = 0, float holdSeconds = 0f)
         {
             if (text == null)
             {
                 throw new ArgumentNullException(nameof(text));
             }
 
-            return new CueAction(CueActionKind.ShowText, text, slot, 0, default, false);
+            return new CueAction(CueActionKind.ShowText, text, slot, 0, default, false, holdSeconds);
         }
 
         public static CueAction HideText(int slot = 0) =>

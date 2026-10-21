@@ -30,6 +30,11 @@ namespace Jazztures.Lessons
         [TextArea(2, 6)]
         [SerializeField] private string _conceptExplanation = string.Empty;
 
+        [Tooltip("The opening explanation as a sequence of captions, each held for its own time. The first phrase " +
+                 "waits until they have all been shown. When empty, the single explanation above is shown " +
+                 "instead, for the HUD's default hold, without delaying the lesson.")]
+        [SerializeField] private List<ConceptSlideEntry> _conceptSlides = new List<ConceptSlideEntry>();
+
         [Header("Musical setting")]
         [Min(20f)]
         [SerializeField] private float _tempoBpm = 80f;
@@ -104,7 +109,19 @@ namespace Jazztures.Lessons
             modes,
             new Tempo(tempoBpm),
             BuildSwing(),
-            _hands);
+            _hands,
+            BuildConceptSlides());
+
+        private IEnumerable<ConceptSlide> BuildConceptSlides()
+        {
+            foreach (ConceptSlideEntry entry in _conceptSlides)
+            {
+                if (!string.IsNullOrWhiteSpace(entry.text))
+                {
+                    yield return new ConceptSlide(entry.text, Mathf.Max(0f, entry.seconds));
+                }
+            }
+        }
 
         public LessonTimeline BuildTimeline() => BuildTimeline(_tempoBpm);
 
@@ -217,6 +234,13 @@ namespace Jazztures.Lessons
             }
         }
 #endif
+
+        [Serializable]
+        private sealed class ConceptSlideEntry
+        {
+            [TextArea(2, 6)] public string text = string.Empty;
+            [Min(0f)] public float seconds = 6f;
+        }
 
         [Serializable]
         private sealed class ChordEntry

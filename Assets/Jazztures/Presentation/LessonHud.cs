@@ -152,7 +152,7 @@ namespace Jazztures.Presentation
             switch (action.Kind)
             {
                 case CueActionKind.ShowText:
-                    Show(action.Text ?? string.Empty, _holdSeconds, important: true);
+                    Show(action.Text ?? string.Empty, action.HoldSeconds > 0f ? action.HoldSeconds : _holdSeconds, important: true);
                     break;
 
                 case CueActionKind.HideText:
