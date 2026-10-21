@@ -1,0 +1,412 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a012f129b373e64a9eda0554e10d291, type: 3}
+  m_Name: Lesson_L1_ChordTones
+  m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.LessonDefinition
+  _id: L1
+  _title: Chord tones
+  _menuDescription: Play notes with your right hand. Curl a finger as each letter
+    arrives.
+  _conceptExplanation: 
+  _conceptSlides:
+  - text: A chord is several notes played together. The notes that belong to a chord
+      are called chord tones.
+    seconds: 8
+  - text: In this lesson your right hand plays chord tones.
+    seconds: 5
+  - text: You'll see a line attached to each of your fingers.
+    seconds: 4
+  - text: Letters slide down the lines toward you. Each letter is the name of a note.
+    seconds: 7
+  - text: When a note reaches your fingertip, curl that finger to play the note.
+    seconds: 7
+  - text: A chord plays underneath on its own. Time your finger curls to hit the
+      notes.
+    seconds: 7
+  _tempoBpm: 80
+  _swingRatio: 0.5
+  _beatsPerBar: 4
+  _hands: 2
+  _useMetronome: 1
+  _metronomeSubdivision: 0
+  _scoredPulse:
+    _kind: 0
+    _positionsInBar: []
+  _modes: 0100000002000000
+  _chords:
+  - beat: 0
+    function: 0
+  - beat: 8
+    function: 1
+  - beat: 16
+    function: 2
+  - beat: 24
+    function: 0
+  - beat: 32
+    function: 1
+  - beat: 40
+    function: 2
+  - beat: 48
+    function: 0
+  - beat: 56
+    function: 1
+  - beat: 64
+    function: 2
+  - beat: 72
+    function: 0
+  - beat: 80
+    function: 1
+  - beat: 88
+    function: 2
+  _notes:
+  - beat: 0
+    targetIndex: 0
+    velocity: 90
+  - beat: 1
+    targetIndex: 1
+    velocity: 90
+  - beat: 2
+    targetIndex: 2
+    velocity: 90
+  - beat: 3
+    targetIndex: 3
+    velocity: 90
+  - beat: 4
+    targetIndex: 4
+    velocity: 90
+  - beat: 8
+    targetIndex: 0
+    velocity: 90
+  - beat: 9
+    targetIndex: 1
+    velocity: 90
+  - beat: 10
+    targetIndex: 2
+    velocity: 90
+  - beat: 11
+    targetIndex: 3
+    velocity: 90
+  - beat: 12
+    targetIndex: 4
+    velocity: 90
+  - beat: 16
+    targetIndex: 0
+    velocity: 90
+  - beat: 17
+    targetIndex: 1
+    velocity: 90
+  - beat: 18
+    targetIndex: 2
+    velocity: 90
+  - beat: 19
+    targetIndex: 3
+    velocity: 90
+  - beat: 20
+    targetIndex: 4
+    velocity: 90
+  - beat: 24
+    targetIndex: 0
+    velocity: 90
+  - beat: 25
+    targetIndex: 1
+    velocity: 90
+  - beat: 26
+    targetIndex: 2
+    velocity: 90
+  - beat: 27
+    targetIndex: 3
+    velocity: 90
+  - beat: 28
+    targetIndex: 4
+    velocity: 90
+  - beat: 32
+    targetIndex: 0
+    velocity: 90
+  - beat: 33
+    targetIndex: 1
+    velocity: 90
+  - beat: 34
+    targetIndex: 2
+    velocity: 90
+  - beat: 35
+    targetIndex: 3
+    velocity: 90
+  - beat: 36
+    targetIndex: 4
+    velocity: 90
+  - beat: 40
+    targetIndex: 0
+    velocity: 90
+  - beat: 41
+    targetIndex: 1
+    velocity: 90
+  - beat: 42
+    targetIndex: 2
+    velocity: 90
+  - beat: 43
+    targetIndex: 3
+    velocity: 90
+  - beat: 44
+    targetIndex: 4
+    velocity: 90
+  - beat: 48
+    targetIndex: 0
+    velocity: 90
+  - beat: 49
+    targetIndex: 1
+    velocity: 90
+  - beat: 50
+    targetIndex: 2
+    velocity: 90
+  - beat: 51
+    targetIndex: 3
+    velocity: 90
+  - beat: 52
+    targetIndex: 4
+    velocity: 90
+  - beat: 56
+    targetIndex: 0
+    velocity: 90
+  - beat: 57
+    targetIndex: 1
+    velocity: 90
+  - beat: 58
+    targetIndex: 2
+    velocity: 90
+  - beat: 59
+    targetIndex: 3
+    velocity: 90
+  - beat: 60
+    targetIndex: 4
+    velocity: 90
+  - beat: 64
+    targetIndex: 0
+    velocity: 90
+  - beat: 65
+    targetIndex: 1
+    velocity: 90
+  - beat: 66
+    targetIndex: 2
+    velocity: 90
+  - beat: 67
+    targetIndex: 3
+    velocity: 90
+  - beat: 68
+    targetIndex: 4
+    velocity: 90
+  - beat: 72
+    targetIndex: 0
+    velocity: 90
+  - beat: 73
+    targetIndex: 1
+    velocity: 90
+  - beat: 74
+    targetIndex: 2
+    velocity: 90
+  - beat: 75
+    targetIndex: 3
+    velocity: 90
+  - beat: 76
+    targetIndex: 4
+    velocity: 90
+  - beat: 80
+    targetIndex: 0
+    velocity: 90
+  - beat: 81
+    targetIndex: 1
+    velocity: 90
+  - beat: 82
+    targetIndex: 2
+    velocity: 90
+  - beat: 83
+    targetIndex: 3
+    velocity: 90
+  - beat: 84
+    targetIndex: 4
+    velocity: 90
+  - beat: 88
+    targetIndex: 0
+    velocity: 90
+  - beat: 89
+    targetIndex: 1
+    velocity: 90
+  - beat: 90
+    targetIndex: 2
+    velocity: 90
+  - beat: 91
+    targetIndex: 3
+    velocity: 90
+  - beat: 92
+    targetIndex: 4
+    velocity: 90
+  _markers:
+  - beat: 24
+    name: second-time
+  - beat: 48
+    name: third-time
+  - beat: 72
+    name: last-time
+  _cues:
+  - triggerKind: 0
+    beat: 0
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: Make your right hand flat, palm down.
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 5
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 8
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: The chord changed, so the letters changed. Same fingers, new notes.
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 14
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 1
+    beat: 0
+    marker: second-time
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: Once more.
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 26
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 1
+    beat: 0
+    marker: third-time
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: Again.
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 50
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 1
+    beat: 0
+    marker: last-time
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: One last time.
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 74
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 2
+    beat: 0
+    marker: 
+    learnerAction: 3
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Every note you played was a chord tone: it belongs to the chord underneath.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0

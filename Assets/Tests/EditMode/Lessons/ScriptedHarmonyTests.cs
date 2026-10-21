@@ -83,6 +83,29 @@ namespace Jazztures.Tests.EditMode.Lessons
             Assert.That(_harmony.HeldFunction, Is.EqualTo(ChordFunction.Two));
         }
 
+        // A pose the learner's left hand held on the way into a right-hand lesson must not stay selected through
+        // the lead-in: the melody would be offered that chord's tones, and a label would name it, until the first scripted chord.
+        [Test]
+        public void StartingATimeline_ReleasesASelectionLeftOverFromBefore()
+        {
+            _harmony.SetHeldFunction(ChordFunction.Five); // the learner's own pose, or the last lesson's last chord
+            _changes.Clear();
+
+            _scripted.Start(IiVI(), startDspTime: 2.0);
+
+            Assert.That(_harmony.HeldFunction, Is.Null, "nothing is selected until the script's first chord is due");
+            Assert.That(_changes, Has.Count.EqualTo(1));
+            Assert.That(_changes[0].CurrentChord, Is.Null);
+        }
+
+        [Test]
+        public void StartingATimeline_WithNothingSelected_RaisesNoChange()
+        {
+            _scripted.Start(IiVI(), startDspTime: 2.0);
+
+            Assert.That(_changes, Is.Empty);
+        }
+
         [Test]
         public void ALateTick_CatchesUpThroughEveryDueChord_InOrder()
         {

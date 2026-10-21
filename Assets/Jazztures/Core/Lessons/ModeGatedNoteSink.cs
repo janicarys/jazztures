@@ -19,6 +19,15 @@ namespace Jazztures.Core.Lessons
     /// shut stays silent until the learner changes chord, which reads as broken audio.
     /// Melody is a struck model (§3.3) — transient, not tracked.
     /// </para>
+    ///
+    /// <para>
+    /// <b>A hand the lesson does not use is never heard.</b> <see cref="SetActiveHands"/> says which hands the
+    /// running lesson is about (§3.9); the learner's notes from the other — the left hand's chord voicing, or the
+    /// right hand's melody — are dropped from the audible sink in every mode, exactly as the mode drops them, and
+    /// still reach the unconditional sink. Recognition is untouched (§3.8): the hand is still seen and its strikes
+    /// are still logged, they are only silent. The system's own playback (<see cref="MidiChannel.Accompaniment"/>)
+    /// is never the learner's and is never gated.
+    /// </para>
     /// </summary>
     public sealed class ModeGatedNoteSink : INoteSink
     {
@@ -27,6 +36,7 @@ namespace Jazztures.Core.Lessons
         private readonly IMusicalClock _clock;
 
         private LearningMode _mode = LearningMode.ComposeOnTheFly;
+        private ActiveHands _hands = ActiveHands.Both; // no lesson: the free instrument, both hands heard
         private bool _gestureCorrect;
 
         // Sustained harmony the learner is holding: MIDI note -> the note-on last seen for
@@ -49,6 +59,9 @@ namespace Jazztures.Core.Lessons
 
         public LearningMode Mode => _mode;
 
+        /// <summary>The hands the learner is heard on. <see cref="ActiveHands.Both"/> unless a lesson says otherwise.</summary>
+        public ActiveHands Hands => _hands;
+
         public void SetMode(LearningMode mode)
         {
             if (_mode == mode)
@@ -57,6 +70,22 @@ namespace Jazztures.Core.Lessons
             }
 
             _mode = mode;
+            SyncHeldHarmony();
+        }
+
+        /// <summary>
+        /// Which hands the running lesson uses (§3.9). The learner's notes from a hand not in
+        /// <paramref name="hands"/> stop sounding at once — including a chord already ringing — and sound again
+        /// if the hand is switched back on. Set <see cref="ActiveHands.Both"/> when no lesson is running.
+        /// </summary>
+        public void SetActiveHands(ActiveHands hands)
+        {
+            if (_hands == hands)
+            {
+                return;
+            }
+
+            _hands = hands;
             SyncHeldHarmony();
         }
 
@@ -91,9 +120,9 @@ namespace Jazztures.Core.Lessons
 
             if (note.Channel == MidiChannel.Harmony)
             {
-                TrackHarmony(note, open);
+                TrackHarmony(note, open && HandInUse(ActiveHands.Left));
             }
-            else if (open)
+            else if (open && (note.Channel != MidiChannel.Melody || HandInUse(ActiveHands.Right)))
             {
                 _audible.Send(note);
             }
@@ -124,7 +153,7 @@ namespace Jazztures.Core.Lessons
         /// <summary>Make the audible sink match the gate for every held harmony note.</summary>
         private void SyncHeldHarmony()
         {
-            if (GateOpen())
+            if (GateOpen() && HandInUse(ActiveHands.Left))
             {
                 foreach (KeyValuePair<int, NoteEvent> held in _heldHarmony)
                 {
@@ -154,6 +183,8 @@ namespace Jazztures.Core.Lessons
 
             _harmonyAudible.Clear();
         }
+
+        private bool HandInUse(ActiveHands hand) => (_hands & hand) != 0;
 
         private bool GateOpen() => ModePolicy.For(_mode).UserAudio switch
         {

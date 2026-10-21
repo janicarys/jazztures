@@ -122,6 +122,40 @@ namespace Jazztures.Config
                  "notes. Raise it if neighbouring fingers fire; lower it if presses are ignored. [TUNABLE]")]
         [Min(0f)] [SerializeField] private float _bendIsolationMargin = FingerBendThresholds.DefaultIsolationMargin;
 
+        [Tooltip("DRAG VETO (ADR-0068). Seconds after a PRESSED finger last moved that it still counts as the finger " +
+                 "dragging its neighbours. Bend the middle finger and the ring follows a few frames behind - and used " +
+                 "to press, then the pinky behind it. While the pressed finger is moving, a neighbour that did not out-rise " +
+                 "it by the isolation margin is treated as dragged and does not sound. Raise it if neighbours still " +
+                 "sound after a press; lower it if a quick second note right after a first is being dropped. " +
+                 "0 = off (a held finger is never consulted - the old behaviour). [TUNABLE], unmeasured.")]
+        [Min(0f)] [SerializeField] private float _bendCouplingSeconds = FingerBendThresholds.DefaultCouplingSeconds;
+
+        [Tooltip("MIDDLE, RING and PINKY (ADR-0073). Multiplies the press level above for these three, which share one " +
+                 "flexor muscle: a deliberate curl of one is smaller and less cleanly its own than the index's or thumb's. " +
+                 "1 = same press level as the others; lower = these fingers sound on a smaller bend. Lower it if ring or " +
+                 "pinky notes are missed; raise it if they sound by themselves. [TUNABLE], unmeasured.")]
+        [Range(0.3f, 1f)] [SerializeField] private float _bendCoupledPressScale = FingerBendThresholds.DefaultCoupledPressScale;
+
+        [Tooltip("RING and PINKY (ADR-0074). Their own multiplier on the press level, replacing the scale above for these two " +
+                 "(which then applies to the middle finger only). They drag each other hardest and curl least far, so a deliberate " +
+                 "curl of them is the smallest - the case where a note is missed because the bend never reached the press level. " +
+                 "Lower it if ring/pinky notes are still missed; raise it if they sound by themselves, or a neighbour sounds as " +
+                 "you curl. Each step down trades missed notes for stray ones. [TUNABLE], unmeasured.")]
+        [Range(0.3f, 1f)] [SerializeField] private float _bendRingPinkyPressScale = FingerBendThresholds.DefaultRingPinkyPressScale;
+
+        [Tooltip("The four FINGERS, not the thumb (ADR-0073). Multiplies the isolation margin above wherever the finger " +
+                 "pressing and the finger it is judged against are both fingers - including the drag veto's test - because any " +
+                 "two of them drag each other along, the ring and pinky hardest, so the one that was meant leads by less. " +
+                 "1 = same margin everywhere; lower = a finger may press with a neighbour moving nearly as much. Lower it if " +
+                 "ring or pinky notes are being ignored; raise it if neighbours sound after a press. [TUNABLE], unmeasured.")]
+        [Range(0f, 1f)] [SerializeField] private float _bendCoupledIsolationScale = FingerBendThresholds.DefaultCoupledIsolationScale;
+
+        [Tooltip("THUMB ONLY (ADR-0068). Frames in a row the thumb must qualify as a press before it sounds. The thumb " +
+                 "is the noisiest finger (it flickers in confidence and folds behind the others), and a one-frame spike is " +
+                 "not a press a thumb can make. Each frame is about 11-16 ms. 1 = judge at once like the other fingers. " +
+                 "Raise it if the thumb still sounds by itself; lower it if the thumb feels laggy. [TUNABLE], unmeasured.")]
+        [Min(1)] [SerializeField] private int _bendThumbConfirmFrames = FingerBendThresholds.DefaultThumbConfirmFrames;
+
         [Tooltip("THUMB ONLY. Degrees of thumb curl that count as 1.0 of bend. The SDK's own thumb range " +
                  "is 30 degrees, because its grab test needs the thumb to move little — which makes the thumb " +
                  "about twice as sensitive as the other fingers (whose range is about 70 degrees but, blended " +
@@ -213,6 +247,11 @@ namespace Jazztures.Config
         [Tooltip("How far above its lane a letter floats, metres, so the line does not strike through it. Cosmetic.")]
         [Range(0f, 0.08f)] [SerializeField] private float _laneLetterHoverMetres = 0.02f;
 
+        [Tooltip("How far a coming letter takes the colour of the chord it belongs to (ADR-0065): 1 = that chord's colour, " +
+                 "the same the left hand takes while it holds the pose; 0 = every letter the usual label colour. " +
+                 "Needs the Tension Palette assigned on the Note Lanes component. [TUNABLE] - unmeasured.")]
+        [Range(0f, 1f)] [SerializeField] private float _laneLetterChordTint = 1f;
+
         [Header("Melody engine — mirrors Jazztures.Core.Melody consts, kept in sync by hand")]
         [Tooltip("Minimum fingertip speed to fire a note, m/s — 'was this a deliberate " +
                  "strike?'. Mirrors MelodyEngine.EntryVelocityGateMetresPerSecond. Distinct " +
@@ -284,8 +323,21 @@ namespace Jazztures.Config
         public FingerBendThresholds ToFingerBendThresholds()
         {
             float press = Mathf.Clamp(_bendPressDelta, 0.05f, 1f);
-            float release = Mathf.Clamp(_bendReleaseDelta, 0f, press - 0.01f);
-            return new FingerBendThresholds(press, release, Mathf.Max(0.05f, _bendBaselineSeconds), Mathf.Max(0f, _bendIsolationMargin));
+            float pressScale = Mathf.Clamp(_bendCoupledPressScale, 0.3f, 1f);
+            float ringPinkyScale = Mathf.Clamp(_bendRingPinkyPressScale, 0.3f, 1f);
+
+            // The release level must sit below every finger's own press level, the scaled ones included.
+            float release = Mathf.Clamp(_bendReleaseDelta, 0f, press * Mathf.Min(pressScale, ringPinkyScale) - 0.01f);
+            return new FingerBendThresholds(
+                press,
+                release,
+                Mathf.Max(0.05f, _bendBaselineSeconds),
+                Mathf.Max(0f, _bendIsolationMargin),
+                Mathf.Max(0f, _bendCouplingSeconds),
+                Mathf.Max(1, _bendThumbConfirmFrames),
+                pressScale,
+                Mathf.Clamp01(_bendCoupledIsolationScale),
+                ringPinkyScale);
         }
 
         /// <summary>Degrees of thumb curl that count as 1.0 of thumb bend (ADR-0050).</summary>
@@ -329,6 +381,8 @@ namespace Jazztures.Config
         public float LaneActiveAlpha => _laneActiveAlpha;
 
         public float LaneLetterHoverMetres => _laneLetterHoverMetres;
+
+        public float LaneLetterChordTint => _laneLetterChordTint;
 
         public float EntryVelocityGateMetresPerSecond => _entryVelocityGateMetresPerSecond;
 

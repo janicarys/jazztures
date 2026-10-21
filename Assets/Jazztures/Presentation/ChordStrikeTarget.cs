@@ -99,8 +99,12 @@ namespace Jazztures.Presentation
         [Tooltip("Seconds for the hit flash to decay back to the base colour.")]
         [Min(0.01f)] [SerializeField] private float _flashDecaySeconds = 0.18f;
 
-        [Tooltip("Base colour, always visible (§3.1's 'a stable spatial map', applied to a single object).")]
+        [Tooltip("Base colour while the plate is shown - always there then (§3.1's 'a stable spatial map', applied to a " +
+                 "single object). It is shown only while a lesson's interface or free play is up (ADR-0067).")]
         [SerializeField] private Color _baseColor = new Color(0.58f, 0.58f, 0.62f, 0.5f);
+
+        [Tooltip("Seconds the plate takes to fade in or out when it is shown or hidden (ADR-0067). 0 = at once.")]
+        [Min(0f)] [SerializeField] private float _fadeSeconds = 0.25f;
 
         [Tooltip("Colour at the moment of a hit.")]
         [SerializeField] private Color _flashColor = new Color(1f, 0.96f, 0.85f, 1f);
@@ -114,6 +118,8 @@ namespace Jazztures.Presentation
         // One downward-speed window per speed joint (the palm and wrist).
         private DownwardSpeedWindow[] _speedWindows;
         private float _flash;
+        private bool _shown = true;      // visible and live; the performance root hides it outside a lesson (ADR-0067)
+        private float _visibility = 1f;  // 0..1, eased toward _shown; the plate's alpha is scaled by it
 
         private bool _cachedInside;
         private float _cachedEntrySpeed;
@@ -174,7 +180,30 @@ namespace Jazztures.Presentation
             if (_renderer != null)
             {
                 _mpb = new MaterialPropertyBlock();
-                Write(_baseColor);
+                Refresh(); // not Write(_baseColor): whoever hid the plate before this ran has set _visibility already
+            }
+        }
+
+        /// <summary>Whether the plate is shown (and live) rather than hidden.</summary>
+        public bool IsShown => _shown;
+
+        /// <summary>
+        /// Show or hide the plate (ADR-0067). Hidden it is not drawn - it fades out through its own colour, so its renderer
+        /// and <see cref="TopCenterWorld"/> stay valid for whoever aims at it - and it cannot be touched: a plate you cannot
+        /// see must not sound a chord. <paramref name="immediately"/> skips the fade (used when the scene starts).
+        /// Safe to call before this component has woken.
+        /// </summary>
+        public void SetShown(bool shown, bool immediately = false)
+        {
+            _shown = shown;
+
+            if (immediately)
+            {
+                _visibility = shown ? 1f : 0f;
+                if (_mpb != null && _renderer != null)
+                {
+                    Refresh();
+                }
             }
         }
 
@@ -194,7 +223,8 @@ namespace Jazztures.Presentation
 
             _cachedFrameNumber = frame;
 
-            if (_left == null || !_left.IsTrackedDataValid)
+            // A hidden plate senses nothing, like an untracked hand: no touch, no speed, so it cannot fire a chord.
+            if (!_shown || _left == null || !_left.IsTrackedDataValid)
             {
                 for (int j = 0; j < _speedWindows.Length; j++)
                 {
@@ -253,11 +283,40 @@ namespace Jazztures.Presentation
 
         private void Update()
         {
-            if (_flash > 0f && _renderer != null)
+            if (_renderer == null)
+            {
+                return;
+            }
+
+            bool changed = false;
+
+            float target = _shown ? 1f : 0f;
+            if (_visibility != target)
+            {
+                _visibility = _fadeSeconds <= 0f
+                    ? target
+                    : Mathf.MoveTowards(_visibility, target, Time.deltaTime / _fadeSeconds);
+                changed = true;
+            }
+
+            if (_flash > 0f)
             {
                 _flash = Mathf.Max(0f, _flash - Time.deltaTime / _flashDecaySeconds);
-                Write(Color.Lerp(_baseColor, _flashColor, _flash));
+                changed = true;
             }
+
+            if (changed)
+            {
+                Refresh();
+            }
+        }
+
+        /// <summary>The plate's colour now: the base colour, lit by any flash, and as visible as it is shown.</summary>
+        private void Refresh()
+        {
+            Color color = Color.Lerp(_baseColor, _flashColor, _flash);
+            color.a *= _visibility;
+            Write(color);
         }
 
         private void Write(Color color)

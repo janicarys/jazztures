@@ -26,6 +26,11 @@ namespace Jazztures.Lessons
         [SerializeField] private string _id = "L0";
         [SerializeField] private string _title = "Untitled lesson";
 
+        [Tooltip("One or two plain sentences shown under this lesson's card while it is highlighted in the menu: " +
+                 "what the learner will do, not the theory. Keep it to about 80 characters (two lines). No jargon (§1.5).")]
+        [TextArea(1, 3)]
+        [SerializeField] private string _menuDescription = string.Empty;
+
         [Tooltip("Plain-language theory shown alongside the exercise. No jargon without explanation (§1.5).")]
         [TextArea(2, 6)]
         [SerializeField] private string _conceptExplanation = string.Empty;
@@ -52,6 +57,11 @@ namespace Jazztures.Lessons
                  "The phrase starts a short pre-roll after the phase begins so the first click " +
                  "can be scheduled ahead (ADR-0043).")]
         [SerializeField] private bool _useMetronome;
+
+        [Tooltip("An extra, quieter click on the \"and\" between beats (MetronomeSettings ▸ Off Beat Volume Scale). " +
+                 "Swung eighths puts it where this lesson's swing ratio puts the \"and\", so the learner hears where an " +
+                 "off-beat note lands. Only used when the metronome is on; None is the on-the-beat pulse alone.")]
+        [SerializeField] private MetronomeSubdivision _metronomeSubdivision = MetronomeSubdivision.None;
 
         [Tooltip("Score the learner against a steady pulse as well as any melody notes — for a " +
                  "lesson with expected onsets but no notes to carry them (L2: chords struck on " +
@@ -82,7 +92,16 @@ namespace Jazztures.Lessons
 
         public string Title => _title;
 
+        /// <summary>What the menu shows under this lesson's card while it is highlighted; empty shows nothing.</summary>
+        public string MenuDescription => _menuDescription ?? string.Empty;
+
+        /// <summary>Which hands the learner plays in this lesson.</summary>
+        public ActiveHands Hands => _hands;
+
         public bool UseMetronome => _useMetronome;
+
+        /// <summary>Whether the lesson's metronome also clicks the "and" between beats, and where (straight or swung).</summary>
+        public MetronomeSubdivision MetronomeSubdivision => _metronomeSubdivision;
 
         /// <summary>The modes this lesson offers, in authored order (§3.8) — what its mode menu lists.</summary>
         public IReadOnlyList<LearningMode> Modes => _modes;

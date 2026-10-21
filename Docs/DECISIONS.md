@@ -8,6 +8,823 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0075 — Finger-bend diagnostics: log the curls too small to sound, and how far each pressed finger was curled
+
+**Date:** 2026-10-21 · **Status:** Accepted (student asked for it) — **Core change and tests done (850 pass); the log lines exist only in a
+build with `JAZZTURES_DIAG`, and have not been seen on a headset** · **Milestone:** M6 (early) · **Changes the thesis:** nothing.
+
+### Why
+ADR-0073 and ADR-0074 set the ring and pinky's press level from a model, because nothing on the Quest recorded how far a hand actually
+curls a finger. The student's own diagnosis was "I can't curl them enough consistently". This makes that measurable, so the next
+adjustment can come from this hand's numbers instead of the model's.
+
+### What it logs (only with `JAZZTURES_DIAG`; the detector's press decision is untouched)
+`FingerBendDetector` now also reports, per finger and per frame:
+- **`NearMiss`** - a free finger rose past **0.6 of its press level** (`NearMissFraction`, clear of the +-0.03 tracking noise) and fell
+  back below half its peak without ever reaching the press level. It carries `NearMissPeak` (how far it got) and `NearMissDrivenBy`
+  (the pressed, still-moving finger that was dragging it, or -1 for a weak curl of its own). A finger that reached the press level and
+  was *blocked* is not a near miss - it is already reported as blocked - and neither is anything pressed.
+- **`Released`** / **`ReleasePeak`** - when a pressed finger lets go, how far it had risen from the trough it pressed from: the whole stroke.
+- **`PressLevel(finger)`** - what each finger needed (so a log can say "rose 0.10, needs 0.13").
+
+`FingerBendBinder` writes them as `[FingerBend] Ring NEAR MISS rose 0.10, needs 0.13 - on its own: a curl too small to sound` (or `- Middle was
+pressed and moving, so probably dragged along`) and `[FingerBend] Ring STROKE peak 0.31 (needs 0.13)`, next to the lines it already logs for
+each press and each blocked press (isolation, or the drag veto). Together: how far each finger curls when it sounds, how far when it does not,
+and which of the three reasons (too small / isolation / drag veto) took each note.
+
+### Tests
+6 new, all in `FingerBendDetectorTests`: a curl short of the press level is a near miss and says how far it got; a pressed curl is not,
+and its stroke is reported at release; tracking noise is never a near miss; a finger blocked above the press level is not; a neighbour dragged
+below the press level is reported with the finger that dragged it; the ring is judged against its own lower level. Two deliberate breakages
+of the rule (never reporting; counting a blocked finger) each failed tests.
+
+### How to run it
+1. Add `JAZZTURES_DIAG` to the Android scripting defines (Edit > Project Settings > Player > Other Settings > Scripting Define Symbols, or
+   the Android build profile's scripting defines), build, play the Swing lesson. **Remove it afterwards:** it also turns on the per-note
+   `[DIAG] Send/StartNote` lines, the posture and touch-target logs, and the left hand's strike-speed line.
+2. Pull the log straight after: `adb logcat -d`. The `[FingerBend]` lines are one per event, so they do not flood the buffer the way the
+   per-frame pose logger did (ADR-0065).
+3. A scratch script (`bend_log_summary.py`, in the session scratchpad - not in the repo) tallies per finger: strokes that sounded (10th
+   percentile and median peak), curls too small on their own (and how big), near misses a neighbour explains, and refusals by isolation and
+   by the drag veto.
+
+### Not done
+No per-learner calibration, which is what the numbers would justify. The press and isolation scales are still the model's.
+
+---
+
+## ADR-0074 — Ring and pinky: a smaller isolation margin for the fingers that drag each other, and the ring and pinky get their own, lower press level
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's report) — **Core rule and tests done (844 pass); the values are chosen from a model, not
+measured, and have not been tried on a headset** · **Milestone:** M6 (early) · **Amends:** ADR-0073 (its isolation scale, 0.6, is now 0.3, and
+the ring and pinky no longer share the middle finger's press scale) · **Changes the thesis:** nothing.
+
+### What the student reported
+With ADR-0073 in, ring and pinky notes still occasionally did not sound, "likely because I can't curl them enough consistently to sound
+them": the bend sometimes never reached the press level.
+
+### What the model says (same harness as ADR-0073; still a model, not a measurement)
+I added **weak strokes** to it: with 40% probability a ring or pinky stroke rises only 0.18-0.32 ("weak"), or 0.10-0.22 ("very weak"),
+instead of 0.40-0.65, and an **idle hand** run (resting posture, +-0.03 noise plus occasional single-finger spikes) to price any lowering of
+the press level in notes nobody played. Two separate things limit a weak curl:
+1. **The isolation lead, not the press level, for moderately weak curls.** A weak curl leads the neighbours it drags by only a little, so
+   the absolute margin (0.06 after ADR-0073) blocks it even when it clears the press level. Lowering the press level alone left weak-stroke
+   hits at 78-79%; lowering the margin to x0.3 (0.03) moved them to 83% (1.0x ring/pinky coupling) and from 57% to 79% (1.3x), with
+   **no rise** in notes sounded on the wrong finger and none in idle presses. Below x0.3 returned almost nothing.
+2. **The press level, for very weak curls** (the case the student describes). With the smaller margin already in, lowering the ring and
+   pinky's press level alone to x0.65 lifted very-weak-stroke hits from 51% to 65% (47% to 57% at 1.3x coupling); x0.55 to 75% (65%). **The cost is stray presses:** in the model's idle
+   run, 0.6 presses a minute at x0.75, 3.0 at x0.65, 6.8 at x0.55. **That idle noise is my invented spike process, not tracking data** (the
+   student has not reported notes sounding by themselves at the current level), so read it as "each step down trades missed notes for stray
+   ones at a rate I cannot yet price", not as a count.
+
+Final choice (normal / weak / very weak curls, 1.0x coupling; the model's hit rates):
+
+| | ring | pinky | weak-stroke hit | wrong-finger notes /100 runs |
+|---|---|---|---|---|
+| ADR-0073 values | 98 / 88 / 74% | 100 / 98 / 82% | 78% (0.18-0.32), 40% (0.10-0.22) | 46 / 37 / 31 |
+| ADR-0074 values | 99 / 92 / 84% | 100 / 100 / 94% | 85%, 65% | 39 / 31 / 28 |
+
+### What changed
+- **`DefaultCoupledIsolationScale` 0.6 -> 0.3** (`MelodyConfig` field `Bend Coupled Isolation Scale`): with the scene's isolation margin 0.10, two
+  of the four fingers need to lead each other by 0.03, not 0.06. The coupled-stroke stress test passes at this value (300 of 300 strokes,
+  0 neighbours sounded) and a case for it was added.
+- **`FingerBendThresholds.RingPinkyPressScale`** (new; falls back to `CoupledPressScale` when not given, so every earlier caller is
+  unchanged) and `MelodyConfig` field **`Bend Ring Pinky Press Scale`**, default **0.65**: the ring and pinky press at 0.13 (0.20 x 0.65) while
+  the middle finger keeps `Bend Coupled Press Scale` 0.75 (0.15) and the thumb and index 0.20. Release level is checked against the lowest.
+- **Tests:** 844 (3 new): the ring and pinky press at their own lower level while the middle does not; the ring/pinky scale falls back
+  to the coupled one; bad scales are rejected, including a release level above the ring/pinky press level.
+- `Docs/CALIBRATION.md` rows updated.
+
+### How to tune it, on a headset
+`Config/MelodyConfig.asset` ▸ Finger bend: **`Bend Ring Pinky Press Scale`** is the one to move. Lower (toward 0.5) if ring and pinky notes
+are still missed; raise (toward 0.75) if they sound by themselves, or a neighbour sounds as you curl. Nothing here has been calibrated: it is
+the M8 job.
+
+### Not done
+- **Nothing measures how far the student can actually curl** - ADR-0075 adds the near-miss and stroke-peak log (behind `JAZZTURES_DIAG`)
+  that would show it; it needs a build with that define.
+- **No per-learner calibration** of each finger's range, which is the principled fix for hands that differ.
+- The thumb and index are unchanged.
+
+---
+
+## ADR-0073 — The middle, ring and pinky are asked for less: a smaller press level and a smaller isolation margin, for the fingers that drag each other
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call); **its isolation scale and the ring/pinky press scale are amended by ADR-0074** — **Core rule and tests done (841 pass); the scale values are chosen from a
+model, not measured, and have not been tried on a headset** · **Milestone:** M6 (early) · **Supersedes:** ADR-0072 (the Swing lesson is
+back to five fingers) · **Changes the thesis:** nothing.
+
+### The request
+After ADR-0072 cut the ring and pinky out of the Swing lesson, the student said that was drastic and asked whether the ring and pinky
+notes should instead be made *easier to actuate*. They are right: the system's design puts one chord tone on each of five fingers
+(§1.3, ADR-0050), so a finger that cannot be played reliably is an input problem to fix, not a lesson to avoid. ADR-0072 was my own
+guess, made without evidence, and is withdrawn; **`Lesson_L3_Swing.asset` is back to the five-finger pattern the student played**, so
+the next run tests the input change on the same notes.
+
+### What the evidence is, and is not
+There is still **no record of the headset run**: `[FingerBend]` diagnostics are compiled out without `JAZZTURES_DIAG`, and there is no
+telemetry writer yet. So I built a **model** and read the detector against it. It is a scratch harness (`bendsim`, not in the repo):
+`FingerBendDetector` at 60 Hz driven through the Swing lesson's 57 notes at their swung onsets. Each note is a stroke of its finger
+(0.40-0.65 rise over 5-8 frames, held 6-19 frames, released over 6-9); the other fingers are dragged along by amounts falling off with
+distance, one or two frames late, with 0.02 of tracking noise; the ring and pinky optionally drag each other 1.3x as hard. A note
+"hits" if its finger presses within -0.20 s / +0.25 s of its swung onset. 100 runs per setting. **It tests how the detector's rules
+behave under that coupling; it does not say how many notes a real hand would lose, and every number below is the model's.**
+
+What it showed for the scene's hand-adjusted levels (press 0.20, release 0.05, isolation margin 0.10 - see CALIBRATION):
+
+| | index | middle | ring | pinky | neighbour sounded, /100 runs |
+|---|---|---|---|---|---|
+| scene asset (0.20 / 0.10), no scaling - Swing lesson | 99% | 88-90% | **73-88%** | **83-99%** | 64-73 |
+| scene + coupled scales (x0.75 press, x0.6 margin) | 99% | 93-94% | 93-98% | 96-100% | 54-81 |
+| code defaults (0.14 / 0.06) | 99% | 97% | 93-97% | 96-100% | 18-46 |
+
+(Ranges are the two ring/pinky coupling strengths, 1.0x and 1.3x.) The same model gives the **Chord tones** lesson 100% for every
+finger at the scene's levels unless the ring/pinky coupling is 1.3x (then 88-89%), which fits notes there being slow and far apart.
+The misses at the scene's levels, classed by the detector's own state: mostly **isolation** (another free finger rose within 0.10 of
+the finger meant, hardest on the ring), then the **drag veto** (a held finger still moving, judged against the same 0.10), then a
+**press level** too high for a finger already pulled up by a neighbour. The ring and pinky lose most because they drag each other
+hardest, and an "and" is played against the clock, so the curl is quick.
+
+### What changed
+- **`FingerBendThresholds`** gains `CoupledPressScale` and `CoupledIsolationScale` (default 1 = no change, so every existing caller
+  and test behaves as before) and three methods the detector uses: `PressDeltaFor(finger)` - the press level x the press scale for the
+  **middle, ring and pinky** (they share one flexor muscle belly); and `IsolationMarginFor(finger, other)` - the margin x the isolation
+  scale when **both** are fingers (index..pinky; the thumb moves on its own and keeps the full margin). The release level must stay below
+  every finger's own press level, so a scale that would break that is rejected.
+- **`FingerBendDetector`** uses them: the press level per finger, the isolation test per pair (the finger it is weakest against is the
+  one reported as blocking), and the drag veto's "did it out-rise the driver's stroke by the margin" per pair. With equal margins this is
+  exactly the old rule, which the unchanged tests show.
+- **`MelodyConfig`** has `Bend Coupled Press Scale` (default 0.75) and `Bend Coupled Isolation Scale` (default 0.6). The scene asset
+  does not list them, so they take these defaults at once: with the scene's press 0.20 / margin 0.10 the middle, ring and pinky press at
+  0.15, and two fingers need to lead each other by 0.06. The thumb and index are untouched, so they are as hard to fire by accident as
+  before. `[TUNABLE]`, **unmeasured**; chosen as the first setting that lifted ring and pinky to the mid-90s in the model without raising
+  neighbour presses there.
+- **Tests (9 new, 841 total):** coupled fingers press on a smaller bend than the index; the scales are neutral by default; two
+  mutually dragging fingers give the lead to the finger that led by more than the scaled margin (and, as a control, not without the
+  scale); the thumb keeps the full margin (a mutation check confirmed this test fails if it does not); a stroke that drags its
+  neighbours still sounds only the finger meant, three ways, with the scaled thresholds; the coupled-stroke stress test also runs at the
+  scaled values; bad scales are rejected.
+
+### What the model also says, which I have not acted on
+The code defaults (0.14 / 0.06) did better than the scene's hand-adjusted 0.20 / 0.10 on every measure, including neighbours sounded.
+Those scene values were raised "by feel" (CALIBRATION) - I believe before the drag veto (ADR-0068) existed, when neighbours cascaded -
+but the record does not say why, and I did not change the student's values. If ring and pinky are still hard, **the next thing to try is
+the code defaults on the config itself**, with `JAZZTURES_DIAG` on for one run so refused presses are logged.
+
+### Not verified
+Everything about a real hand: whether the middle, ring and pinky now sound when meant, and whether anything sounds that was not meant
+(notes sounded by mistake are audible, and a looser input trades against them). The thumb is not changed.
+
+---
+
+## ADR-0072 — The Swing lesson plays three fingers, not five: the ring and pinky are off its notes
+
+**Date:** 2026-10-21 · **Status:** **Superseded by ADR-0073** — the student found removing fingers too drastic and asked for the ring and
+pinky to be made easier to actuate instead; the lesson is back to five fingers. Kept as the record of the first guess. (Was: data only; the
+new pattern had not been tried on a headset) · **Milestone:** M6 (early) · **Amends:** ADR-0071's note patterns (its table, the 57-note count, and the claim
+about which steps are between non-neighbouring fingers are no longer true) · **Changes the thesis:** nothing beyond ADR-0071.
+
+### What the student reported
+After playing the Swing lesson (ADR-0071), the student said they struggled to hit some notes with their ring and pinky fingers.
+
+### What I could and could not establish
+**No log of the run exists to read.** The app's `[FingerBend]` diagnostic lines are compiled out unless the build defines
+`JAZZTURES_DIAG` (`DiagLog`), this build did not, and there is no on-device telemetry writer yet (M7), so there is no record of which
+notes were missed, late or refused. What the code and the pattern show:
+- ADR-0071's passes 2–4 put a **swung "and" on the ring finger** (all three passes) and, in pass 4, a **pinky** and two more ring
+  notes in a running line. I checked that the fastest step (291 ms) fell between non-neighbouring fingers, but **I never asked
+  whether the fingers on the late notes were ones a novice can curl alone.** The ring and pinky are the least independent: curling one
+  tends to pull the other (and the middle finger) with it, and `FingerBendDetector` only accepts a press when that finger rose
+  `IsolationMargin` (0.06) more than every free finger, so a quick curl that drags its neighbour is *refused*, silently. On an "and" the
+  learner is curling against the clock, which is when a quick curl is most likely.
+- This is a **hypothesis from the mechanism, not a measurement.** Whether it was refused presses, late ones or wrong ones is not known.
+
+### What changed — data only
+`Lesson_L3_Swing.asset` was regenerated with **thumb, index and middle only** (root, 3rd, 5th), 54 notes:
+
+| Pass | Notes in each bar (beat: finger) |
+|---|---|
+| 1 | 0 thumb · 1 index · 2 middle · 3 index |
+| 2 | the same, then **2.5** index |
+| 3 | 0 thumb, **0.5** index · 2 middle, **2.5** index |
+| 4 | 0 thumb, **0.5** index, 1 middle · 2 thumb, **2.5** index, 3 middle |
+
+Every swung "and" is on the index finger. The shortest step the lesson plays is 291 ms, index → middle, in pass 4 (the pair of
+neighbours with the most independence); no finger repeats within 700 ms; ring and pinky play nothing. This also matches the thesis
+rule that one new dimension is introduced while the rest is held still (§1.5): Chord tones teaches the five fingers, and Swing reuses
+three of them while the rhythm is new. The pass-4 cue was reworded to match the new line ("Now each 'and' leads straight into the next
+beat. Long, short.").
+
+### Not done, deliberately
+- **No change to `FingerBendDetector`.** A per-finger isolation margin for the ring and pinky is the likely engineering fix if they
+  stay hard in Chord tones, but it would change input for every lesson on a guess; it wants the diagnostic data first.
+- **No `JAZZTURES_DIAG` define was added** (that is a `ProjectSettings` change on a file with uncommitted edits). A development build
+  with it on would log each refused press and who dragged whom (`[FingerBend] … ignored`), readable over `adb` after one run.
+
+### Still unverified
+Whether index → middle at 291 ms is comfortable, whether the thumb on beats 0 and 2 is reliable (it is held to two confirming frames),
+and whether the cause was isolation at all.
+
+---
+
+## ADR-0071 — A Swing lesson (lesson 3): right hand, system-played ii-V-I, notes on the beat and then on the "and"
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call, from a teammate's suggestion); **its note patterns are amended by ADR-0072** —
+**authored data plus one small field; not run
+in the Editor, not tried on a headset** (the Lessons assembly compiles in a scratch project and the 832 Core tests pass) ·
+**Milestone:** M6 (early) · **Changes the thesis: yes** — see the end.
+
+### The request
+A teammate suggested a lesson that has the learner perform a melody over a ii-V-I, first on the beat, then with notes on the half beats
+to introduce swing. I proposed a separate on-the-beat "Rhythm" lesson first; the student pointed out that **Chord tones already has the
+learner play one note per beat against the metronome** (its assets: every note on a whole beat, 80 BPM, clicks on), so it would repeat
+that. There is no Rhythm lesson. The student chose that **the system plays the chords** (scripted harmony, as in Chord tones), so the
+only new thing is the "and".
+
+### What was built
+- **`Lessons/Lesson_L3_Swing.asset`** (id `L3`, right hand, Watch and Listen then Try Yourself, metronome on), listed after Chords in the
+  catalog's Session 1. It plays ii-V-I four times, **one bar (4 beats) per chord, 12 beats a pass, 57 notes**. The fingers are the
+  finger-bend scheme's (thumb = root … pinky = 9th), so the same fingers play new notes as the chord changes:
+
+  | Pass | Notes in each bar (beat: finger) | New idea |
+  |---|---|---|
+  | 1 | 0 thumb · 1 index · 2 middle · 3 ring | warm-up, on the beat (swing never moves a whole beat) |
+  | 2 | 0 · 1 · 2, then **2.5** ring | one "and", after beat 3 |
+  | 3 | 0 thumb, **0.5** index · 2 middle, **2.5** ring | two "and"s, each followed by a rest |
+  | 4 | 0 · **0.5** · 1 · **1.5** · 2 · **2.5** · 3 = thumb, index, ring, pinky, middle, ring, index | a running line |
+
+  The lesson's `_swingRatio` is 0.66, so the 0.5 notes are pushed to 0.66 by `SwingQuantizer` everywhere that already applied it: the
+  lanes, the ghost's presses, system playback. No Core code changed. Pass 4's two-note gaps are 566 ms then 291 ms at 70 BPM, and **the
+  291 ms step is always between fingers that are not neighbours** (index→ring, pinky→middle, ring→index); in passes 2 and 3 the
+  note after an "and" is a beat or more away. That is deliberate: ADR-0068's drag veto makes fast runs on neighbouring fingers the
+  weak spot of the finger-bend input, and a swung "and" followed straight by a beat is the shortest gap this lesson plays. It is a
+  checked property of this authored pattern, not something the code enforces.
+- **A pass-by-pass cue track** (a warm-up line, then one line at the start of each new pass, and a closing line on completion) and
+  a four-slide opening discussion in plain language: "between the beats is an 'and'", "in jazz the 'and' is played a little late", then
+  the one word, **swing**, defined by that sentence (§1.5). No "triplet", "syncopation" or "ratio" appears on screen.
+- **`LessonDefinition._metronomeSubdivision`** (default `None`), passed to `Metronome` by `LessonRunner` along with the lesson's swing.
+  `SwungEighths` adds a quieter click on the swung "and" (`MetronomeSettings ▸ Off Beat Volume Scale`). **The asset leaves it off**:
+  whether that click teaches the "and" or just adds noise is something to hear on the headset, and the change is one field.
+  Existing lessons are unaffected (default `None`, which is what the runner used before).
+
+### `[TUNABLE]` values — not findings
+70 BPM (chosen below Chord tones' 80 so the short swung gap is nearer 300 ms; it is inside the ~70 BPM range CLAUDE.md §3.6 says the
+literature validated; the learner can still step the tempo), the 0.66 ratio, the four note patterns, the cue timings and the slide
+seconds are all engineering judgement. They need a pianist's ear and pilot use before they reach Chapter 6 (`Docs/CALIBRATION.md`).
+Published work reports that jazz swing ratios vary with tempo (Friberg & Sundström, *Music Perception* 19(3), 2002, on drummers' ride
+patterns at much faster tempos than this lesson's; read from search summaries, **not checked against the paper**), so 0.66 at 70 BPM is
+a starting point, not a measured preference.
+
+### What is not verified
+Nothing has run on a headset: whether the pass 2 → 4 progression is the right size, whether the 291 ms step is playable with
+finger-bends, whether the swung lane spacing reads as "late" rather than "mistimed", and whether the metronome subdivision helps. There
+is no Test Yourself in this lesson (and no timing lesson in the project at present), so the learner's timing is **not scored**; Try
+Yourself on a right-hand lesson sounds every note the learner plays.
+
+### Thesis and paper
+- §3.6 says "Lessons 1–3 are straight; Lesson 4 introduces swing", and §3.9's table has Timing as L2 (left hand) and Swing as L4. With
+  this lesson at position 3 and ADR-0069's order, that text is out of date; the student has said thesis conflicts are acceptable while
+  lesson content is being validated. **`CLAUDE.md` is deliberately not edited** and Chapters 4 and 6 need matching wording if it stays.
+- The lesson is right-hand-only with system-played changes, which is what §3.9 already says for L4 ("Right … C Ionian").
+- **No open source for the content was found.** Searched for open lesson data (see the reply that accompanied this ADR): the Weimar Jazz
+  Database has solo transcriptions with open access, and PDMX is a public-domain MusicXML corpus, but neither provides ii-V-I teaching
+  patterns, and no openly licensed set of lick exercises turned up. The patterns above are the author's own, deliberately simple.
+
+---
+
+## ADR-0070 — The learner's hands are the Interaction SDK hand visuals; dimming and chord colour now drive those
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call, from a failure they reported); the Unity assemblies compile in a scratch
+project — **not run in the Editor, not seen on a headset, and not live until the setup menu item is run again and the scene saved** ·
+**Milestone:** M5 · **Corrects:** ADR-0064 (which hands), ADR-0065 (the left hand's colour) · **Changes the thesis:** nothing in
+`[THESIS]`; it puts the chord colour on the left hand's *outline*, which is where §3.10 says it belongs.
+
+### What went wrong
+ADR-0064 and ADR-0065 tinted "the hand", which I took to be the two `[BuildingBlock] Hand Tracking` objects my scene scan found.
+**They are switched off** (`OVRMeshRenderer`, `OVRSkeletonRenderer` and the `SkinnedMeshRenderer` are disabled in the scene, in every
+commit) and nothing enables them, so nothing was ever drawn from them. The student ran it on the headset and reported, twice, that
+neither the dimming nor the colour showed. I had scanned `main.unity` for renderers and counted two; the real hands live inside a
+**nested prefab** (`OVRHands` → `OVRHandVisualLeft` / `OVRHandVisualRight`), whose components never appear as blocks in the scene
+file. The device log showed the component deciding correctly (chord held, hand in use, the right hue, the right hand dimmed at lesson
+start) while nothing changed on screen, which located the fault at the last step; an old screenshot of the app (dark hands, light
+outline) and a recursive scan of the prefabs found the real hands.
+
+### What the real hands are
+Each visual has two `SkinnedMeshRenderer`s (the OVR mesh path, and an OpenXR path that is inactive), both on `OculusHand.mat`, shader
+**`Interaction/OculusHand`**: `_ColorTop` / `_ColorBottom` (dark grey), `_Opacity`, `_OutlineColor`, `_OutlineOpacity`. Each renderer has
+a **`MaterialPropertyBlockEditor`** that **rewrites the renderer's block every frame** from its own lists — so anything written to the
+renderer directly, even on the right one, would have been overwritten within a frame.
+
+### What changed
+- **`HandUseTint` writes into those editors' lists** (`ColorProperties` / `FloatProperties`, then `UpdateMaterialPropertyBlock()`), the
+  way the SDK expects a hand to be coloured, for both editors of each hand. It is still the only writer of these properties.
+- **Dimming** (the hand the lesson does not use): `_ColorTop`, `_ColorBottom` and `_OutlineColor` scaled to 0.4, `_Opacity` and
+  `_OutlineOpacity` to 0.35 of their values, with a floor of 0.12 so it is never invisible. Amounts as in ADR-0064; still `[TUNABLE]`.
+- **Chord colour** (the left hand, while it holds a pose and the lesson uses it): the **outline** takes the chord's colour in full and
+  its opacity goes to 1; the **body** (dark grey) is tinted toward it at 0.45 of the colour's brightness, keeping its own top-to-bottom
+  ratio. `Body Tint Brightness` is the new knob. The colours are ADR-0065's (`ChordHue`).
+- **`Jazztures ▸ Hands ▸ Set Up Hand Dimming + Chord Colours (ADR-0064, ADR-0065, ADR-0070)`** now finds the property-block editors
+  under a hand visual and assigns them. **It must be run again, and the scene saved**: the component's old renderer fields are gone.
+  *Its first version searched for the prefab's own name (`OVRHandVisualLeft`) and found nothing: inside `OVRHands` the nested
+  prefabs are renamed (`OVRLeftHandVisual`, `OVRRightHandVisual`), so the Console reported "found no MaterialPropertyBlockEditor". It
+  now takes any editor whose nearest ancestor name contains "HandVisual", the side being "Left" or "Right" in that name, and its
+  error message lists the parent chains of the editors it did find, so a third naming surprise is readable.*
+- `HandUseTint`'s log (`adb logcat -d | grep HandUseTint`) now says at start how many editors it found per hand and the shader.
+
+### `TODO(OPEN)` and not verified
+- **Everything on a headset** — including whether 0.4 / 0.35 reads as "this hand is off", and whether a body tinted to 0.45 of a
+  chord colour is told apart from the grey it starts as.
+- **Dim and colour on the same hand** are worked out together (dim last), so a left hand in a right-hand lesson shows neither a colour
+  nor a stale one; untested.
+- **The Building Blocks hand objects are still in the scene, disabled.** They do nothing; removing them is the student's call.
+- **`TensionColorDriver`'s own outline path** (`Left Hand Material Blocks`, which writes the same `_OutlineColor`) is left unassigned on
+  purpose: two writers on one list would overwrite each other. `HandUseTint` is the one.
+
+---
+
+## ADR-0069 — EXPERIMENT: Chord tones is lesson 1 and Chords is lesson 2
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call) **as an experiment** — data only, no code changed; **not run in the
+Editor, not tried on a headset** · **Milestone:** M5 · **Changes the thesis: yes.** CLAUDE.md §3.9's lesson table numbers Chords
+as L1, Timing as L2 and Chord tones as L3, and a `[THESIS]` change must be raised first (rule 3): it was, and the student chose to
+try it. `CLAUDE.md` is deliberately **not** edited; **Chapters 4 and 6 will need matching wording** if this stays.
+
+### The request
+Feedback the student had received said chord tones should be discussed before chords (its source is not recorded in the repo —
+`TODO(OPEN)`: note who said it and how it was worded, since "discuss first" and "teach first" are different asks). The student
+had already moved Chord tones to id `L2` (and deleted the Timing asset), and then asked to try swapping the order.
+
+### What changed — data only
+- **`LessonCatalog`**: Session 1 now lists Chord tones, then Chords. The menu numbers lessons by catalog position (ADR-0061), so
+  it reads `1. Chord tones`, `2. Chords`, and *Next lesson* after Chord tones leads to Chords.
+- **Ids and files follow the student's convention (id = position):** Chord tones `L1` (`Lesson_L1_ChordTones.asset`), Chords `L2`
+  (`Lesson_L2_Chords.asset`). Renamed with their `.meta` files, so the guids — what the catalog and the scene use — are unchanged.
+- It works without code because **neither lesson needs the other**: Chord tones selects its own chords (ADR-0063), so a learner who
+  has never made a chord shape can play it; Chords needs nothing from the notes.
+- **The wording was left alone at first** (the student has been editing it, and it is theirs). The copy below was then drafted,
+  approved and **applied the same day** — see "Copy for the new order".
+
+### Why it may be better, and what it sets up
+- The learner plays the notes first and meets the names (Dm7, G7, Cmaj7) second, which fits the zero-vocabulary rule (§1.5).
+- The chord colours (ADR-0065) are seen first on the *notes* — the letters coming down the lanes — and then on the *left hand* when it
+  holds the same chord: the colour of what you played is the colour of what you now hold.
+- The ii-V-I story can be told in notes already under the fingers (D and F shared by ii and V, G and B by V and I; F falls to E, B
+  rises to C) instead of as three names to memorise.
+
+### Copy for the new order (applied)
+The old wording used "chord" before it had been explained (Chord tones) and re-taught what Chords' learner now already knew. Changed:
+- **Chord tones, now first:** a new first slide defines both words ("A chord is several notes played together. The notes that
+  belong to a chord are called chord tones.", 8 s); slide 1 now says "…plays chord tones"; the old fifth slide ("The chords play on
+  their own…") became "A chord plays underneath on its own. Time your finger curls to hit the notes."; the closing line now confirms
+  the term instead of introducing it ("Every note you played was a chord tone: it belongs to the chord underneath."); and the menu
+  line no longer uses "chord" (the title carries the term). The discussion is 38 s, up from 30.
+- **Chords, now second:** three slides (18 s, down from 23) that build on the first lesson instead of introducing chords ("You've
+  already played the notes of chords. Now you'll play whole chords with your left hand." / how to play one / the get-ready-tension-home
+  story); "root note" and "building blocks of harmony" dropped. Its cues for the second and third chords had **no text** (beats 4
+  and 8 were blank); all three now name the chord and its job — "Dm7: the getting-ready chord. Its notes are D, F, A, C." — so the
+  notes just played are named again as the chord's. The closing line uses the same words ("Getting ready, tension, home. Musicians
+  call this a ii-V-I."). If the blank cues were deliberate, they are the three lines to blank again.
+
+### `TODO(OPEN)` and not verified
+- **The first thing a novice now does is the right-hand finger-bend input** — the less reliable signal (DESIGN-SPACE D4; ADR-0068
+  fixed one false-trigger cascade, unverified on a headset). The three left-hand shapes are the sturdier first impression.
+- **The Timing lesson is gone** (the student deleted `Lesson_L2_Timing.asset`). It was the only lesson offering Test Yourself and
+  the only one with a scored pulse, so **§3.7's onset scoring has no lesson to run in**; it was already absent from the menu
+  (ADR-0061), but the content now no longer exists. §3.9 lists it as L2 `[THESIS]`.
+- **Fix the order before real participants** (M8): changing it mid-study breaks cross-participant comparison. If order is to be a
+  studied variable, the build must record which order each participant saw; ids no longer say, because they follow position.
+- **`Jazztures ▸ Lessons ▸ Create Session 1 Starter Lessons` is stale** and would recreate the old names and ids (L1 Chords, L2
+  Timing, L3 Chord tones) as new, duplicate assets, since nothing exists under those names any more; do not run it.
+
+---
+
+## ADR-0068 — A finger that has just pressed cannot hand the press on to the fingers it is dragging; the thumb must hold a press for two frames
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call); the detector is headless-tested (832 tests, 16 new) and the Unity
+assemblies compile in a scratch project, including with `JAZZTURES_DIAG` on — **not run in the Editor, not tried on a headset;
+the evidence is a simulated hand, not a measured one** · **Milestone:** M5 · **Extends:** ADR-0050 (the finger-bend input) ·
+**Changes the thesis:** nothing in `[THESIS]`. As ADR-0050 says, finger bends are an exploration on `explore/finger-bend-keys`
+that the co-design record may have rejected; this makes that experiment behave better, it does not argue for it.
+
+### The report
+"The middle, ring and pinky fingers seem to accidentally activate one another, and the thumb occasionally gets accidentally
+activated."
+
+### What was wrong — the neighbours (a hole in ADR-0050's isolation rule, reproduced by test)
+`FingerBendDetector` presses a finger only if it rose `IsolationMargin` further than every other finger — but **leaves out
+any finger already held down**, so that legato works (the next finger pressing while the last is still down). The held finger
+is exactly the one dragging its neighbours along, a few frames behind and a little less (tendon coupling). So: the middle
+presses; from the next frame it is ignored; the ring is still rising and now only has to beat the pinky, which rises less; the
+ring presses; then the ring is ignored and the pinky only has to beat everything left. **One bend, three notes** — middle,
+then ring, then pinky, which is the chain described.
+
+Reproduced first against the unmodified detector (six tests failed), then with a stress test of 300 simulated strokes: the
+bent finger drags the others by amounts that fall off with distance (adjacent 0.6–0.8 of its rise, 1–2 frames late), with
+tracking noise on every finger:
+
+| | meant finger sounded | neighbours that sounded |
+|---|---|---|
+| old rule, default thresholds (press 0.14, margin 0.06) | 300 / 300 | **545** |
+| old rule, the scene asset's (press 0.20, margin 0.10) | 300 / 300 | **142** |
+| with this change, either | 300 / 300 | **0** |
+
+These are numbers from a model I wrote, not a hand. They show the mechanism is real and severe enough to match the report;
+they do not say how often it happens on yours.
+
+### What changed
+- **The drag veto.** A held finger that is *still moving* — its peak advanced by 0.04 or more within `CouplingSeconds` (0.10 s) —
+  is consulted after all. A finger that has not out-risen it by the isolation margin is **dragged, not played**. The held
+  finger stops being consulted once it has been still for that long, so a real second note after the first still sounds.
+- **A dragged finger's new level becomes its rest.** I first latched it until it relaxed; a test I wrote for legato showed that was
+  wrong: a ring dragged by a middle that is still held *cannot* relax, so it would be locked out for the whole note. Re-basing
+  means it cannot fire late once the driver stops, and a deliberate press afterwards needs a fresh rise from where it was dragged to.
+- **The thumb must qualify on 2 frames running** (`ThumbConfirmFrames`; ≈ 11–16 ms, thumb only). A single-frame spike — the
+  thumb flickers in confidence and folds out of sight — is not a press a thumb can make. The veto also covers a thumb dragged
+  along by another finger's stroke, as it covers any finger.
+- **Both are `MelodyConfig` fields** (`Bend Coupling Seconds`, `Bend Thumb Confirm Frames`; `0` and `1` switch them off, to
+  compare). The diagnostic log now says *which finger dragged which* ("Ring rose 0.25 but Middle was still moving - dragged
+  along, ignored"). `Docs/CALIBRATION.md` has the new rows, and its recorded scene values for the press level and isolation margin
+  (0.15, 0.05) are corrected to what the asset actually holds (0.20, 0.10).
+
+### Behaviour that changed on purpose
+A second finger that begins to bend while the first is still moving, or within 0.1 s of it stopping, will not sound unless it
+out-rises the first. That drops very fast different-finger runs (roughly under 0.15–0.25 s between notes). Every lesson is
+slower than that (the quickest is one note a beat, 750 ms at 80 BPM) but free play can be quicker. The existing legato test
+modelled a second finger starting the instant the first stopped; it now leaves a 0.2 s pause, which is the same rule stated
+honestly, not a loosened one.
+
+### `TODO(OPEN)` and not verified
+- **Everything on a headset.** The coupling ratios, the lag, the 0.04 "moving" level and the 0.10 s window are mine. Real
+  coupling differs by person and by finger; if neighbours still sound, raise `Bend Coupling Seconds`, then the isolation margin; if
+  quick notes vanish, lower it.
+- **The thumb is only partly addressed.** Isolated spikes and being dragged are covered. A thumb reading that is *wrong for
+  several frames* — a long occlusion, a jump that holds — still presses. I did not change the thumb's press level or its spans
+  (ADR-0050, revisions 2–3, which were tuned by feel), because there is no data to say which way. With `JAZZTURES_DIAG` the thumb's
+  press line prints its palm-side offset in millimetres; a few of those from the occasional false presses would say whether it is
+  curl or the offset.
+- **The new fields are not in `MelodyConfig.asset`** yet, so the defaults apply; the Editor writes them in when the asset is next
+  saved, and they show in the Inspector.
+- **Detection, not recovery:** a stroke so coupled that the neighbour rose almost as far as the driver is still "say nothing"
+  (ADR-0050's isolation rule), not guessed.
+
+---
+
+## ADR-0067 — The strike plate is hidden on the menu, and appears with a lesson's interface
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call); the Unity assemblies compile in a scratch project — **not run in
+the Editor, not seen on a headset** · **Milestone:** M5 · **Extends:** ADR-0039/0040/0048 (the strike plate), ADR-0052 (the
+ghost strikes it), ADR-0066 (the interface waits for the discussion) · **Changes the thesis:** nothing in `[THESIS]`. §3.10 asks
+for visual restraint; a plate floating in the menu, where nothing is struck on it, spends attention on nothing.
+
+### The request
+"I want the strike plane to disappear on the menu anyway." The plate (`ChordStrikeTarget`) had been a permanent scene object,
+drawn on the menu, in the tutorial and in every mode — ADR-0066 left it out for that reason and asked.
+
+### What is built
+- **The plate is shown only while the performance root is enabled** — a lesson or free play — and **not through a lesson's opening
+  discussion.** So it is gone on the menu, the post-run screen and the tutorial, and it appears with the ghost hand and the rest of
+  the interface (ADR-0066), or at once in free play. The root decides, each frame, from `LessonRunner.InDiscussion` (new); its
+  `OnDisable` hides the plate when the flow controller switches the root off, and its `Awake` starts it hidden.
+- **It fades through its own colour** (0.25 s, `ChordStrikeTarget ▸ Fade Seconds`), the plate material being alpha-blended. The
+  renderer stays enabled, so `TopCenterWorld` — which the ghost hand reads from the renderer's live bounds to know where to land —
+  is never stale.
+- **A hidden plate senses nothing**, like an untracked hand: no touch and no speed, so a hand passing through the empty space where
+  it was cannot sound a chord. That includes the discussion, when a learner who has not been shown the plate yet has no reason to
+  strike it.
+
+### `TODO(OPEN)` and not verified
+- **Everything on a headset:** whether a plate that fades in as the lesson starts is noticed, or whether a learner reaches for the
+  place it will be before it appears. If the discussion should show it (so its place is known), it is one condition in
+  `PerformanceCompositionRoot.Update`.
+- **Free play** shows the plate as before; so does every lesson mode once the discussion is over, including Test Yourself, where
+  the ghost is hidden but the learner still strikes it.
+- **Chapter 4 / Chapter 6:** if the plate is described as always present, it now differs. Not touched (rule 7).
+
+---
+
+## ADR-0066 — A lesson's cues and interface start when its opening discussion is over, not under it
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call); the pacing is headless-tested (816 tests, 9 new) and the Unity
+assemblies compile in a scratch project — **not run in the Editor, not tried on a headset** · **Milestone:** M5 ·
+**Extends:** ADR-0056 (the lead-in), ADR-0061/ADR-0065 (the concept slides, and the lanes' explanation) · **Changes the thesis:**
+nothing in `[THESIS]`. §3.9's "plain-language theory alongside exercises" is the discussion; this stops the exercise talking over it.
+
+### The report
+"The cue track for lesson 1 - chords seems broken. It introduces the Dm7 chord immediately. Also, can we only make the
+interface pop up after the short discussion on chords?"
+
+### What was wrong (found in `LessonRunner`, not seen on a headset)
+- **The cue clock was held at beat 0 for the whole discussion.** The runner advances cues with
+  `AdvanceTo(beat < 0 ? 0 : beat)`, and the phrase beat is negative through the discussion, the pre-roll and the lead-in. The cue
+  at beat 0 — "The first chord is D minor seventh (Dmin7)" — therefore fired on the very first frame, in the same frame as slide
+  one, and replaced it. The same would have been true of any cue triggered by "the phrase started".
+- **"The discussion is still going" was false a slide too early.** The flag meant "a slide is left to show", which went false the
+  frame after the *last* slide appeared, not when it had finished. Anything that waited on it started under the final slide.
+- **The ghost frame was published from the first frame**, so the ghost left hand stood in the lesson's opening pose while the
+  chords were being explained, and in lesson 3 the note lanes and their letters were up during the slide that explains them.
+
+### What changed
+- **`Core/Lessons/ConceptSlidePlayer`** (tested): paces the slides and says the discussion is over only once the **last slide has
+  held for its time**. It replaces the runner's three loose fields. A 0-second slide (the single plain explanation) is shown and
+  delays nothing, as before.
+- **`LessonRunner` holds three things back until then:** the cues (so beat-0 cues fire as the lead-in opens, which is where they
+  were always meant to be), the "phrase started" signal (now raised from `Update`, once, at that moment), and the ghost frame — a
+  *hidden* frame is published meanwhile, so the ghost hands, the lit targets and the lanes are not drawn. The words are the only
+  thing on screen during the discussion; the interface appears with the lead-in.
+
+### `TODO(OPEN)` and not verified
+- ~~**The strike plate is not covered.** It is a permanent scene object, drawn on the menu and in every mode.~~ **Covered by
+  ADR-0067:** the plate is now hidden on the menu, and through the discussion, and appears with the rest of the interface.
+- **The learner's own hand labels are not covered:** they appear when a pose is held, which only the learner decides.
+- **The interface appears as the lead-in opens** (the pre-roll plus four beats before the first chord, ~3 s at 80 BPM), not at beat 0:
+  the ghost "waits in the opening pose" (ADR-0056) and the first cue is read as it arrives. If it should appear later, that is the
+  condition in `LessonRunner.Update`.
+- **Everything on a headset**, as with all of M5.
+- **The slides still replay at the start of every mode run** (ADR-0061), so Try Yourself repeats the discussion; this fix makes it
+  clean each time, it does not shorten it.
+
+---
+
+## ADR-0065 — The left hand wears the colour of the chord it holds, and the coming notes wear the colour of theirs
+
+> **Corrected by ADR-0070 (hand only).** The left-hand half targeted the wrong renderers, so it never showed; it now drives the real
+> hand's outline and body. The coming letters on the note lanes were never affected.
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call); the Unity assemblies compile in a scratch project —
+**not run in the Editor, not seen on a headset, and not live until the setup menu item is run (see ADR-0064, "Wiring")** ·
+**Milestone:** M5 · **Extends:** ADR-0017 (the tension palette), ADR-0044 (the right hand stopped following the chord's
+colour), ADR-0060 (the note lanes), ADR-0064 (the hand component) · **Changes the thesis:** nothing in `[THESIS]`. §3.10 says
+the tension arc is "cool/neutral for ii, warm/saturated for V, resolved/settled for I", carried by the left hand; this is that,
+reaching the hand for the first time. It adds no element — it colours two that are already there — but §3.10's justify-against-
+Chapter-4 applies to the lanes' letters, which now carry colour.
+
+### The request
+"When a left hand pose is activated, give it a color like we used to do with the right hand. Make the incoming chord tones
+match that as well." The right-hand targets used to take the chord's colour (ADR-0017) until ADR-0044 fixed them to one
+neutral colour and wrote the note on them instead. The lanes' letters are the incoming chord tones.
+
+### What is built
+- **The left hand takes the held chord's colour** (`HandUseTint`, extended; the one component that writes the hand's colour
+  properties, so the dimming of ADR-0064 and this are worked out together and cannot overwrite each other). From the moment a
+  pose is selected until it is let go it eases toward the chord's colour over 0.35 s and back. Body (`_ColorTop`/`_ColorBottom`)
+  and rim glow (`_ColorPrimary`), by the shader's own knobs — the bottom keeping the material's ratio to the top. The colour comes
+  from `TensionColorDriver.Current` (it already eases on every chord change), so a chord change slides from one colour to the next
+  and the hand does not flash through grey. After a release it fades out of the last hue, not through the palette's neutral.
+- **Only while the learner's own left hand is in use and something is being performed.** A right-hand lesson selects its chords
+  itself (ADR-0063) and its left hand is dimmed (ADR-0064): colouring it would say it had a part. On the menu the engine still
+  remembers the last chord but nothing reads the hand, so it is not coloured there.
+- **The coming letters on the lanes wear the colour of the chord they belong to** — the same hue the hand takes for that
+  pose. Per letter, not the current chord's: the lanes look several beats ahead, so the next chord's notes can be on their way
+  while this chord's are still arriving, and a V's letters are already burnt orange before the V sounds (the tension arc, in
+  advance). The gold flash on arrival is unchanged and the same in every chord. `NoteLanes` takes the `TensionPalette` as an
+  optional field; `MelodyConfig ▸ Note lanes ▸ Lane Letter Chord Tint` (1) says how far.
+- **The colour is the palette's hue at full brightness** (`ChordHue`): sage → a light yellow-green (0.88, 1, 0.70), burnt
+  sienna → orange (1, 0.45, 0.24), warm purple → violet (0.87, 0.60, 1). The palette's values are mid-tones made for a translucent
+  outline and its alpha is a strength for that outline; on a hand body and on small text over a dark sky they would be dull and
+  hard to read. Hue and saturation are kept. This is a departure from the palette's literal values, in one place, and the
+  palette is not edited.
+- **Not touched:** the right hand (it plays notes, not chords), the letters over the learner's own fingertips (free play, where
+  there are no lanes), the lane lines, the ghost hands, the chord-name label.
+
+### `TODO(OPEN)` and not verified
+- **Everything on a headset:** whether the three colours are told apart on the hand and at letter size; whether sage reads as
+  "preparation" once brightened (ADR-0017 already compromised on it); whether 0.85 of the way on the hand is too much or too little;
+  whether coloured letters are as legible as the plain ones against the sunrise sky.
+- **Colour is a redundant channel here, and must stay one** (§3.10). A colour-blind learner has the letter's name, the chord's name
+  over the hand and the sound. ii (yellow-green) and V (orange) are the pair most likely to be confused; if testers mix them, that
+  is a palette question for M8, not a bug.
+- **A coloured hand and the tracking-loss cue** (ADR-0064's open item): when the §3.5 desaturation is built, it must not be
+  mistakable for a hand that has simply let go of its pose.
+- **Needs the setup menu item** (it wires the driver into the hand component and the palette into the lanes), then a saved scene.
+  The palette must be assigned on the `TensionColorDriver` (it is, in this scene).
+- **Reported on a headset: the left hand's colour does not change when it forms a chord (2026-10-21).** Checked, and *not* the
+  cause: the saved scene has `HandUseTint` with both hand renderers, the performance root and the `TensionColorDriver` all
+  assigned; the driver, the bridge and the labels share one chord-changed channel asset; the installed build (22:18) is newer
+  than the colour code; the poses (`ii`, `V`, `I`) are recognised on the device; no other hand mesh is drawn (`OVRHands` holds
+  only data sources); and no `HandUseTint` exception reached the log. Not found by reading the update path either. **Cause not
+  yet known.** `HandUseTint` now logs, once at start and whenever a hand's tint or dimming flips, the three things the colour
+  depends on (chord held, hand in use, performing) — read with `adb logcat -d | grep HandUseTint`. Until a run with that
+  build, which of "the chord never arrives", "the lesson says the hand is not in use" and "the colour is applied but does not
+  show" is true is unknown. (`HandPoseFrameLogger` was writing several lines per frame to logcat — its "on change" test never
+  held, because the frame carries live speeds — and overwrote anything older than a few seconds. The student switched it off, the
+  poses being reliably detected: it is now opt-in, `Log Poses` on the component, off by default, so a bring-up session can tick it.)
+- **Chapter 4 / Chapter 6:** if either describes the right hand as carrying the chord colour, or the lanes' letters as one
+  colour, it now differs. Not touched (rule 7).
+
+---
+
+## ADR-0064 — The hand a lesson does not use is drawn darker and more transparent
+
+> **Corrected by ADR-0070.** This targeted the two Building Blocks hand meshes in the scene, which are switched off and were never
+> drawn; the learner's real hands are the Interaction SDK's `OVRHandVisual`s, with a different shader. The *idea* and the amounts
+> stand; the renderers, the shader properties and the wiring below are superseded.
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call); the Unity assemblies compile in a scratch project —
+**not run in the Editor, not seen on a headset, and not yet wired into the scene (see "Wiring")** · **Milestone:** M5 ·
+**Extends:** ADR-0063 (a hand the lesson does not use is silent and bare) · **Changes the thesis:** nothing in `[THESIS]`.
+§3.10 asks every visual change to be justified against Chapter 4; this adds no element, it takes emphasis *off* the hand the
+lesson does not use, so the hand that is playing is the one that stands out.
+
+### The request
+"Let's make disabled hands darker and more transparent." After ADR-0063 the unused hand makes no sound and carries no
+label; this is the same idea for how it is drawn.
+
+### What is built
+- **`Presentation/HandUseTint`** asks `IHandsInUse` (ADR-0063; the performance root answers) which hands the running lesson
+  uses and eases the other one dim over 0.35 s. No lesson running, free play, the menu and the tutorial are unchanged, and a
+  hand that has never been dimmed is never written to.
+- **Two of the hand shader's own knobs, not a new material.** The scene's hands are the Building Blocks hand
+  (`Oculus Sample/Alpha Hand Outline (SBB)`): its colour is `lerp(_ColorTop, _ColorBottom, fresnel)` times a lighting term, so
+  scaling `_ColorTop` / `_ColorBottom` is a plain darkening; and it blends on `_HandAlpha`. Both go in a
+  `MaterialPropertyBlock` on the hand's skinned-mesh renderer, **merged with whatever block is already there** rather than
+  replacing it. A material instance was rejected: `OVRMeshRenderer` swaps the renderer's whole material for a system gesture
+  and would swap the instance away. A block survives that, and leaves the shared material asset untouched.
+- **Never invisible.** The shader draws *nothing* when `_HandAlpha` is below `_MinVisibleAlpha` (0.164 on this material), so the
+  dimmed opacity is held a little above it. A learner who cannot see their hand cannot tell whether it is tracked (§3.5).
+- **`[TUNABLE]`, unmeasured:** brightness 0.4, opacity 0.35, fade 0.35 s — Inspector fields on the component.
+
+### Wiring — one step for you
+**`Jazztures ▸ Hands ▸ Set Up Hand Dimming + Chord Colours (ADR-0064, ADR-0065)`** (named for the dimming alone when this was
+written; ADR-0065 extends it), then save the scene
+(`App/Editor/HandTintSetup`: idempotent, undoable, adds the component beside the performance root and points it at the two OVR
+hand renderers). It is not wired already because the open Editor cannot be driven from here: the Unity CLI reports no
+connected Editor, since the project does not have the `com.unity.pipeline` package, and a new package is a dependency to ask
+about (rule 5), not to install. Until the menu item is run, the hands look as they did.
+
+### `TODO(OPEN)` and not verified
+- **Everything on a headset:** whether 0.4 / 0.35 reads as "this hand is off" and not as "I have lost this hand"; whether a
+  see-through hand is comfortable; whether the depth pre-pass the shader draws (it writes depth so the top layer wins) hides a
+  transparent label or lane that happens to sit behind the dimmed hand.
+- **It must stay distinguishable from the tracking-loss cue** (§3.5: a non-modal *desaturation* after 200 ms of loss). That cue
+  is configured (`GestureThresholdsConfig`) and documented on `TrackingQualityChannel`, but nothing draws it yet. When it is
+  built, darker-and-transparent here and desaturated there must not be mistakable for each other.
+- **Observed on the way:** `TensionColorDriver`'s left-hand outline writes `_OutlineColor` / `_OutlineGlowColor`
+  through `MaterialPropertyBlockEditor`s, but its list is empty in the scene and the current hand shader has no outline
+  properties, so the tension colour on the hand did not reach it. **ADR-0065 gives the hand that colour through this
+  component instead** (the body and rim, which this shader does have), which is why this component is the only one that
+  writes those properties. The driver's own outline path is still there and still does nothing; if it is wired up through
+  `MaterialPropertyBlockEditor`, it and this both write the renderer's one property block and whichever writes last would
+  replace the other's values until its next update.
+- **The ghost hands are not dimmed** — they have their own material, and they are the system's, not the learner's.
+- **Chapter 4 / Chapter 6:** if the hand rendering is described there it now differs for one-hand lessons. Not touched (rule 7).
+
+---
+
+## ADR-0063 — A hand the lesson does not use is silent and bare, and a right-hand lesson selects its own chords in every mode
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call); the Core part is headless-tested (807 tests, 15 new) and the
+Unity assemblies compile in a scratch project — **not run in the Editor, not tried on a headset** · **Milestone:** M5 ·
+**Extends:** ADR-0043 decision 3 (scripted harmony), ADR-0054 (the chord-name label) · **Changes the thesis:** nothing in
+`[THESIS]`. §3.8 ("the mode gates the note sink, not the gesture recogniser; silent-but-logged is a first-class state") is
+kept, and is the reason the silence is made in the sink (decision 1).
+
+### The report
+In the chord-tones lesson the chords should come on by themselves and the left hand should not be able to sound them; and
+where a lesson uses one hand, no label should hang over the hand that is switched off.
+
+### What was wrong (found by reading the code, not by watching it happen)
+- **The lesson's chords were selected for the learner only in Try Yourself and Test Yourself.** In Watch and Listen the system
+  played the chords and the melody but selected nothing, so the letters on the learner's fingers and the melody's tones
+  followed whatever the idle left hand happened to be doing.
+- **The left hand still drove the harmony in a right-hand lesson.** A pose it held replaced the lesson's chord until the next
+  scripted change (the melody's tones going to the wrong chord mid-phrase), and a strike sounded the chord: nothing
+  anywhere asked which hands the lesson used, and in Try Yourself the audio gate is open for any lesson that is not
+  left-hand-only (`UpdateGestureCorrectness`).
+- **The chord-name label (ADR-0054) followed the whole performance root**, so it hung over the left hand in every lesson.
+  The right hand's letters and lanes were already right: they follow the finger-bend input, which the flow controller
+  switches on only for a lesson that uses the right hand.
+
+### Decisions
+1. **Silence is made in the sink.** `ModeGatedNoteSink.SetActiveHands` (Core, tested): the learner's notes from a hand the
+   lesson does not use — the chord voicing for the left, the melody for the right — never reach the audible sink, in any
+   mode, including a chord already ringing when the hand is switched off, and they sound again if it is switched back on.
+   They still reach the unconditional sink, so the strike is **seen, recognised and logged, only not heard** (§3.8). The
+   system's own playback (Accompaniment) is never the learner's and is never gated. The runner sets it per phase from the
+   plan and puts it back to both hands in `StopLesson`, as it does the mode.
+2. **A right-hand lesson selects its chords in every mode.** `LessonRunner` starts the scripted harmony whenever the plan has
+   no left hand (`ActiveHands.SystemSelectsChords()`, now the one place that rule is written; `ModePolicy` uses it too), not
+   only where it also plays them. It selects at the instant the chords sound (the playback lead), so what is heard, labelled
+   and playable agree. **Starting a script now releases whatever was selected before** (`ScriptedHarmony.Start`), so a pose held
+   on the way in, or the last lesson's last chord, is not left sitting through the lead-in.
+3. **While a script is selecting, the left hand's pose is not taken as the selection** (`PerformanceCompositionRoot`). It is
+   still recognised and published. When the script ends, the interpreter's confirmed pose becomes the selection again — a
+   pose held through the lesson raised no change to say so, so it is read, not waited for. This also applies to the timing
+   drill's fixed chord (ADR-0043), which is not reachable from the menu (ADR-0051).
+4. **The chord-name label asks whether its hand is in use** (`IHandsInUse`, Presentation; implemented by the performance
+   root, which the label already follows — no scene change). No lesson running (free play) means both hands.
+5. **Free play, the menu and every both-hands lesson are unchanged.** Both-hands is the default at every layer.
+
+### `TODO(OPEN)` and not verified
+- **The ghost left hand is untouched.** In a right-hand lesson it still appears and strikes the chords the system plays
+  (ADR-0052), with the chord's name over it (ADR-0058). That is the system's demonstration, not the learner's disabled hand,
+  so I read the ask as not covering it — but it is the likeliest thing to look like a leftover. If it should go, it is a
+  one-line change in how the runner builds the strike schedule.
+- **The left hand's strikes in a right-hand lesson are still logged as chord notes** (Harmony channel, source Left, on the
+  scripted chord). That is what "silent-but-logged" means, but an analysis script counting left-hand strikes must filter by
+  the lesson's active hands or it will count incidental ones (M7).
+- **Everything on a headset:** whether an incidental left-hand motion still disturbs the right hand's tracking or reads as the
+  learner doing something; whether Watch and Listen on the chord-tones lesson now shows the right letters (it should — the
+  chord is now selected there).
+- **Chapter 6:** if it says the left hand sounds in a right-hand lesson, or describes Try Yourself as audible for both hands,
+  it now differs. Not touched (rule 7).
+
+---
+
+## ADR-0062 — The menu keeps a standing reminder of its controls: right hand, flick to browse, strike to choose
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call); the Unity assemblies compile in a scratch project —
+**not run in the Editor, not seen on a headset** · **Milestone:** M5 · **Extends:** ADR-0051 (the menu), ADR-0053 (the
+tutorial) · **Changes the thesis:** nothing in `[THESIS]`. **It adds a visual element, so §3.10 applies: the student must be
+able to justify it against Chapter 4**, and if Chapter 4 argues the menu carries no standing text this contradicts it.
+
+### The report
+Testers still struggled to navigate and to use the gestures, after the tutorial. The student asked for permanent
+instructions on the menu — flick the right hand left or right to switch cards, strike to select — and left the form
+open: "figure out better wording or maybe use icons".
+
+### What is built
+- **One dim row under the cards, on every menu screen:** `Right hand  ◀ ▶ Flick to browse  ▼ Strike to choose`
+  (`Presentation/MenuControlsHint`, owned by `MenuView`; nothing to wire in the scene). It is static: nothing in it
+  animates when a gesture is recognised — the cards' own pulse and bump already answer that (ADR-0051).
+- **Arrows carry direction, words carry the verb.** The motion's direction (sideways, down) is what a learner cannot
+  guess from a word, and what an icon says at a glance, so the words are three or four: "Flick to browse", "Strike to
+  choose". Neither is the sole carrier (§3.10).
+- **The arrows are drawn as geometry (a triangle mesh), not font glyphs.** Nothing in the project draws an arrow in a
+  `TextMesh`, so there is no evidence the built-in font has the glyphs on the headset; a missing one is a blank box that
+  cannot be seen before a build. This is a decision, not a preference — if the font is later shown to carry them, the
+  words-only wording could use them.
+- **Wording follows the tutorial's** ("flick", "strike", ADR-0053) — a learner was just taught those two words, and a
+  third ("swipe") would make the reminder a new thing to learn. **"Right hand" is named once** because only the right hand
+  is listened to (ADR-0051): a learner with both hands up who flicks the left would otherwise conclude the menu is broken.
+  The flick's *direction* is not spelled out as "left = next": it is the swipe convention, the row follows the hand, and the
+  arrows show both ways.
+- **Hidden while the tutorial runs** (it teaches the same two motions, and puts its own line where the hint sits), **on
+  when it completes**, and gone with the menu while a lesson runs. A learner with the tutorial switched off in `MenuConfig`
+  has it from the first frame. It fades in with the menu and holds steady through a screen change.
+- **The fist is not on it.** The Back cards cover going back; the fist's other job, leaving a lesson, happens where no
+  menu is drawn. Offering it would be a third item on the one line meant to be glanced at.
+- **Look and place** are `MenuView ▸ Controls hint` fields, `[TUNABLE]` and unmeasured: type at 0.55 of the menu's
+  (about 1.8° at 0.8 m), 0.215 m below the cards, 80 % opacity, arrows in the focus colour, the words in the idle colour, the
+  hand in the title's dim. The row is about 0.8 m wide (≈ 53°), a little wider than a full footer.
+
+### `TODO(OPEN)` and not verified
+- **Everything on a headset:** whether the words read at 1.8°; whether the row is clear of a three-line footer (the
+  post-run screen) and of the fist's hold bar; whether the arrows read as directions and not as a media control.
+- **Spacing is estimated, not measured** — each piece is placed from its character count (0.55 em a character), with gaps
+  well wider than the error, so a long edit to the words cannot overlap the next piece but the row may sit off-centre.
+- **Whether "Flick" and "Strike" mean anything to someone who skipped or forgot the tutorial** is untested. The student
+  said "swipe"; the tutorial says "flick". If testers still stumble, the words are the first thing to change (they are
+  Inspector fields, no code).
+- **Chapter 4 / Chapter 6:** if the menu's chrome is described there it now differs. Not touched (rule 7).
+
+---
+
+## ADR-0061 — The menu says what each lesson and mode is, numbers them, and L1 and L3 play four times through; L3 explains the note lanes
+
+**Date:** 2026-10-21 · **Status:** Accepted (student's call); the Unity assemblies compile in a scratch project, the two
+lesson assets' beats and cue markers were checked by script, the 792 headless tests pass — **not run in the Editor, not
+tried on a headset** · **Milestone:** M5 ·
+**Extends:** ADR-0051 (the menu), ADR-0060 (the lanes, on `explore/finger-bend-keys`) · **Changes the thesis:** nothing in
+`[THESIS]`. The note-lane wording describes an exploration that is itself not a thesis decision (ADR-0060): if the lanes
+are dropped, L3's slides and captions go with them.
+
+### The report
+Testers still struggled to find their way round the system and to use the gestures. Three asks: say what lessons and modes
+are in the menu, number them, play the chord and chord-tone lessons four times through instead of twice, and explain the
+note lanes, which nothing did.
+
+### What changed
+- **Description under the row.** The highlighted card's description shows in the menu's footer (the line the post-run screen
+  already used), so it changes as the learner flicks. A lesson brings its own, `LessonDefinition ▸ Menu Description` (data,
+  not code, §3.9); the five modes, Free play and Tempo have fixed wording in `LessonFlowController`. Try Yourself is
+  worded for the hand the learner plays (ADR-0043 decision 3). Kept to about 80 characters: two lines, which stays clear of
+  the tutorial's line below the menu (ADR-0053). The post-run screen is unchanged. No text on Back.
+- **Numbers.** `1. Chords`, `2. Chord tones`; `1. Watch and listen`, `2. Try yourself`. A lesson is numbered by its place in
+  the catalog and a mode by its place in the lesson's mode list — the order they are meant to be worked through — not by the
+  lesson id. **L2 (Timing) is not in the catalog**, so Chord tones reads as lesson 2 although the thesis calls it L3; if L2
+  returns it takes number 2 and Chord tones becomes 3. Free play, Tempo, Back and the post-run cards are not numbered.
+  *(Overtaken by ADR-0069: the Timing asset has been deleted, Chord tones is now lesson 1 and Chords lesson 2, and the ids match.)*
+- **Four passes.** L1 (ii-V-I) and L3 (chord tones) each play the pass four times: the first, then three more. L1 was
+  twice; **L3 was once** — it had no repeat at all — so this is the biggest change to L3. Each repeat has a caption ("Once
+  more." / "Again." / "One last time.") at a marker, hidden two beats in, as L1's was. At 80 BPM L1 is ~33 s of phrase
+  and L3 ~69 s, plus the concept slides.
+- **L3 explains the lanes.** Five concept slides (what a lane is, that letters travel down it, that a letter reaching the
+  fingertip is the cue to curl that finger, that the letters change with the chord), a caption on the first notes ("Thumb
+  first, then each finger across."), one on the first chord change ("The chord changed, so the letters changed. Same
+  fingers, new notes."), and a closing line that names chord tones. The placeholder `_conceptExplanation` is cleared; it
+  was ignored once slides exist.
+
+### `[TUNABLE]` and not verified
+- **Four passes is a user-feedback default, not a finding.** It is the same kind of number as every `[TUNABLE]` here: it
+  needs a pilot (M8) before it appears in Chapter 6. 69 s of Watch and Listen on L3 may be long.
+- **Concept slides replay at the start of every mode run** (the menu starts a lesson one mode at a time, so every run is
+  phase 0): ~23 s for L1, ~33 s for L3, again before Try Yourself. Pre-existing; this makes L3's longer.
+- **Everything on a headset:** whether two lines of footer read at that size; the fist's hold bar is drawn through the
+  footer's zone while a fist closes (it was already, on the post-run screen).
+- **Chapter 4 / Chapter 6:** if the menu or the lesson length is described there, it now differs. Not touched (rule 7).
+
+---
+
 ## ADR-0060 — EXPLORATION (branch `explore/finger-bend-keys`): the right-hand cue as lanes out of the fingertips
 
 **Date:** 2026-10-20 · **Status:** **Proposed — exploration only.** Lives on `explore/finger-bend-keys`; it is not a thesis

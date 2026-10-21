@@ -54,10 +54,9 @@ namespace Jazztures.Core.Lessons
         {
             ModePolicy policy = For(mode);
 
-            bool learnerPlaysNoChords = (hands & ActiveHands.Left) == 0 && (hands & ActiveHands.Right) != 0;
             bool silentMode = mode == LearningMode.TryYourself || mode == LearningMode.TestYourself;
 
-            return learnerPlaysNoChords && silentMode
+            return hands.SystemSelectsChords() && silentMode
                 ? new ModePolicy(
                     SystemPlayback.HarmonyOnly,
                     policy.GhostHandsVisible,

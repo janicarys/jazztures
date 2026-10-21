@@ -14,9 +14,22 @@ namespace Jazztures.Diagnostics
     /// Logs only on change, so a held pose does not spam. Only the pose classification and
     /// tracking flags are printed — never raw joints (§4.1).
     /// </para>
+    ///
+    /// <para>
+    /// <b>Off by default.</b> "On change" turned out to mean "every frame while a hand moves": the frame
+    /// carries the hand's speeds, so it is never equal to the last one, and the log ran to several lines a
+    /// frame, overwriting the rest of <c>adb logcat</c> within seconds. The poses are reliably detected now
+    /// (the student, 2026-10-21), so it stays off until a recogniser bring-up session ticks
+    /// <see cref="_logPoses"/>. It also builds a string every frame, which §2.4 does not allow on a
+    /// release path.
+    /// </para>
     /// </summary>
     public sealed class HandPoseFrameLogger : MonoBehaviour
     {
+        [Tooltip("Log the pose frame to the Console / logcat. OFF by default: on a moving hand it is several lines per " +
+                 "frame and drowns everything else. Tick it for a recogniser bring-up session.")]
+        [SerializeField] private bool _logPoses;
+
         [Tooltip("The hand-pose source to watch (a component implementing IHandPoseSource).")]
         [SerializeField] private MonoBehaviour _source;
 
@@ -30,6 +43,12 @@ namespace Jazztures.Diagnostics
 
         private void Awake()
         {
+            if (!_logPoses)
+            {
+                enabled = false; // Update never runs, so nothing is read and no string is built
+                return;
+            }
+
             _poseSource = _source as IHandPoseSource;
             if (_poseSource == null)
             {

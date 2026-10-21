@@ -29,6 +29,11 @@ namespace Jazztures.Presentation
     /// </para>
     ///
     /// <para>
+    /// A dim row under the cards keeps saying how to drive the menu (<see cref="MenuControlsHint"/>, ADR-0062) while
+    /// the menu is up; <see cref="SetControlsHint"/> switches it off for the tutorial, which teaches the same thing.
+    /// </para>
+    ///
+    /// <para>
     /// It also draws the one cue the fist needs: a thin bar that fills while the fist is held
     /// (<see cref="SetHoldProgress"/>), visible whether or not any cards are, because the fist
     /// also leaves a running lesson, where a hold with no feedback would just feel like latency.
@@ -89,6 +94,9 @@ namespace Jazztures.Presentation
         [Tooltip("Seconds the row takes to spring back from a bump.")]
         [Min(0.01f)] [SerializeField] private float _bumpSeconds = 0.14f;
 
+        [Header("Controls hint (ADR-0062)")]
+        [SerializeField] private MenuControlsHint.Style _controlsHint = new MenuControlsHint.Style();
+
         [Header("Fist hold bar")]
         [Min(0.05f)] [SerializeField] private float _holdBarWidthMetres = 0.30f;
         [Min(0.002f)] [SerializeField] private float _holdBarHeightMetres = 0.012f;
@@ -128,6 +136,9 @@ namespace Jazztures.Presentation
         private TextMesh _title;
         private TextMesh _footer;
         private Renderer _holdBar;
+        private MenuControlsHint _hint;
+        private bool _hintWanted = true;
+        private float _hintAlpha; // eases to 1 while the menu is up and the hint wanted, 0 otherwise; not tied to the cards' fade
 
         private int _count;
         private int _selected;
@@ -167,16 +178,30 @@ namespace Jazztures.Presentation
             Write(_holdBar, _holdBarColor);
             _holdBar.gameObject.SetActive(false);
 
+            _hint = new MenuControlsHint(
+                transform, _runtimeMaterial, _controlsHint, _characterSize, _fontSize,
+                y: -(_cardHeightMetres * 0.5f + _controlsHint.dropBelowCardsMetres),
+                leadColor: _titleColor, wordColor: _idleColor, arrowColor: _focusColor);
+
             Hide();
         }
 
         private void OnDestroy()
         {
+            _hint?.Destroy();
+
             if (_runtimeMaterial != null)
             {
                 Destroy(_runtimeMaterial);
             }
         }
+
+        /// <summary>
+        /// Whether the standing reminder of the controls (flick to browse, strike to choose) is shown under the
+        /// cards. On unless told otherwise. The app turns it off while the tutorial is teaching those same two
+        /// motions in the same place, and on again when the tutorial is done (ADR-0062). It fades rather than snaps.
+        /// </summary>
+        public void SetControlsHint(bool wanted) => _hintWanted = wanted;
 
         /// <summary>
         /// Draw <paramref name="labels"/> left to right with <paramref name="selected"/> highlighted.
@@ -198,6 +223,7 @@ namespace Jazztures.Presentation
             {
                 ApplyContent(labels, selected, title, footer, snap: true);
                 IsShown = true;
+                _hintAlpha = 0f; // fades in with the menu, from nothing
                 _hasPending = false;
                 BeginPhase(Phase.In, 0f, direction);
                 RefreshAll();
@@ -227,6 +253,7 @@ namespace Jazztures.Presentation
         public void Hide()
         {
             IsShown = false;
+            _hintAlpha = 0f;
             _hasPending = false;
             _phase = Phase.Idle;
             UpdateFade();
@@ -299,6 +326,13 @@ namespace Jazztures.Presentation
             }
 
             bool animating = _pulse > 0f || _bump != 0f;
+
+            float hintTarget = _hintWanted ? 1f : 0f;
+            if (_hintAlpha != hintTarget)
+            {
+                _hintAlpha = Mathf.MoveTowards(_hintAlpha, hintTarget, dt / _controlsHint.fadeSeconds);
+                animating = true;
+            }
 
             switch (_phase)
             {
@@ -500,6 +534,9 @@ namespace Jazztures.Presentation
             _footer.transform.localPosition = new Vector3(0f, -captionHalf + _offsetY, 0f);
             _title.color = WithAlpha(_titleColor, _alpha);
             _footer.color = WithAlpha(_titleColor, _alpha);
+
+            // The hint is not part of a screen, so it keeps its own alpha through a screen change (_alpha dips to 0).
+            _hint?.SetAlpha(IsShown ? _hintAlpha * _controlsHint.opacity : 0f);
 
             float scroll = _scroll + _bump;
 

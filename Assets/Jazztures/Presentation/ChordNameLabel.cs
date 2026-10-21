@@ -30,6 +30,11 @@ namespace Jazztures.Presentation
     /// sustains (§3.5); only the label, which has nowhere to hang, goes. The name is chord notation,
     /// like the finger letters' note names (ADR-0044) — no theory words, no function names (§1.5).
     /// </para>
+    ///
+    /// <para>
+    /// It is hidden, too, in a lesson that does not use the left hand (<see cref="IHandsInUse"/>, ADR-0063): the
+    /// system selects that lesson's chords, so the hand has no part in them and carries nothing.
+    /// </para>
     /// </summary>
     public sealed class ChordNameLabel : MonoBehaviour
     {
@@ -52,11 +57,14 @@ namespace Jazztures.Presentation
         [SerializeField] private Transform _head;
 
         [Tooltip("Optional. Show the name only while this component is enabled — assign the " +
-                 "PerformanceCompositionRoot so it hides on the menu screens, as the finger letters do.")]
+                 "PerformanceCompositionRoot so it hides on the menu screens, as the finger letters do. If it " +
+                 "also says which hands the running lesson uses (IHandsInUse, as the root does), the name is " +
+                 "left off a lesson that does not use the left hand (ADR-0063).")]
         [SerializeField] private Behaviour _follow;
 
         private TextMesh _label;
         private IHand _hand;
+        private IHandsInUse _handsInUse;
         private LabelGlow _glow;
         private float _flash;
         private int _litFrame = -1;
@@ -70,6 +78,8 @@ namespace Jazztures.Presentation
                 enabled = false;
                 return;
             }
+
+            _handsInUse = _follow as IHandsInUse;
 
             _glow = new LabelGlow(_config);
             float size = (_config != null ? _config.LabelCharacterSize : 0.005f) * SizeVersusLetter;
@@ -153,9 +163,12 @@ namespace Jazztures.Presentation
         {
             _flash = _glow.Decay(_flash, Time.deltaTime); // counts down out of sight too
 
+            // The name is for a hand the lesson uses: a right-hand lesson selects its chords itself (ADR-0063), and
+            // a name floating over a left hand that does nothing would only say it is meant to be doing something.
             bool shown = _label.text.Length > 0
                          && _hand.IsTrackedDataValid
-                         && (_follow == null || _follow.isActiveAndEnabled);
+                         && (_follow == null || _follow.isActiveAndEnabled)
+                         && (_handsInUse == null || _handsInUse.IsInUse(CoreHandedness.Left));
 
             // The palm if the rig provides it, else the middle knuckle: the middle of the hand either way.
             Pose pose = default;

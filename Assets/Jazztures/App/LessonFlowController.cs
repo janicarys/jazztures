@@ -217,6 +217,7 @@ namespace Jazztures.App
             _tutorialRunner.TimedOut += OnTutorialTimedOut;
 
             _menuRevealed = false;
+            _menuView.SetControlsHint(false); // the tutorial teaches flick and strike itself, in the hint's own place
             _tutorialView.SetMenuVisible(false);
             if (_sky != null) _sky.SetDark();
             Render();                 // keeps the menu off screen
@@ -244,6 +245,7 @@ namespace Jazztures.App
             Debug.Log("[Tutorial] complete.", this);
             _tutorialView.Hide();
             if (_tutorialGhost != null) _tutorialGhost.Stop();
+            _menuView.SetControlsHint(true); // from here the menu keeps reminding them
             if (!_menuRevealed)
             {
                 RevealMenu();
@@ -460,11 +462,11 @@ namespace Jazztures.App
             switch (item.Kind)
             {
                 case MenuItemKind.Lesson:
-                    return _lessons[item.LessonIndex].Title;
+                    return $"{item.LessonIndex + 1}. {_lessons[item.LessonIndex].Title}";
                 case MenuItemKind.FreePlay:
                     return "Free play";
                 case MenuItemKind.Mode:
-                    return ModeName(item.Mode.GetValueOrDefault());
+                    return $"{ModeNumber(item)}. {ModeName(item.Mode.GetValueOrDefault())}";
                 case MenuItemKind.Tempo:
                     return $"Tempo\n{_navigator.TempoBpm(item.LessonIndex):0} BPM";
                 case MenuItemKind.Back:
@@ -495,14 +497,15 @@ namespace Jazztures.App
         }
 
         /// <summary>
-        /// The post-run screen reports what the run ended on: the lesson's closing line, if it had one,
-        /// and a Test Yourself score (§3.7) — both once it is over, never during.
+        /// The lesson and mode screens say, under the row, what the highlighted card is. The post-run screen
+        /// reports what the run ended on instead: the lesson's closing line, if it had one, and a Test
+        /// Yourself score (§3.7) — both once it is over, never during.
         /// </summary>
         private string FooterOf(MenuScreen screen)
         {
             if (screen != MenuScreen.PostRun)
             {
-                return string.Empty;
+                return _navigator.Items.Count > 0 ? DescriptionOf(_navigator.Items[_navigator.Selected]) : string.Empty;
             }
 
             if (_closingCaption.Length > 0 && _lastResult.Length > 0)
@@ -531,6 +534,76 @@ namespace Jazztures.App
                     return "Test yourself";
                 case LearningMode.ComposeOnTheFly:
                     return "Play freely";
+                default:
+                    return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// A mode's place among its lesson's modes, from 1 — the order they are meant to be worked through
+        /// (§3.8). Numbered from the lesson's own list, not the card's position, so the Tempo and Back cards
+        /// after the modes never shift it.
+        /// </summary>
+        private int ModeNumber(MenuItem item)
+        {
+            IReadOnlyList<LearningMode> modes = _lessons[item.LessonIndex].Modes;
+            for (int i = 0; i < modes.Count; i++)
+            {
+                if (modes[i] == item.Mode)
+                {
+                    return i + 1;
+                }
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// What the highlighted card is, in the words of someone who has never played (§1.5). Shown under the
+        /// row, so a learner can tell what a lesson or mode is before choosing it. A lesson brings its own
+        /// line (<see cref="LessonDefinition.MenuDescription"/>); the rest are the same for every lesson.
+        /// </summary>
+        private string DescriptionOf(MenuItem item)
+        {
+            switch (item.Kind)
+            {
+                case MenuItemKind.Lesson:
+                    return _lessons[item.LessonIndex].MenuDescription;
+                case MenuItemKind.FreePlay:
+                    return "Play freely with both hands. No lesson, nothing to match.";
+                case MenuItemKind.Mode:
+                    return ModeDescription(item.Mode.GetValueOrDefault(), _lessons[item.LessonIndex].Hands);
+                case MenuItemKind.Tempo:
+                    return "Strike to change the speed. A bigger number is faster.";
+                default:
+                    return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// A mode in one or two short sentences. Try Yourself is worded for the hand the learner plays: on a
+        /// right-hand lesson the chords play for them and the notes are theirs (ADR-0043 decision 3), where on
+        /// a left-hand one they make the shapes themselves. Kept to about 80 characters — two lines under the
+        /// row, clear of the tutorial's line below it.
+        /// </summary>
+        private static string ModeDescription(LearningMode mode, ActiveHands hands)
+        {
+            bool rightHandOnly = (hands & ActiveHands.Left) == 0 && (hands & ActiveHands.Right) != 0;
+
+            switch (mode)
+            {
+                case LearningMode.GestureLearning:
+                    return "Practise the hand shapes. There is nothing to match yet.";
+                case LearningMode.WatchAndListen:
+                    return "The lesson plays itself. Watch and listen. Nothing you play is heard.";
+                case LearningMode.TryYourself:
+                    return rightHandOnly
+                        ? "The chords play for you. Curl each finger as its letter arrives."
+                        : "Copy the ghost hand. It waits until you match each shape.";
+                case LearningMode.TestYourself:
+                    return "No guide this time. Play it yourself, then see how you did.";
+                case LearningMode.ComposeOnTheFly:
+                    return "Make it up as you go. There is nothing to match.";
                 default:
                     return string.Empty;
             }

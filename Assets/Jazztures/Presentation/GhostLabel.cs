@@ -20,6 +20,7 @@ namespace Jazztures.Presentation
     {
         private readonly TextMesh _text;
         private readonly LabelGlow _glow;
+        private Color _resting;             // what the label rests in: the usual colour, or a chord's hue (SetHue)
         private float _flash;
         private float _emphasis = 1f;       // 1 = as the learner's own labels rest, 0 = quiet
         private float _emphasisTarget = 1f; // a label is at full strength unless a view says otherwise
@@ -29,6 +30,7 @@ namespace Jazztures.Presentation
         public GhostLabel(Transform parent, string name, MelodyConfig config, float sizeVersusLetter = 1f)
         {
             _glow = new LabelGlow(config);
+            _resting = _glow.Resting;
             float size = (config != null ? config.LabelCharacterSize : 0.005f) * sizeVersusLetter;
 
             var go = new GameObject(name);
@@ -65,6 +67,18 @@ namespace Jazztures.Presentation
         /// or out of sight - the note lanes (ADR-0060) - sets it each frame; it does not ease.
         /// </summary>
         public float Fade { get; set; } = 1f;
+
+        /// <summary>
+        /// Rest in a chord's colour (ADR-0065) - <paramref name="hue"/> as <see cref="ChordHue.Of"/> gives it, taken
+        /// <paramref name="amount"/> of the way from the usual label colour (1 = all the way). Null puts the usual colour
+        /// back. It only changes what the label rests in: the flash on arrival is the same colour in every chord.
+        /// </summary>
+        public void SetHue(Color? hue, float amount = 1f)
+        {
+            _resting = hue is { } h
+                ? Color.Lerp(_glow.Resting, _glow.RestingIn(h), Mathf.Clamp01(amount))
+                : _glow.Resting;
+        }
 
         /// <summary>Light up now - the thing the label names has just been played.</summary>
         public void Flash() => _flash = 1f;
@@ -119,7 +133,7 @@ namespace Jazztures.Presentation
                 _text.transform.rotation = Quaternion.LookRotation(away, Vector3.up);
             }
 
-            _glow.Apply(_text, _flash, _emphasis);
+            _glow.Apply(_text, _flash, _emphasis, _resting);
 
             if (Fade < 1f)
             {

@@ -162,11 +162,32 @@ namespace Jazztures.Input
                 bool blocked = _detector.Blocked(f);
                 if (blocked && !_wasBlocked[f])
                 {
+                    int other = _detector.BlockedBy(f);
+                    string who = other >= 0 ? Fingers[other].ToString() : "another finger";
                     DiagLog.Log(
-                        $"[FingerBend] {Fingers[f]} bent {_detector.LastDelta(f):0.00} but another finger moved nearly as much — ignored");
+                        _detector.WasDragged(f)
+                            ? $"[FingerBend] {Fingers[f]} rose {_detector.LastDelta(f):0.00} but {who} was still moving - dragged along, ignored (ADR-0068)"
+                            : $"[FingerBend] {Fingers[f]} bent {_detector.LastDelta(f):0.00} but {who} moved nearly as much — ignored");
                 }
 
                 _wasBlocked[f] = blocked;
+
+                // Why a note did NOT sound, and how far each one that did was curled: together they show how far this hand
+                // actually curls each finger, which the press levels (ADR-0073, ADR-0074) were chosen without knowing.
+                if (_detector.NearMiss(f))
+                {
+                    int driver = _detector.NearMissDrivenBy(f);
+                    DiagLog.Log(
+                        $"[FingerBend] {Fingers[f]} NEAR MISS rose {_detector.NearMissPeak(f):0.00}, needs {_detector.PressLevel(f):0.00} - " +
+                        (driver >= 0
+                            ? $"{Fingers[driver]} was pressed and moving, so probably dragged along"
+                            : "on its own: a curl too small to sound"));
+                }
+
+                if (_detector.Released(f))
+                {
+                    DiagLog.Log($"[FingerBend] {Fingers[f]} STROKE peak {_detector.ReleasePeak(f):0.00} (needs {_detector.PressLevel(f):0.00})");
+                }
 
                 if (!_detector.JustPressed(f))
                 {

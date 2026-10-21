@@ -55,6 +55,10 @@ namespace Jazztures.Presentation
         [Tooltip("Lane and letter look and layout come from here (Note lanes, Ghost letters, Label glow).")]
         [SerializeField] private MelodyConfig _config;
 
+        [Tooltip("Optional. The chord colours (ADR-0065): each coming letter takes the colour of the chord it belongs to, " +
+                 "the same the left hand takes while it holds that pose. Empty leaves every letter the usual colour.")]
+        [SerializeField] private TensionPalette _palette;
+
         [Tooltip("The centre-eye / head transform. The lanes run along the learner's heading (§3.4) and the " +
                  "letters turn to face it.")]
         [SerializeField] private Transform _head;
@@ -211,6 +215,7 @@ namespace Jazztures.Presentation
             float metresPerBeat = _config != null ? _config.LaneMetresPerBeat : 0.2f;
             float lingerBeats = _config != null ? _config.LaneLingerBeats : 0.4f;
             float hover = _config != null ? _config.LaneLetterHoverMetres : 0.02f;
+            float chordTint = _config != null ? _config.LaneLetterChordTint : 1f;
             float laneLength = lookAhead * metresPerBeat;
 
             double beat = _frame.MelodyBeat;
@@ -239,6 +244,13 @@ namespace Jazztures.Presentation
                     letter.Reset();
                     ChordFunction? chord = schedule.ChordAt(i);
                     letter.Text = chord is { } fn && (int)fn < _names.GetLength(0) ? _names[(int)fn, finger] : string.Empty;
+
+                    // The letter is in the colour of ITS chord, not the current one: the lanes show several beats
+                    // ahead, so the next chord's notes can be on their way while this chord's are still arriving,
+                    // and each wears the colour the left hand takes when it holds that pose (ADR-0065).
+                    letter.SetHue(
+                        _palette != null && chord.HasValue ? ChordHue.Of(_palette.For(chord)) : (Color?)null,
+                        chordTint);
                 }
 
                 // The letter reaches the fingertip on the beat: light it as it does.

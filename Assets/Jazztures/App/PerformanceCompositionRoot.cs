@@ -28,7 +28,7 @@ namespace Jazztures.App
     /// The composite sink gains the OSC and telemetry sinks in later milestones.
     /// </para>
     /// </summary>
-    public sealed class PerformanceCompositionRoot : MonoBehaviour
+    public sealed class PerformanceCompositionRoot : MonoBehaviour, Jazztures.Presentation.IHandsInUse
     {
         /// <summary>How a chord is articulated (Design A ADR-0038 / ADR-0039).</summary>
         public enum HarmonyCommitGesture
@@ -100,12 +100,37 @@ namespace Jazztures.App
         private MelodyEngine _melody;
         private ScriptedHarmony _scriptedHarmony;
         private KeyboardMelodyInput _melodyKeys;
+        private LessonRunner _runner;
+        private bool _wasScripted;
 
         /// <summary>How the left hand articulates a chord in this build — recorded in a timing run's CSV (ADR-0043).</summary>
         public HarmonyCommitGesture CommitGesture => _commitGesture;
 
+        /// <summary>
+        /// Whether <paramref name="hand"/> is one the running lesson is about (ADR-0063): always, when no lesson is
+        /// running (free play, the free instrument); otherwise the lesson's <see cref="ActiveHands"/>. What a view
+        /// that hangs something over a hand asks, so it can leave the hand the lesson does not use bare.
+        /// </summary>
+        public bool IsInUse(Handedness hand)
+        {
+            if (_runner == null || !_runner.IsRunning)
+            {
+                return true;
+            }
+
+            ActiveHands wanted = hand == Handedness.Left ? ActiveHands.Left : ActiveHands.Right;
+            return (_runner.ActiveHands & wanted) != 0;
+        }
+
         private void Awake()
         {
+            // ADR-0067: the strike plate is up only while something is being performed. The scene starts on the menu (or the
+            // tutorial), so it starts hidden; Update shows it while this root is enabled, and OnDisable hides it again.
+            if (_strikeTarget != null)
+            {
+                _strikeTarget.SetShown(false, immediately: true);
+            }
+
             if (_sampler == null)
             {
                 _sampler = GetComponentInChildren<SamplerNoteSink>();
@@ -142,7 +167,16 @@ namespace Jazztures.App
                 ? _gestureThresholds.ToThresholds()
                 : GestureThresholds.Default;
             _interpreter = new GestureInterpreter(clock, thresholds);
-            _interpreter.ConfirmedFunctionChanged += function => _harmony.SetHeldFunction(function);
+            _interpreter.ConfirmedFunctionChanged += function =>
+            {
+                // While a script is selecting the chords (a right-hand lesson, ADR-0063; a timing drill, ADR-0043)
+                // the left hand does not. The pose is still recognised and published - only the selection is not
+                // taken from it, or one idle left hand would swap the melody's tones for the wrong chord mid-phrase.
+                if (!_scriptedHarmony.IsRunning)
+                {
+                    _harmony.SetHeldFunction(function);
+                }
+            };
 
             // ADR-0025 / Design A (ADR-0038) / ADR-0039: selection (above) and
             // articulation (below) are separate events regardless of which commit gesture
@@ -218,7 +252,8 @@ namespace Jazztures.App
             // `_metronomeVoice` is a Unity object: pass null explicitly when unassigned rather
             // than a fake-null reference that would pass a plain `!= null` check downstream.
             IMetronomeOutput metronomeOutput = _metronomeVoice != null ? _metronomeVoice : null;
-            GetComponent<LessonRunner>()?.Bind(clock, _gate, _interpreter, metronomeOutput, _scriptedHarmony);
+            _runner = GetComponent<LessonRunner>();
+            _runner?.Bind(clock, _gate, _interpreter, metronomeOutput, _scriptedHarmony);
             GetComponent<TimingDrillRunner>()?.Bind(clock, _gate, _scriptedHarmony, metronomeOutput);
             // Assigned in the inspector, not GetComponent'd: the binder belongs on the
             // target rig. An unassigned reference means melody notes silently never fire,
@@ -278,11 +313,27 @@ namespace Jazztures.App
             return new KeyboardHandPoseSource();
         }
 
+        // The menu, the tutorial and the post-run screen are this root being off: the plate goes with it (ADR-0067).
+        private void OnDisable()
+        {
+            if (_strikeTarget != null)
+            {
+                _strikeTarget.SetShown(false);
+            }
+        }
+
         private void Update()
         {
             if (!enabled)
             {
                 return;
+            }
+
+            // Up while a lesson's interface is, or in free play; not through a lesson's opening explanation, so it
+            // appears with the ghost hand and not under the words (ADR-0066, ADR-0067).
+            if (_strikeTarget != null)
+            {
+                _strikeTarget.SetShown(_runner == null || !_runner.InDiscussion);
             }
 
             HandPoseFrame frame = _poseSource.CurrentFrame;
@@ -319,6 +370,18 @@ namespace Jazztures.App
             // touch Feed separately) makes that ordering guaranteed instead of dependent on
             // these two lines never being reordered.
             _feedCommit(frame);
+
+            // When a script hands the chords back (a right-hand lesson ends, or the next lesson is a left-hand one),
+            // the left hand's pose is the selection again. A pose held right through the lesson raised no change
+            // to say so, so it is read from the interpreter here rather than waited for.
+            bool scripted = _scriptedHarmony.IsRunning;
+            if (_wasScripted && !scripted)
+            {
+                _harmony.SetHeldFunction(_interpreter.ConfirmedFunction);
+            }
+
+            _wasScripted = scripted;
+
             _harmony.Tick();
             _melodyKeys.Poll(_melody);
             _melody.Tick();

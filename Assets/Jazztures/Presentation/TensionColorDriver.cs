@@ -11,8 +11,11 @@ namespace Jazztures.Presentation
     /// Drives the tension-arc colour (CLAUDE.md §3.10) from the harmony state. Subscribes
     /// to <see cref="ChordChangedChannel"/> and eases a single colour from the old chord's
     /// tint to the new one over <see cref="TensionPalette.TransitionSeconds"/>, so a chord
-    /// change is never a jarring snap. That colour is pushed to the <b>left hand's outline</b>
-    /// only.
+    /// change is never a jarring snap. That colour is for the <b>left hand</b> only: it is pushed
+    /// to the hand's outline here, and worn on the hand's body by <see cref="HandUseTint"/>, which reads
+    /// <see cref="Current"/> and <see cref="HasChord"/> (ADR-0065) - the outline path needs a shader with an
+    /// outline, which the current hand's does not have. The coming letters on the note lanes wear the same
+    /// palette per chord (<see cref="NoteLanes"/>).
     ///
     /// <para>
     /// The right-hand <see cref="TouchTarget"/>s do <b>not</b> follow it (ADR-0044, which
@@ -53,6 +56,13 @@ namespace Jazztures.Presentation
         /// <summary>The colour currently shared by the whole interface.</summary>
         public Color Current => _current;
 
+        /// <summary>
+        /// True while a chord is selected (a pose is held); false when none is, and <see cref="Current"/> is easing
+        /// to, or resting at, the palette's neutral. What a view that wears the colour asks, so it wears it only while
+        /// a pose is held (ADR-0065).
+        /// </summary>
+        public bool HasChord { get; private set; }
+
         private void Awake()
         {
             Color neutral = _palette != null ? _palette.Neutral : Color.gray;
@@ -88,6 +98,8 @@ namespace Jazztures.Presentation
 
         private void OnChordChanged(ChordChange change)
         {
+            HasChord = change.CurrentFunction.HasValue;
+
             if (_palette == null)
             {
                 return;

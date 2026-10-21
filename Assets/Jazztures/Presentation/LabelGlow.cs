@@ -26,6 +26,8 @@ namespace Jazztures.Presentation
         private readonly float _pop;
         private readonly float _quietAlpha;
         private readonly float _quietScale;
+        private readonly float _restingBrightness;
+        private readonly float _alpha;
 
         public LabelGlow(MelodyConfig config)
         {
@@ -35,6 +37,8 @@ namespace Jazztures.Presentation
 
             Color color = config != null ? config.LabelColor : DefaultColor;
             float brightness = config != null ? config.LabelRestingBrightness : 0.72f;
+            _restingBrightness = brightness;
+            _alpha = color.a;
 
             Resting = new Color(color.r * brightness, color.g * brightness, color.b * brightness, color.a);
             _lit = config != null ? config.LabelLitColor : DefaultLit;
@@ -44,6 +48,13 @@ namespace Jazztures.Presentation
 
         /// <summary>The colour a label rests in.</summary>
         public Color Resting { get; }
+
+        /// <summary>
+        /// The colour a label rests in when it carries <paramref name="hue"/> (a chord's colour, ADR-0065): that hue at
+        /// the brightness every label rests at, so a coloured letter is no louder or quieter than a plain one.
+        /// </summary>
+        public Color RestingIn(Color hue) =>
+            new Color(hue.r * _restingBrightness, hue.g * _restingBrightness, hue.b * _restingBrightness, _alpha);
 
         /// <summary>Count a flash down: 1 the moment a label is activated, 0 when it has settled.</summary>
         public float Decay(float flash, float deltaSeconds) =>
@@ -61,12 +72,18 @@ namespace Jazztures.Presentation
         /// quiet - faded and a little smaller. The fade and the size are two channels (§3.10), so the cue does
         /// not rest on colour alone. A lit label is lit whatever its emphasis: it has just sounded.
         /// </summary>
-        public void Apply(TextMesh label, float flash, float emphasis)
+        public void Apply(TextMesh label, float flash, float emphasis) => Apply(label, flash, emphasis, Resting);
+
+        /// <summary>
+        /// As above, for a label resting in a colour of its own (<see cref="RestingIn"/>). It still lights to the same
+        /// colour whatever it rests in: a note that has just sounded looks the same in every chord.
+        /// </summary>
+        public void Apply(TextMesh label, float flash, float emphasis, Color resting)
         {
             // Smoothstep: stays bright for the first part of the decay, then eases off, rather than
             // draining away linearly from the first frame.
             float lit = flash * flash * (3f - 2f * flash);
-            Color color = Color.Lerp(Resting, _lit, lit);
+            Color color = Color.Lerp(resting, _lit, lit);
             float strength = Mathf.Lerp(_quietAlpha, 1f, Mathf.Max(emphasis, lit));
             color.a *= strength;
             label.color = color;

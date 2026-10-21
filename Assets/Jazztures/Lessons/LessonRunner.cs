@@ -134,9 +134,10 @@ namespace Jazztures.Lessons
         private bool _melodyDemonstrating; // Watch and Listen: the system plays the melody, so the learner is not scored
         private bool _scriptStarted;
         private double _phaseStartDsp;
-        private bool _showingSlides;
-        private int _slideIndex;
-        private double _nextSlideDsp;
+        // The opening explanation (the "short discussion"). Until it is over the lesson itself has not begun: no cue
+        // fires, no ghost hand or lane is drawn, "phrase started" is not announced (ADR-0066).
+        private readonly ConceptSlidePlayer _concept = new ConceptSlidePlayer();
+        private bool _phraseAnnounced; // PhraseStarted raised for this phase (once the discussion is over)
         private double _lessonBeat;    // phrase position — gated (held) on each pose in Gesture Learning
         private double _lastRealBeat;  // clock-derived beat last frame, to measure real elapsed
         private bool _gateHeld;        // the gesture gate is holding the cursor right now
@@ -147,6 +148,12 @@ namespace Jazztures.Lessons
         private bool _advancing;
 
         public bool IsRunning => _running;
+
+        /// <summary>
+        /// True while a lesson is running and its opening explanation has not finished - the words are the only thing on
+        /// screen (ADR-0066). What decides whether the strike plate is up yet (ADR-0067).
+        /// </summary>
+        public bool InDiscussion => _running && _clock != null && !_concept.IsFinished(_clock.Now);
 
         public LessonStatus Status => _stateMachine != null ? _stateMachine.Status : LessonStatus.NotStarted;
 
@@ -229,7 +236,7 @@ namespace Jazztures.Lessons
             _metronome = null;
             if (_lesson.UseMetronome)
             {
-                _metronome = new Metronome(_plan.Tempo, _timeline.BeatsPerBar);
+                _metronome = new Metronome(_plan.Tempo, _timeline.BeatsPerBar, _lesson.MetronomeSubdivision, _plan.Swing);
 
                 if (_metronomeOutput == null)
                 {
@@ -322,9 +329,10 @@ namespace Jazztures.Lessons
             // learner until their gesture matched a target that is no longer there).
             _gate?.SetMode(LearningMode.ComposeOnTheFly);
             _gate?.SetGestureCorrect(true);
+            _gate?.SetActiveHands(ActiveHands.Both); // ...and both hands are heard again
 
             _running = false;
-            _showingSlides = false;
+            _concept.Stop();
         }
 
         private void OnPhaseChanged(LessonPhase phase)
@@ -341,10 +349,13 @@ namespace Jazztures.Lessons
             // playback, the scripted harmony, the metronome, the onset capture - is anchored to this one
             // time, so moving it is all it takes for none of them to sound before it. The phrase position
             // starts negative and counts up through the lead-in to 0.
-            // The opening explanation plays first, on phase 0 only; the phrase waits for it.
-            _slideIndex = 0;
-            _nextSlideDsp = _clock.Now;
-            double slideSeconds = phase.Index == 0 && _cueChannel != null ? _plan.ConceptSeconds : 0.0;
+            // The opening explanation plays first, on phase 0 only; the phrase waits for it. §3.9 co-design ask: the
+            // plain-language concept, one slide at a time (TickConceptSlides) - the menu is titles only, this is where
+            // the theory lands.
+            bool hasConcept = phase.Index == 0 && _cueChannel != null;
+            _concept.Start(hasConcept ? _plan.ConceptSlides : null, _clock.Now);
+            _phraseAnnounced = false;
+            double slideSeconds = hasConcept ? _plan.ConceptSeconds : 0.0;
             _phaseStartDsp = _clock.Now + slideSeconds + preRoll + _plan.Tempo.BeatsToSeconds(_leadInBeats);
             _lastRealBeat = _plan.Tempo.SecondsToBeats(_clock.Now - _phaseStartDsp);
             _lessonBeat = _lastRealBeat;
@@ -354,6 +365,7 @@ namespace Jazztures.Lessons
 
             _gate.SetMode(phase.Mode);
             _gate.SetGestureCorrect(false);
+            _gate.SetActiveHands(_plan.Hands); // ADR-0063: a hand the lesson does not use is silent, whatever the mode
 
             ModePolicy policy = phase.Policy;
             _capturing = policy.DeferFeedback; // Test Yourself captures for end-of-attempt scoring
@@ -407,10 +419,6 @@ namespace Jazztures.Lessons
                 _phaseChannel.Raise(new LessonPhaseInfo(_plan.Id, phase));
             }
 
-            // §3.9 co-design ask: the plain-language concept, shown as the lesson opens, one slide at a
-            // time (TickConceptSlides). The selector is titles only; this is where the theory lands.
-            _showingSlides = phase.Index == 0 && _cueChannel != null;
-
             _playback = null;
             _melodyDemonstrating = false;
             StopScriptedHarmony();
@@ -429,26 +437,23 @@ namespace Jazztures.Lessons
                 //
                 // Where the ghost is shown it strikes each chord (ADR-0052), so the harmony trails it by
                 // the same lead and the chord sounds as the hand lands.
-                double harmonyStartDsp = _phaseStartDsp + _plan.Tempo.BeatsToSeconds(_playbackLeadBeats);
                 _playback = new TimelinePlayback(_timeline, _clock, _gate, includeMelody: false);
-                _playback.Start(harmonyStartDsp);
-
-                if (_scriptedHarmony != null)
-                {
-                    _scriptedHarmony.Start(_timeline, harmonyStartDsp);
-                    _scriptStarted = true;
-                }
-                else
-                {
-                    Debug.LogWarning(
-                        $"{nameof(LessonRunner)}: '{_plan.Id}' needs scripted harmony (a right-hand " +
-                        $"lesson has no left hand to select the chord) but none was bound.", this);
-                }
+                _playback.Start(_phaseStartDsp + _plan.Tempo.BeatsToSeconds(_playbackLeadBeats));
             }
             else if (policy.SystemPlayback == SystemPlayback.BackingOnly && _logCues)
             {
                 // TODO(OPEN): backing track for Compose-on-the-Fly (CLAUDE.md §7).
                 Debug.Log($"[{name}] {phase.Mode}: backing track not available yet — running dry.", this);
+            }
+
+            // ADR-0063: a right-hand lesson has no left hand, so the lesson's own chords are selected for the
+            // learner in EVERY mode - not only the two where the system also plays them. Watch and Listen needs
+            // it too: the melody's tones, the letters on the learner's fingers and the label on their left hand all
+            // follow the selected chord, and without a script they would follow whatever the idle left hand did.
+            // It selects at the instant the chords sound (the lead), so what is heard, shown and playable agree.
+            if (_plan.Hands.SystemSelectsChords())
+            {
+                StartScriptedHarmony(_phaseStartDsp + _plan.Tempo.BeatsToSeconds(_playbackLeadBeats));
             }
 
             if (_metronome != null)
@@ -457,31 +462,29 @@ namespace Jazztures.Lessons
                 _metronomeOutput?.Begin(_metronome);
             }
 
-            _cuePlayer.Notify(LearnerAction.PhraseStarted);
+            // "The phrase has started" is announced from Update, once the opening explanation is over (ADR-0066).
+        }
+
+        private void StartScriptedHarmony(double startDsp)
+        {
+            if (_scriptedHarmony == null)
+            {
+                Debug.LogWarning(
+                    $"{nameof(LessonRunner)}: '{_plan.Id}' needs scripted harmony (a right-hand " +
+                    $"lesson has no left hand to select the chord) but none was bound.", this);
+                return;
+            }
+
+            _scriptedHarmony.Start(_timeline, startDsp);
+            _scriptStarted = true;
         }
 
         private void TickConceptSlides()
         {
-            if (!_showingSlides)
+            if (_concept.TryTake(_clock.Now, out ConceptSlide slide))
             {
-                return;
+                _cueChannel.Raise(CueAction.ShowText(slide.Text, holdSeconds: slide.Seconds));
             }
-
-            IReadOnlyList<ConceptSlide> slides = _plan.ConceptSlides;
-            if (_slideIndex >= slides.Count)
-            {
-                _showingSlides = false;
-                return;
-            }
-
-            if (_clock.Now < _nextSlideDsp)
-            {
-                return;
-            }
-
-            ConceptSlide slide = slides[_slideIndex++];
-            _cueChannel.Raise(CueAction.ShowText(slide.Text, holdSeconds: slide.Seconds));
-            _nextSlideDsp = _clock.Now + slide.Seconds;
         }
 
         private void OnLessonCompleted()
@@ -521,8 +524,28 @@ namespace Jazztures.Lessons
                 _scriptedHarmony.Tick();
             }
 
-            _cuePlayer.AdvanceTo(_lessonBeat < 0.0 ? 0.0 : _lessonBeat);
-            PublishGhostFrame(phase, _lessonBeat);
+            if (_concept.IsFinished(_clock.Now))
+            {
+                // The discussion is over: the lesson begins. Cues start (the beat is held at 0 through the lead-in, so
+                // the beat-0 cues - "the first chord is..." - appear as the lead-in opens), and the interface - the ghost
+                // hand, the lanes - appears with them.
+                if (!_phraseAnnounced)
+                {
+                    _phraseAnnounced = true;
+                    _cuePlayer.Notify(LearnerAction.PhraseStarted);
+                }
+
+                _cuePlayer.AdvanceTo(_lessonBeat < 0.0 ? 0.0 : _lessonBeat);
+                PublishGhostFrame(phase, _lessonBeat);
+            }
+            else
+            {
+                // Still in the discussion: nothing of the lesson is on screen but the words. Without this the cue clock,
+                // held at beat 0 for the whole discussion, fired "the first chord is Dm7" on the first frame, over slide
+                // one, and the ghost hand stood there in its opening pose while it was explained.
+                _ghostChannel?.Raise(GhostFrame.Hidden);
+            }
+
             UpdateGestureCorrectness(phase, _lessonBeat);
 
             if (_autoAdvance && !_waitingForInput && PhraseIsFinished(phase))

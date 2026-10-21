@@ -183,5 +183,102 @@ namespace Jazztures.Tests.EditMode.Lessons
             Assert.That(_audible.Events, Has.Count.EqualTo(1));
             Assert.That(_audible.Events[0].Kind, Is.EqualTo(NoteEventKind.Off));
         }
+
+        // A hand the lesson does not use is never heard (§3.9), in any mode - but it is still seen and logged (§3.8).
+        [Test]
+        public void ByDefault_BothHandsAreHeard()
+        {
+            Assert.That(_gate.Hands, Is.EqualTo(ActiveHands.Both));
+
+            _gate.Send(HarmonyOn(60));
+            _gate.Send(UserNote());
+
+            Assert.That(_audible.Events, Has.Count.EqualTo(2));
+        }
+
+        [TestCase(LearningMode.GestureLearning)]
+        [TestCase(LearningMode.ComposeOnTheFly)]
+        [TestCase(LearningMode.TestYourself)]
+        public void ARightHandLesson_DoesNotSoundTheLeftHandsChord_ButStillLogsIt(LearningMode mode)
+        {
+            _gate.SetMode(mode);
+            _gate.SetActiveHands(ActiveHands.Right);
+
+            _gate.Send(HarmonyOn(62));
+            _gate.Send(HarmonyOff(62));
+
+            Assert.That(_audible.Events, Is.Empty, $"{mode}: the left hand is silent");
+            Assert.That(_unconditional.Events, Has.Count.EqualTo(2), $"{mode}: and still logged");
+        }
+
+        [Test]
+        public void ARightHandLesson_StillSoundsTheMelody_AndTheSystemsOwnChords()
+        {
+            _gate.SetMode(LearningMode.TestYourself);
+            _gate.SetActiveHands(ActiveHands.Right);
+
+            _gate.Send(UserNote());
+            _gate.Send(SystemNote()); // the harmony the system plays under the melody (ADR-0043)
+
+            Assert.That(_audible.Events, Has.Count.EqualTo(2));
+            Assert.That(_audible.Events[0].Channel, Is.EqualTo(MidiChannel.Melody));
+            Assert.That(_audible.Events[1].Channel, Is.EqualTo(MidiChannel.Accompaniment));
+        }
+
+        [Test]
+        public void ALeftHandLesson_DoesNotSoundTheRightHandsMelody_ButStillLogsIt()
+        {
+            _gate.SetMode(LearningMode.ComposeOnTheFly);
+            _gate.SetActiveHands(ActiveHands.Left);
+
+            _gate.Send(UserNote());
+            _gate.Send(HarmonyOn(60));
+
+            Assert.That(_audible.Events, Has.Count.EqualTo(1), "only the chord");
+            Assert.That(_audible.Events[0].Channel, Is.EqualTo(MidiChannel.Harmony));
+            Assert.That(_unconditional.Events, Has.Count.EqualTo(2), "both logged");
+        }
+
+        [Test]
+        public void SwitchingTheLeftHandOff_CutsAChordAlreadyRinging()
+        {
+            _gate.SetMode(LearningMode.ComposeOnTheFly);
+            _gate.Send(HarmonyOn(62));
+            _gate.Send(HarmonyOn(65));
+            Assert.That(_audible.Events, Has.Count.EqualTo(2));
+            _audible.Clear();
+
+            _gate.SetActiveHands(ActiveHands.Right);
+
+            Assert.That(_audible.Events, Has.Count.EqualTo(2), "both pitches released");
+            Assert.That(_audible.Events, Has.All.Property(nameof(NoteEvent.Kind)).EqualTo(NoteEventKind.Off));
+        }
+
+        [Test]
+        public void SwitchingTheLeftHandBackOn_ResoundsAChordHeldWhileItWasOff()
+        {
+            _gate.SetMode(LearningMode.ComposeOnTheFly);
+            _gate.SetActiveHands(ActiveHands.Right);
+            _gate.Send(HarmonyOn(67));
+            Assert.That(_audible.Events, Is.Empty);
+
+            _clock.Advance(0.5);
+            _gate.SetActiveHands(ActiveHands.Both);
+
+            Assert.That(_audible.Events, Has.Count.EqualTo(1));
+            Assert.That(_audible.Events[0].Kind, Is.EqualTo(NoteEventKind.On));
+            Assert.That(_audible.Events[0].DspTime, Is.EqualTo(0.5), "re-sounded at 'now'");
+        }
+
+        [Test]
+        public void TheHandsAreAGateOnTopOfTheMode_NotInsteadOfIt()
+        {
+            _gate.SetMode(LearningMode.WatchAndListen); // the learner is silent anyway
+            _gate.SetActiveHands(ActiveHands.Both);
+            _gate.Send(UserNote());
+            _gate.Send(HarmonyOn(60));
+
+            Assert.That(_audible.Events, Is.Empty, "a lesson that uses both hands does not unmute Watch and Listen");
+        }
     }
 }

@@ -71,6 +71,11 @@ namespace Jazztures.Core.Lessons
 
             Reset();
 
+            // From here the script is the one selecting. Drop whatever was left selected before (a pose the
+            // learner's left hand held on the way in, or the last lesson's last chord), so the lead-in before the
+            // first chord is bare and the first chord is the lesson's - not a leftover with the wrong tones under it.
+            _harmony.SetHeldFunction(null);
+
             int count = timeline.Chords.Count;
             _functions = new ChordFunction[count];
             _dueDspTimes = new double[count];
