@@ -71,28 +71,28 @@ MonoBehaviour:
     targetIndex: 2
     velocity: 90
   - beat: 3
-    targetIndex: 3
+    targetIndex: 1
     velocity: 90
   - beat: 4
-    targetIndex: 0
+    targetIndex: 1
     velocity: 90
   - beat: 5
-    targetIndex: 1
+    targetIndex: 2
     velocity: 90
   - beat: 6
-    targetIndex: 2
-    velocity: 90
-  - beat: 7
     targetIndex: 3
     velocity: 90
+  - beat: 7
+    targetIndex: 2
+    velocity: 90
   - beat: 8
-    targetIndex: 0
+    targetIndex: 2
     velocity: 90
   - beat: 9
-    targetIndex: 1
+    targetIndex: 3
     velocity: 90
   - beat: 10
-    targetIndex: 2
+    targetIndex: 4
     velocity: 90
   - beat: 11
     targetIndex: 3
@@ -107,28 +107,28 @@ MonoBehaviour:
     targetIndex: 2
     velocity: 90
   - beat: 14.5
-    targetIndex: 3
+    targetIndex: 1
     velocity: 90
   - beat: 16
-    targetIndex: 0
+    targetIndex: 1
     velocity: 90
   - beat: 17
-    targetIndex: 1
+    targetIndex: 2
     velocity: 90
   - beat: 18
-    targetIndex: 2
-    velocity: 90
-  - beat: 18.5
     targetIndex: 3
     velocity: 90
+  - beat: 18.5
+    targetIndex: 2
+    velocity: 90
   - beat: 20
-    targetIndex: 0
+    targetIndex: 2
     velocity: 90
   - beat: 21
-    targetIndex: 1
+    targetIndex: 3
     velocity: 90
   - beat: 22
-    targetIndex: 2
+    targetIndex: 4
     velocity: 90
   - beat: 22.5
     targetIndex: 3
@@ -143,28 +143,28 @@ MonoBehaviour:
     targetIndex: 2
     velocity: 90
   - beat: 26.5
-    targetIndex: 3
+    targetIndex: 1
     velocity: 90
   - beat: 28
-    targetIndex: 0
+    targetIndex: 1
     velocity: 90
   - beat: 28.5
-    targetIndex: 1
+    targetIndex: 2
     velocity: 90
   - beat: 30
-    targetIndex: 2
-    velocity: 90
-  - beat: 30.5
     targetIndex: 3
     velocity: 90
+  - beat: 30.5
+    targetIndex: 2
+    velocity: 90
   - beat: 32
-    targetIndex: 0
+    targetIndex: 2
     velocity: 90
   - beat: 32.5
-    targetIndex: 1
+    targetIndex: 3
     velocity: 90
   - beat: 34
-    targetIndex: 2
+    targetIndex: 4
     velocity: 90
   - beat: 34.5
     targetIndex: 3
@@ -176,10 +176,10 @@ MonoBehaviour:
     targetIndex: 1
     velocity: 90
   - beat: 37
-    targetIndex: 3
+    targetIndex: 2
     velocity: 90
   - beat: 37.5
-    targetIndex: 4
+    targetIndex: 1
     velocity: 90
   - beat: 38
     targetIndex: 2
@@ -188,28 +188,28 @@ MonoBehaviour:
     targetIndex: 3
     velocity: 90
   - beat: 39
-    targetIndex: 1
+    targetIndex: 2
     velocity: 90
   - beat: 40
-    targetIndex: 0
+    targetIndex: 1
     velocity: 90
   - beat: 40.5
-    targetIndex: 1
+    targetIndex: 2
     velocity: 90
   - beat: 41
     targetIndex: 3
     velocity: 90
   - beat: 41.5
-    targetIndex: 4
-    velocity: 90
-  - beat: 42
     targetIndex: 2
     velocity: 90
-  - beat: 42.5
+  - beat: 42
     targetIndex: 3
     velocity: 90
+  - beat: 42.5
+    targetIndex: 4
+    velocity: 90
   - beat: 43
-    targetIndex: 1
+    targetIndex: 3
     velocity: 90
   - beat: 44
     targetIndex: 0
@@ -218,10 +218,10 @@ MonoBehaviour:
     targetIndex: 1
     velocity: 90
   - beat: 45
-    targetIndex: 3
+    targetIndex: 2
     velocity: 90
   - beat: 45.5
-    targetIndex: 4
+    targetIndex: 1
     velocity: 90
   - beat: 46
     targetIndex: 2
@@ -230,7 +230,7 @@ MonoBehaviour:
     targetIndex: 3
     velocity: 90
   - beat: 47
-    targetIndex: 1
+    targetIndex: 2
     velocity: 90
   _markers:
   - beat: 12

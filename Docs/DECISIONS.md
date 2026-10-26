@@ -8,6 +8,126 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0077 — An Antecedent–consequent lesson (lesson 5): Compose on the Fly only, the system plays the first half of every round
+
+**Date:** 2026-10-22 · **Status:** Accepted (student's call, from `Docs/handoff/2026-10-22-lesson-structure.md`) — **Core change and tests done
+(876 pass); the Unity-side wiring (`LessonRunner`, `PerformanceCompositionRoot`, `LessonDefinition`) compiles only by inspection and the
+lesson has not been opened in the Editor or tried on a headset** · **Milestone:** M6 (early) · **Changes the thesis: yes** — see the end.
+
+### What the student decided
+- Antecedent–consequent has **one mode, Compose on the Fly** - no Watch and Listen, no Try Yourself (the handoff had assumed both).
+- **The system plays ii and V in bars 1-2** along with the antecedent melody; the learner answers in bars 3-4, striking I with the left hand
+  and playing the right hand.
+- **The learner's left hand is ignored while the system has its turn.** The full version was chosen over a right-hand-only lesson.
+
+### What was built
+- **`Core/Lessons/TurnWindow`** - a round of `RoundBeats` of which the first `SystemTurnBeats` are the system's. `default` is "no turns", so
+  every earlier lesson is unchanged. `LessonTimeline.Turns`, set by `LessonTimelineBuilder.WithTurns`.
+- **`TimelinePlayback`** plays only what falls in the system's turn: a note or chord authored in the learner's part is skipped, and a chord
+  stops ringing where the turn ends instead of running to the next chord.
+- **`ScriptedHarmony`** selects only in the system's turn (`IsSelecting`), and reports `BlocksLeftHandStrikes`. It is the same script that
+  already selects the chords of a right-hand lesson (ADR-0063); the lead-in counts as the system's turn.
+- **`PerformanceCompositionRoot`**: the left hand's selection is ignored while `IsSelecting` (it used `IsRunning`, which only says a script
+  exists), and **a strike is dropped while `BlocksLeftHandStrikes`** - otherwise the learner's strike would sound the script's chord on top
+  of the system's. When the turn ends the root hands the selection back to whatever the left hand holds, as it already did when a script
+  stopped; an idle left hand means no chord until the learner makes one. Right-hand lessons and drills have no turns and are unaffected.
+- **`LessonRunner`**: Compose on the Fly with turns plays the timeline and starts the script. Without turns it still logs "running dry"
+  (the `[OPEN]` backing track, §7). The phrase ends at the lesson's `Minimum Length Beats`, because the learner's last turn has no notes.
+- **`LessonDefinition`**: `Round Beats`, `System Turn Beats`, `Minimum Length Beats` (all 0 by default).
+- **`Lesson_L5_AntecedentConsequent.asset`** (id `L5`, both hands, Compose on the Fly, 70 BPM, swing 0.66, metronome on), after Guided play.
+  Four rounds of ii | V | I | I (16 beats; 64 in all). The system plays the first 8 beats; the pre-authored antecedents use thumb, index and
+  middle only (fingers 0-2):
+
+  | Round | Antecedent (beat: finger) | Ends on |
+  |---|---|---|
+  | 1 up-up-down | 0:0 1:1 2:2 2.5:1 - 4:1 5:2 5.5:1 | the 3rd of G7 (B), unresolved |
+  | 2 "and"s on the beat pairs | 0:0 0.5:1 2:2 2.5:1 - 4:0 4.5:1 6:2 | the 5th (D), open |
+  | 3 stepping down | 0:2 1:1 1.5:0 - 4:2 5:1 5.5:2 | the 5th (D), open |
+  | 4 repeated rhythm | 0:1 1:1 1.5:2 - 4:1 5:1 5.5:2 | the 5th (D), open |
+
+  Every antecedent has at least one swung "and" in each bar (swing 0.66, so the .5 notes land at 0.66). The rule from ADR-0071 holds: an
+  "and" is never followed by another note within a beat (the short 291 ms gap), and the beat-to-"and" step (566 ms) is the only short one.
+  **The metronome does not click the swung "and"** (`Metronome Subdivision: None`, as in every lesson, ADR-0071): it was switched on for
+  this lesson alone and switched back so that no lesson has it, until someone can hear on a headset whether it helps.
+
+  No chord is authored at beat 8: the learner makes the I. The learner's notes are heard and logged and **not scored** (there is no correct
+  consequent).
+
+### Not done, and worth knowing
+- **No example answer.** Without Watch and Listen a novice never hears a consequent. The window is the same for every round, so a first
+  round in which the system plays both halves is not data - it would need a per-round window. The last opening slide tells them to end
+  on the thumb (the home note) instead.
+- **The "your turn" cue is text**: "Listen." at the start, then a count-in "3", "2", "1" on beats 5, 6, 7 and "Go!" on beat 8 of each round (the
+  count overlaps the last notes of the antecedent, which end by beat 6, and the metronome keeps the pulse). The handoff asked for something unmistakable that is not text (ghost fading,
+  letters brightening); the cue track cannot do that today and it needs a headset to judge.
+- **Chord-name label and lanes** in Compose on the Fly have not been looked at for a lesson (they exist for free play).
+- **The title is the jargon** the teacher suggested, so the first slide defines "antecedent" and "consequent" in a sentence (§1.5).
+  The menu card reads `5. Antecedent–consequent`; Free play is therefore `6.`.
+- No telemetry for the analysis the handoff mentions (ends on a chord tone, echoes the rhythm, range): M7.
+
+### Thesis and paper
+§3.8 says Compose on the Fly's system plays "backing only"; here it plays the authored phrase. §3.9's L8 ("System plays 2 bars, user answers
+2 bars", W&L + CotF) is the proposal's version of this lesson. `CLAUDE.md` is not edited; Chapters 4 and 6 need matching wording if the
+adviser accepts the lesson set.
+
+---
+
+## ADR-0076 — A Guided play lesson (lesson 4): both hands, the Swing patterns; Swing's notes rewritten as up-up-down; Free play numbered
+
+**Date:** 2026-10-22 · **Status:** Accepted (student's requests) — **data plus two one-line presentation changes; not opened in the
+Editor, not tried on a headset** · **Milestone:** M6 (early) · **Amends:** ADR-0071 / ADR-0073 (Swing's note table is no longer the
+shipped pattern) · **Changes the thesis:** yes — it adds a lesson §3.9 does not list; see the end. This records work that was done
+before any ADR and sat uncommitted; the lesson-set direction it belongs to is in `Docs/handoff/2026-10-22-lesson-structure.md`, whose
+adviser sign-off is still pending.
+
+### What the student asked for, in order
+1. Make the notes in Swing follow patterns like ImproVisAR's sequences ("up-up-down").
+2. Add a "guided play" lesson after Swing, using both hands and the same patterns.
+3. Make Free play the last item, though it has no modes.
+4. The left ghost "transitions way too slowly".
+
+### What was built
+- **`Lesson_L3_Swing.asset` - notes only.** Beats, the "and" timings, chords, markers and cues are unchanged; only each note's finger
+  changed. Fingers are 0 thumb … 4 pinky. Bar shape is *up, up, down* (finger a, a+1, a+2, a+1), moved one step up each bar (a = 0, 1, 2):
+  - Passes 1-3 (on the beat; the first "and"; the late "and") use the **same three bars each time**, so only the timing is new - the
+    one-new-dimension rule (§1.5).
+  - Pass 4 (the running line, 7 notes a bar) plays two up-up-down cells back to back: bars at a = 0, 1, 0.
+  57 notes, as before.
+- **`Lesson_L4_GuidedPlay.asset`** (id `L4`, **hands Both**, Watch and Listen then Try Yourself, 70 BPM, swing 0.66, metronome on),
+  listed after Swing in Session 1. It is Swing's chords and notes, copied, with its own opening slides and cues: the left hand makes each
+  chord shape and strikes as the bar begins, the right plays the notes. Because both hands are active the learner selects the chords
+  (ADR-0063); nothing is system-played. The note data is **a copy, not a reference** - editing Swing's patterns later does not move L4.
+- **Free play is numbered** - `LessonFlowController.LabelOf` reads `{lessons + 1}. Free play`. It was already the last card on the main
+  menu (ADR-0066); only the number is new. This amends ADR-0066's "Free play ... not numbered".
+- **Left ghost morph 1.5 → 0.5 beats** (`GhostHandView._morphBeats`, in the scene and as the code default). At 70 BPM 1.5 beats is ~1.3 s,
+  a third of a bar spent mid-change. `[TUNABLE]`, a guess, unseen. The ghost still starts changing when the chord changes, not before it,
+  so it shows the new shape only as the bar begins; showing it ahead is a separate change to when the pose is announced and is not done.
+
+### Where this departs from the handoff's L4 notes (surfaced, not fixed)
+The handoff asks L4 to favour thumb / index / middle, keep the left hand's load low (one chord per bar or slower, strike on beat 1 only,
+slow tempo) and notes this is the first time the left hand plays in time. As built:
+- **All five fingers are used**, including the pinky on the beat (beats 10, 22, 34, ...) and the ring on a swung "and" (22.5, 34.5). The
+  ring/pinky input was made easier by ADR-0073/0074 on a model, and ADR-0075's diagnostics have not been read from a headset.
+- **Pass 4 steps between neighbouring fingers at the short swung gap** (e.g. 36.5 index → 37 middle, 291 ms at 70 BPM). ADR-0071 chose its
+  pattern so that gap was always between non-neighbours, because ADR-0068's drag veto makes neighbouring-finger runs the weak spot.
+  Swing's pattern had already lost that property when the student edited it before this change, and the up-up-down shape does not
+  restore it.
+- **The left hand strikes every bar (4 beats, ~3.4 s) at 70 BPM**, which is the handoff's "one chord per bar" limit, not below it, and
+  there are three chord shapes in a row with no prior timed left-hand lesson (ADR-0069 removed Timing).
+Any of these may be wrong on a headset; the fix would be data (a thumb/index/middle copy of the pattern, a slower tempo, strikes every
+two bars).
+
+### Not done
+- No Test Yourself in either lesson, so nothing scores timing (the handoff's gap 1).
+- No `CLAUDE.md` change; Chapters 4 and 6 are untouched.
+
+### Thesis and paper
+§3.9's table lists eight lessons with Swing as L4 and Timing as L2; the repository now has Chord tones, Chords, Swing, Guided play and
+Free play. Guided play is an addition (the proposal's list has nothing like it), and the L5 antecedent-consequent lesson in the handoff is
+built in ADR-0077. Both need matching wording in Chapters 4 and 6 if the adviser accepts the set.
+
+---
+
 ## ADR-0075 — Finger-bend diagnostics: log the curls too small to sound, and how far each pressed finger was curled
 
 **Date:** 2026-10-21 · **Status:** Accepted (student asked for it) — **Core change and tests done (850 pass); the log lines exist only in a

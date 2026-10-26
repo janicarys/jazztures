@@ -69,6 +69,24 @@ namespace Jazztures.Lessons
                  "how the strikes lined up (§3.7).")]
         [SerializeField] private OnsetPatternSpec _scoredPulse = new OnsetPatternSpec();
 
+        [Header("Call and response (ADR-0077) - leave 0 for an ordinary lesson")]
+        [Tooltip("Length of one round in beats. With System Turn Beats it splits the lesson into repeating rounds in which the " +
+                 "system plays first and the learner answers. 0 = no rounds: the system plays the whole timeline (every " +
+                 "lesson before ADR-0077). Only a Compose-on-the-Fly phase uses it.")]
+        [Min(0f)]
+        [SerializeField] private float _roundBeats;
+
+        [Tooltip("How much of each round the system plays, in beats from the round's start. Must be shorter than Round Beats. " +
+                 "Chords and notes authored after this in a round are never played by the system, and the learner's left " +
+                 "hand is ignored while the system is playing.")]
+        [Min(0f)]
+        [SerializeField] private float _systemTurnBeats;
+
+        [Tooltip("Make the lesson at least this many beats long even if its last note or chord comes earlier - the learner's " +
+                 "last turn has no notes of its own to mark its end. 0 = end at the last event.")]
+        [Min(0f)]
+        [SerializeField] private float _minimumLengthBeats;
+
         [Header("Mode phases — run in this order (§3.8)")]
         [SerializeField] private List<LearningMode> _modes = new List<LearningMode>
         {
@@ -150,7 +168,9 @@ namespace Jazztures.Lessons
                 .WithTempo(new Tempo(tempoBpm))
                 .WithSwing(BuildSwing())
                 .WithBeatsPerBar(Mathf.Max(1, _beatsPerBar))
-                .WithScoredPulse(_scoredPulse != null ? _scoredPulse.ToPattern() : OnsetPattern.None);
+                .WithScoredPulse(_scoredPulse != null ? _scoredPulse.ToPattern() : OnsetPattern.None)
+                .WithTurns(BuildTurns())
+                .WithMinimumDuration(Mathf.Max(0f, _minimumLengthBeats));
 
             foreach (ChordEntry chord in _chords)
             {
@@ -180,6 +200,11 @@ namespace Jazztures.Lessons
 
             return builder.Build();
         }
+
+        private TurnWindow BuildTurns() =>
+            _roundBeats > 0f && _systemTurnBeats > 0f && _systemTurnBeats < _roundBeats
+                ? new TurnWindow(_roundBeats, _systemTurnBeats)
+                : TurnWindow.None;
 
         private SwingRatio BuildSwing() =>
             Mathf.Approximately(_swingRatio, 0.5f) ? SwingRatio.Straight : new SwingRatio(_swingRatio);

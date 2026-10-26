@@ -27,7 +27,8 @@ namespace Jazztures.Core.Lessons
             TimelineNote[] notes,
             TimelineMarker[] markers,
             OnsetPattern scoredPulse,
-            double minimumDurationBeats)
+            double minimumDurationBeats,
+            TurnWindow turnWindow)
         {
             Tempo = tempo;
             Swing = swing;
@@ -36,6 +37,7 @@ namespace Jazztures.Core.Lessons
             _notes = notes;
             _markers = markers;
             ScoredPulse = scoredPulse;
+            Turns = turnWindow;
 
             double last = Math.Max(0.0, minimumDurationBeats);
             for (int i = 0; i < notes.Length; i++)
@@ -70,6 +72,12 @@ namespace Jazztures.Core.Lessons
         /// <see cref="DurationBeats"/>. <see cref="OnsetPattern.None"/> for an ordinary lesson.
         /// </summary>
         public OnsetPattern ScoredPulse { get; }
+
+        /// <summary>
+        /// Whose turn each stretch of the lesson is (ADR-0077). <see cref="TurnWindow.None"/> for every lesson
+        /// that is the system's from start to end; a call-and-response lesson hands part of every round to the learner.
+        /// </summary>
+        public TurnWindow Turns { get; }
 
         public IReadOnlyList<TimelineChord> Chords => _chords;
 

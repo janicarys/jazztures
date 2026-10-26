@@ -177,10 +177,23 @@ namespace Jazztures.Core.Lessons
             for (int i = 0; i < timeline.Chords.Count; i++)
             {
                 TimelineChord chord = timeline.Chords[i];
+
+                // ADR-0077: a chord authored in the learner's turn is theirs to play, not the system's.
+                if (!timeline.Turns.IsSystemTurn(chord.Beat.Position))
+                {
+                    continue;
+                }
+
                 double onOffset = tempo.BeatsToSeconds(chord.Beat.Position);
                 double offOffset = i + 1 < timeline.Chords.Count
                     ? tempo.BeatsToSeconds(timeline.Chords[i + 1].Beat.Position)
                     : tempo.BeatsToSeconds(timeline.DurationBeats) + ChordTailSeconds;
+
+                // ...and the system's chord stops ringing where its turn ends, however long until the next one.
+                if (timeline.Turns.IsEnabled)
+                {
+                    offOffset = Math.Min(offOffset, tempo.BeatsToSeconds(timeline.Turns.SystemTurnEnd(chord.Beat.Position)));
+                }
 
                 ChordVoicing voicing = Voicing.Close(Progression.ChordFor(chord.Function));
                 foreach (Pitch pitch in voicing)
@@ -196,6 +209,11 @@ namespace Jazztures.Core.Lessons
             for (int i = 0; includeMelody && i < timeline.Notes.Count; i++)
             {
                 TimelineNote note = timeline.Notes[i];
+                if (!timeline.Turns.IsSystemTurn(note.Beat.Position))
+                {
+                    continue; // the learner's turn: their notes, not the system's
+                }
+
                 ChordFunction? function = timeline.ChordFunctionAt(note.Beat.Position);
                 if (!function.HasValue)
                 {

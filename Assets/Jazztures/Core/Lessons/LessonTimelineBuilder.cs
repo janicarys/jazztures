@@ -22,6 +22,7 @@ namespace Jazztures.Core.Lessons
         private int _beatsPerBar = Metronome.DefaultBeatsPerBar;
         private OnsetPattern _scoredPulse = OnsetPattern.None;
         private double _minimumDurationBeats;
+        private TurnWindow _turns = TurnWindow.None;
 
         public LessonTimelineBuilder WithTempo(Tempo tempo)
         {
@@ -72,6 +73,16 @@ namespace Jazztures.Core.Lessons
             return this;
         }
 
+        /// <summary>
+        /// Split every round into the system's turn and the learner's (ADR-0077). Chords and notes authored in the
+        /// learner's part are never played by the system.
+        /// </summary>
+        public LessonTimelineBuilder WithTurns(TurnWindow turns)
+        {
+            _turns = turns;
+            return this;
+        }
+
         public LessonTimelineBuilder Chord(double beat, ChordFunction function)
         {
             _chords.Add(new TimelineChord(new Beat(beat), function));
@@ -112,7 +123,7 @@ namespace Jazztures.Core.Lessons
             RequireAChordBeforeTheFirstNote(chords, notes);
 
             return new LessonTimeline(
-                _tempo, _swing, _beatsPerBar, chords, notes, markers, _scoredPulse, _minimumDurationBeats);
+                _tempo, _swing, _beatsPerBar, chords, notes, markers, _scoredPulse, _minimumDurationBeats, _turns);
         }
 
         private static void RequireNoDuplicateChordBeats(TimelineChord[] chords)

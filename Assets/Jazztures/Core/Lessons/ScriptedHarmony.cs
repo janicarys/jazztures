@@ -35,6 +35,12 @@ namespace Jazztures.Core.Lessons
         private int _cursor;
         private bool _running;
 
+        // ADR-0077: a lesson that hands part of every round to the learner. Without turns the script selects from
+        // its start until Stop (every earlier use); with them it selects only in the system's turn.
+        private TurnWindow _turns;
+        private Jazztures.Core.Timing.Tempo _tempo;
+        private double _startDsp;
+
         public ScriptedHarmony(IMusicalClock clock, HarmonyEngine harmony)
         {
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -43,6 +49,20 @@ namespace Jazztures.Core.Lessons
 
         /// <summary>True from a start call until <see cref="Stop"/>.</summary>
         public bool IsRunning => _running;
+
+        /// <summary>
+        /// True while the script, not the left hand, is choosing the chord: from a start call to <see cref="Stop"/>,
+        /// except in the learner's turn of a lesson with turns (ADR-0077), when the left hand chooses again.
+        /// The thing the left hand's selection should be ignored on - <see cref="IsRunning"/> only says a script exists.
+        /// </summary>
+        public bool IsSelecting => _running && (!_turns.IsEnabled || _turns.IsSystemTurn(BeatNow()));
+
+        /// <summary>
+        /// True in the system's turn of a lesson with turns: the left hand is ignored altogether, so a strike
+        /// of its own must not sound the chord the script has selected (ADR-0077). False when there are no turns -
+        /// a right-hand lesson or a drill never relied on this, and still does not.
+        /// </summary>
+        public bool BlocksLeftHandStrikes => _running && _turns.IsEnabled && _turns.IsSystemTurn(BeatNow());
 
         /// <summary>Select one function now and hold it until <see cref="Stop"/>.</summary>
         public void StartFixed(ChordFunction function)
@@ -76,14 +96,34 @@ namespace Jazztures.Core.Lessons
             // first chord is bare and the first chord is the lesson's - not a leftover with the wrong tones under it.
             _harmony.SetHeldFunction(null);
 
-            int count = timeline.Chords.Count;
+            _turns = timeline.Turns;
+            _tempo = timeline.Tempo;
+            _startDsp = startDspTime;
+
+            // A chord authored in the learner's turn is the learner's to choose (ADR-0077), not scripted.
+            int count = 0;
+            for (int i = 0; i < timeline.Chords.Count; i++)
+            {
+                if (_turns.IsSystemTurn(timeline.Chords[i].Beat.Position))
+                {
+                    count++;
+                }
+            }
+
             _functions = new ChordFunction[count];
             _dueDspTimes = new double[count];
-            for (int i = 0; i < count; i++)
+            int slot = 0;
+            for (int i = 0; i < timeline.Chords.Count; i++)
             {
                 TimelineChord chord = timeline.Chords[i];
-                _functions[i] = chord.Function;
-                _dueDspTimes[i] = startDspTime + timeline.Tempo.BeatsToSeconds(chord.Beat.Position);
+                if (!_turns.IsSystemTurn(chord.Beat.Position))
+                {
+                    continue;
+                }
+
+                _functions[slot] = chord.Function;
+                _dueDspTimes[slot] = startDspTime + timeline.Tempo.BeatsToSeconds(chord.Beat.Position);
+                slot++;
             }
 
             _running = true;
@@ -121,8 +161,12 @@ namespace Jazztures.Core.Lessons
             _harmony.SetHeldFunction(null);
         }
 
+        // The lesson beat now, from the start time. Negative in the lead-in (which counts as the system's turn).
+        private double BeatNow() => _tempo.SecondsToBeats(_clock.Now - _startDsp);
+
         private void Reset()
         {
+            _turns = TurnWindow.None;
             _running = false;
             _cursor = 0;
             _functions = Array.Empty<ChordFunction>();

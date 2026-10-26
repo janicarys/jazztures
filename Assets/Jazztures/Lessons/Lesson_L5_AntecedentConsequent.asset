@@ -1,0 +1,498 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a012f129b373e64a9eda0554e10d291, type: 3}
+  m_Name: Lesson_L5_AntecedentConsequent
+  m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.LessonDefinition
+  _id: L5
+  _title: Antecedent–consequent
+  _menuDescription: 'The system plays a short musical question. You answer it with your own notes.'
+  _conceptExplanation: 
+  _conceptSlides:
+  - text: 'A tune is like a conversation. First a question, called the antecedent. Then an answer, called the consequent.'
+    seconds: 8
+  - text: 'The system asks the question. Listen to it. It ends feeling unfinished.'
+    seconds: 6
+  - text: 'Then it is your turn. Your answer can be anything you like.'
+    seconds: 5
+  - text: 'Left hand: make the palm-down shape, the home chord, and strike. Right hand: play your notes.'
+    seconds: 7
+  - text: 'To sound finished, end on the thumb note. That is the home note.'
+    seconds: 6
+  _tempoBpm: 70
+  _swingRatio: 0.66
+  _beatsPerBar: 4
+  _hands: 3
+  _useMetronome: 1
+  _metronomeSubdivision: 0
+  _scoredPulse:
+    _kind: 0
+    _positionsInBar: []
+  _roundBeats: 16
+  _systemTurnBeats: 8
+  _minimumLengthBeats: 64
+  _modes: 04000000
+  _chords:
+  - beat: 0
+    function: 0
+  - beat: 4
+    function: 1
+  - beat: 16
+    function: 0
+  - beat: 20
+    function: 1
+  - beat: 32
+    function: 0
+  - beat: 36
+    function: 1
+  - beat: 48
+    function: 0
+  - beat: 52
+    function: 1
+  _notes:
+  - beat: 0
+    targetIndex: 0
+    velocity: 90
+  - beat: 1
+    targetIndex: 1
+    velocity: 90
+  - beat: 2
+    targetIndex: 2
+    velocity: 90
+  - beat: 2.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 4
+    targetIndex: 1
+    velocity: 90
+  - beat: 5
+    targetIndex: 2
+    velocity: 90
+  - beat: 5.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 16
+    targetIndex: 0
+    velocity: 90
+  - beat: 16.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 18
+    targetIndex: 2
+    velocity: 90
+  - beat: 18.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 20
+    targetIndex: 0
+    velocity: 90
+  - beat: 20.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 22
+    targetIndex: 2
+    velocity: 90
+  - beat: 32
+    targetIndex: 2
+    velocity: 90
+  - beat: 33
+    targetIndex: 1
+    velocity: 90
+  - beat: 33.5
+    targetIndex: 0
+    velocity: 90
+  - beat: 36
+    targetIndex: 2
+    velocity: 90
+  - beat: 37
+    targetIndex: 1
+    velocity: 90
+  - beat: 37.5
+    targetIndex: 2
+    velocity: 90
+  - beat: 48
+    targetIndex: 1
+    velocity: 90
+  - beat: 49
+    targetIndex: 1
+    velocity: 90
+  - beat: 49.5
+    targetIndex: 2
+    velocity: 90
+  - beat: 52
+    targetIndex: 1
+    velocity: 90
+  - beat: 53
+    targetIndex: 1
+    velocity: 90
+  - beat: 53.5
+    targetIndex: 2
+    velocity: 90
+  _markers:
+  - beat: 8
+    name: your-turn-1
+  - beat: 24
+    name: your-turn-2
+  - beat: 40
+    name: your-turn-3
+  - beat: 56
+    name: your-turn-4
+  _cues:
+  - triggerKind: 0
+    beat: 0
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Listen.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 5
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '3'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 6
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '2'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 7
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '1'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 8
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Go! Palm down, strike, then play.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 12
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 16
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Listen.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 21
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '3'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 22
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '2'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 23
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '1'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 24
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Go!'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 28
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 32
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Listen.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 37
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '3'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 38
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '2'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 39
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '1'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 40
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Go!'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 44
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 48
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Listen.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 53
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '3'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 54
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '2'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 55
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: '1'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 56
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Go!'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 60
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 2
+    beat: 0
+    marker: 
+    learnerAction: 3
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'You answered the question. That is a musical conversation.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0

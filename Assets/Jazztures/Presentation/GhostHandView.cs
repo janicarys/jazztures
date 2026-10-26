@@ -49,7 +49,7 @@ namespace Jazztures.Presentation
         [SerializeField] private Transform _head;
 
         [Tooltip("Beats to morph between poses. ADR-0012: the ghost conveys the movement, so ease, never snap.")]
-        [Min(0.1f)] [SerializeField] private float _morphBeats = 1.5f;
+        [Min(0.1f)] [SerializeField] private float _morphBeats = 0.5f;
 
         [Header("Target poses (authored via Jazztures ▸ Ghost Pose Recorder)")]
         [SerializeField] private GhostPoseAsset _ii;

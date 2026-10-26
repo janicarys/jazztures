@@ -464,7 +464,7 @@ namespace Jazztures.App
                 case MenuItemKind.Lesson:
                     return $"{item.LessonIndex + 1}. {_lessons[item.LessonIndex].Title}";
                 case MenuItemKind.FreePlay:
-                    return "Free play";
+                    return $"{_lessons.Count + 1}. Free play";
                 case MenuItemKind.Mode:
                     return $"{ModeNumber(item)}. {ModeName(item.Mode.GetValueOrDefault())}";
                 case MenuItemKind.Tempo:

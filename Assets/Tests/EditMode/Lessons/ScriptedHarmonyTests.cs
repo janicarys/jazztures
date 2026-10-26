@@ -207,5 +207,71 @@ namespace Jazztures.Tests.EditMode.Lessons
             Assert.Throws<ArgumentNullException>(() => _scripted.Start(null!, 0.0));
             Assert.Throws<ArgumentOutOfRangeException>(() => _scripted.Start(IiVI(), double.NaN));
         }
+
+        // ADR-0077: 120 BPM (0.5 s a beat); beats 0-8 of every 16 are the system's.
+        private static LessonTimeline CallAndResponse() =>
+            new LessonTimelineBuilder()
+                .WithTempo(Tempo.Bpm(120))
+                .WithTurns(new TurnWindow(16.0, 8.0))
+                .Chord(0.0, ChordFunction.Two)
+                .Chord(4.0, ChordFunction.Five)
+                .Chord(8.0, ChordFunction.One) // the learner's to choose
+                .Chord(16.0, ChordFunction.Two)
+                .Build();
+
+        [Test]
+        public void WithTurns_TheScriptSelectsOnlyInTheSystemsTurn()
+        {
+            _scripted.Start(CallAndResponse(), startDspTime: 0.0);
+
+            Assert.That(_scripted.IsSelecting, Is.True);
+            Assert.That(_harmony.HeldFunction, Is.EqualTo(ChordFunction.Two));
+
+            _clock.Advance(2.0); // beat 4
+            _scripted.Tick();
+            Assert.That(_harmony.HeldFunction, Is.EqualTo(ChordFunction.Five));
+
+            _clock.Advance(2.0); // beat 8: the learner's turn - the I authored here is not selected for them
+            _scripted.Tick();
+            Assert.That(_scripted.IsSelecting, Is.False);
+            Assert.That(_scripted.IsRunning, Is.True);
+            Assert.That(_harmony.HeldFunction, Is.EqualTo(ChordFunction.Five), "the runner hands the selection back, not the script");
+
+            _clock.Advance(4.0); // beat 16: the system's again
+            _scripted.Tick();
+            Assert.That(_scripted.IsSelecting, Is.True);
+            Assert.That(_harmony.HeldFunction, Is.EqualTo(ChordFunction.Two));
+        }
+
+        [Test]
+        public void WithTurns_TheLeftHandsStrikesAreBlockedOnlyInTheSystemsTurn()
+        {
+            _scripted.Start(CallAndResponse(), startDspTime: 1.0);
+
+            Assert.That(_scripted.BlocksLeftHandStrikes, Is.True, "the lead-in is the system's");
+
+            _clock.Advance(1.0 + 7.9 * 0.5);
+            Assert.That(_scripted.BlocksLeftHandStrikes, Is.True);
+
+            _clock.Advance(0.2); // past beat 8
+            Assert.That(_scripted.BlocksLeftHandStrikes, Is.False);
+
+            _scripted.Stop();
+            Assert.That(_scripted.BlocksLeftHandStrikes, Is.False);
+        }
+
+        [Test]
+        public void WithoutTurns_ScriptingBlocksNoStrikes_AndSelectsForAsLongAsItRuns()
+        {
+            _scripted.Start(IiVI(), startDspTime: 0.0);
+            _clock.Advance(100.0);
+
+            Assert.That(_scripted.IsSelecting, Is.True);
+            Assert.That(_scripted.BlocksLeftHandStrikes, Is.False, "a right-hand lesson or drill never relied on this");
+
+            _scripted.StartFixed(ChordFunction.One);
+            Assert.That(_scripted.IsSelecting, Is.True);
+            Assert.That(_scripted.BlocksLeftHandStrikes, Is.False);
+        }
     }
 }

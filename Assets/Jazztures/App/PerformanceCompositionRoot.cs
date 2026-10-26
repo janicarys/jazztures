@@ -172,7 +172,7 @@ namespace Jazztures.App
                 // While a script is selecting the chords (a right-hand lesson, ADR-0063; a timing drill, ADR-0043)
                 // the left hand does not. The pose is still recognised and published - only the selection is not
                 // taken from it, or one idle left hand would swap the melody's tones for the wrong chord mid-phrase.
-                if (!_scriptedHarmony.IsRunning)
+                if (!_scriptedHarmony.IsSelecting)
                 {
                     _harmony.SetHeldFunction(function);
                 }
@@ -198,7 +198,7 @@ namespace Jazztures.App
                     }
 
                     _pinchDetector = new ChordPinchDetector(clock, _interpreter, pinchThresholds);
-                    _pinchDetector.Articulated += velocity => _harmony.Strike(velocity);
+                    _pinchDetector.Articulated += StrikeChord;
                     _feedCommit = _pinchDetector.Feed;
                     break;
                 }
@@ -215,6 +215,11 @@ namespace Jazztures.App
                     _touchDetector = new ChordTouchDetector(clock, _interpreter, TouchCommitThresholds.Default);
                     _touchDetector.Articulated += velocity =>
                     {
+                        if (_scriptedHarmony.BlocksLeftHandStrikes)
+                        {
+                            return;
+                        }
+
                         _harmony.Strike(velocity);
                         if (_strikeTarget != null)
                         {
@@ -230,7 +235,7 @@ namespace Jazztures.App
                     _strikeDetector.Struck += velocity =>
                     {
                         DiagLog.Log($"[DIAG] STRUCK v={velocity} confirmed={_interpreter.ConfirmedFunction} t={AudioSettings.dspTime:0.000}");
-                        _harmony.Strike(velocity);
+                        StrikeChord(velocity);
                     };
                     _feedCommit = _strikeDetector.Feed;
                     break;
@@ -322,6 +327,16 @@ namespace Jazztures.App
             }
         }
 
+        // ADR-0077: while the system has its turn in a call-and-response lesson the left hand is ignored altogether -
+        // its strike would otherwise sound the chord the script selected, on top of the system's own.
+        private void StrikeChord(byte velocity)
+        {
+            if (!_scriptedHarmony.BlocksLeftHandStrikes)
+            {
+                _harmony.Strike(velocity);
+            }
+        }
+
         private void Update()
         {
             if (!enabled)
@@ -374,7 +389,7 @@ namespace Jazztures.App
             // When a script hands the chords back (a right-hand lesson ends, or the next lesson is a left-hand one),
             // the left hand's pose is the selection again. A pose held right through the lesson raised no change
             // to say so, so it is read from the interpreter here rather than waited for.
-            bool scripted = _scriptedHarmony.IsRunning;
+            bool scripted = _scriptedHarmony.IsSelecting;
             if (_wasScripted && !scripted)
             {
                 _harmony.SetHeldFunction(_interpreter.ConfirmedFunction);

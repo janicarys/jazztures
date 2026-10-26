@@ -1,0 +1,368 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a012f129b373e64a9eda0554e10d291, type: 3}
+  m_Name: Lesson_L4_GuidedPlay
+  m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.LessonDefinition
+  _id: L4
+  _title: Guided play
+  _menuDescription: 'Play chords and notes together. The same patterns as Swing, now with two hands.'
+  _conceptExplanation: 
+  _conceptSlides:
+  - text: 'Now both hands play together. Your left hand plays the chords. Your right hand plays the notes.'
+    seconds: 7
+  - text: 'Left hand: make the shape for each chord, then strike down as a new bar begins.'
+    seconds: 7
+  - text: 'Right hand: curl a finger as each letter arrives, just like in Swing.'
+    seconds: 6
+  - text: 'The notes follow the same patterns you just played: up, up, down.'
+    seconds: 6
+  _tempoBpm: 70
+  _swingRatio: 0.66
+  _beatsPerBar: 4
+  _hands: 3
+  _useMetronome: 1
+  _metronomeSubdivision: 0
+  _scoredPulse:
+    _kind: 0
+    _positionsInBar: []
+  _modes: 0100000002000000
+  _chords:
+  - beat: 0
+    function: 0
+  - beat: 4
+    function: 1
+  - beat: 8
+    function: 2
+  - beat: 12
+    function: 0
+  - beat: 16
+    function: 1
+  - beat: 20
+    function: 2
+  - beat: 24
+    function: 0
+  - beat: 28
+    function: 1
+  - beat: 32
+    function: 2
+  - beat: 36
+    function: 0
+  - beat: 40
+    function: 1
+  - beat: 44
+    function: 2
+  _notes:
+  - beat: 0
+    targetIndex: 0
+    velocity: 90
+  - beat: 1
+    targetIndex: 1
+    velocity: 90
+  - beat: 2
+    targetIndex: 2
+    velocity: 90
+  - beat: 3
+    targetIndex: 1
+    velocity: 90
+  - beat: 4
+    targetIndex: 1
+    velocity: 90
+  - beat: 5
+    targetIndex: 2
+    velocity: 90
+  - beat: 6
+    targetIndex: 3
+    velocity: 90
+  - beat: 7
+    targetIndex: 2
+    velocity: 90
+  - beat: 8
+    targetIndex: 2
+    velocity: 90
+  - beat: 9
+    targetIndex: 3
+    velocity: 90
+  - beat: 10
+    targetIndex: 4
+    velocity: 90
+  - beat: 11
+    targetIndex: 3
+    velocity: 90
+  - beat: 12
+    targetIndex: 0
+    velocity: 90
+  - beat: 13
+    targetIndex: 1
+    velocity: 90
+  - beat: 14
+    targetIndex: 2
+    velocity: 90
+  - beat: 14.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 16
+    targetIndex: 1
+    velocity: 90
+  - beat: 17
+    targetIndex: 2
+    velocity: 90
+  - beat: 18
+    targetIndex: 3
+    velocity: 90
+  - beat: 18.5
+    targetIndex: 2
+    velocity: 90
+  - beat: 20
+    targetIndex: 2
+    velocity: 90
+  - beat: 21
+    targetIndex: 3
+    velocity: 90
+  - beat: 22
+    targetIndex: 4
+    velocity: 90
+  - beat: 22.5
+    targetIndex: 3
+    velocity: 90
+  - beat: 24
+    targetIndex: 0
+    velocity: 90
+  - beat: 24.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 26
+    targetIndex: 2
+    velocity: 90
+  - beat: 26.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 28
+    targetIndex: 1
+    velocity: 90
+  - beat: 28.5
+    targetIndex: 2
+    velocity: 90
+  - beat: 30
+    targetIndex: 3
+    velocity: 90
+  - beat: 30.5
+    targetIndex: 2
+    velocity: 90
+  - beat: 32
+    targetIndex: 2
+    velocity: 90
+  - beat: 32.5
+    targetIndex: 3
+    velocity: 90
+  - beat: 34
+    targetIndex: 4
+    velocity: 90
+  - beat: 34.5
+    targetIndex: 3
+    velocity: 90
+  - beat: 36
+    targetIndex: 0
+    velocity: 90
+  - beat: 36.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 37
+    targetIndex: 2
+    velocity: 90
+  - beat: 37.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 38
+    targetIndex: 2
+    velocity: 90
+  - beat: 38.5
+    targetIndex: 3
+    velocity: 90
+  - beat: 39
+    targetIndex: 2
+    velocity: 90
+  - beat: 40
+    targetIndex: 1
+    velocity: 90
+  - beat: 40.5
+    targetIndex: 2
+    velocity: 90
+  - beat: 41
+    targetIndex: 3
+    velocity: 90
+  - beat: 41.5
+    targetIndex: 2
+    velocity: 90
+  - beat: 42
+    targetIndex: 3
+    velocity: 90
+  - beat: 42.5
+    targetIndex: 4
+    velocity: 90
+  - beat: 43
+    targetIndex: 3
+    velocity: 90
+  - beat: 44
+    targetIndex: 0
+    velocity: 90
+  - beat: 44.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 45
+    targetIndex: 2
+    velocity: 90
+  - beat: 45.5
+    targetIndex: 1
+    velocity: 90
+  - beat: 46
+    targetIndex: 2
+    velocity: 90
+  - beat: 46.5
+    targetIndex: 3
+    velocity: 90
+  - beat: 47
+    targetIndex: 2
+    velocity: 90
+  _markers:
+  - beat: 12
+    name: first-and
+  - beat: 24
+    name: late-and
+  - beat: 36
+    name: swing-line
+  _cues:
+  - triggerKind: 0
+    beat: 0
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Chord with your left hand, notes with your right.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 6
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 1
+    beat: 0
+    marker: first-and
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Same pattern as before: up, up, down. Keep your left hand striking each new chord.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 16
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 1
+    beat: 0
+    marker: late-and
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'The late "and" is back. Notes lean late, chords stay on the bar.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 28
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 1
+    beat: 0
+    marker: swing-line
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Long, short, long, short. Both hands, one groove.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 0
+    beat: 40
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 1
+    text: 
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
+  - triggerKind: 2
+    beat: 0
+    marker: 
+    learnerAction: 3
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Chords underneath, a swinging line on top. That is jazz playing.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0

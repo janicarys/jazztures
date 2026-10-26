@@ -270,5 +270,54 @@ namespace Jazztures.Tests.EditMode.Lessons
             playback.Tick();
             Assert.That(_sink.Events, Is.Empty);
         }
+
+        // ADR-0077: the first 8 beats of every 16 are the system's. 120 BPM -> 0.5 s a beat.
+        private static LessonTimeline CallAndResponse() =>
+            new LessonTimelineBuilder()
+                .WithTempo(Tempo.Bpm(120))
+                .WithTurns(new TurnWindow(16.0, 8.0))
+                .WithMinimumDuration(32.0)
+                .Chord(0.0, ChordFunction.Two)
+                .Chord(4.0, ChordFunction.Five)
+                .Chord(8.0, ChordFunction.One)   // the learner's turn: authored, but not the system's to play
+                .Chord(16.0, ChordFunction.Two)
+                .Note(0.0, 0)
+                .Note(4.0, 1)
+                .Note(9.0, 2)                    // the learner's turn
+                .Note(16.0, 0)
+                .Build();
+
+        [Test]
+        public void WithTurns_TheSystemPlaysOnlyItsOwnPartOfEachRound()
+        {
+            RunToCompletion(Playback(CallAndResponse()));
+
+            Assert.That(MelodyOns().ConvertAll(e => e.DspTime), Is.EqualTo(new[] { 0.0, 2.0, 8.0 }),
+                "the note at beat 9 is the learner's turn");
+
+            var chordOns = _sink.Events.FindAll(e => e.Kind == NoteEventKind.On && e.Source == Handedness.Left);
+            Assert.That(chordOns, Has.Count.EqualTo(12), "ii, V and the next round's ii - not the I authored at beat 8");
+        }
+
+        [Test]
+        public void WithTurns_AChordStopsRingingWhereTheSystemsTurnEnds()
+        {
+            RunToCompletion(Playback(CallAndResponse()));
+
+            // V starts at beat 4 (2 s); with no chord until beat 16 it would ring to 8 s. It must stop at beat 8 (4 s).
+            var chordOffs = _sink.Events.FindAll(e => e.Kind == NoteEventKind.Off && e.Source == Handedness.Left);
+            Assert.That(chordOffs.FindAll(e => e.DspTime > 4.0 && e.DspTime < 8.0), Is.Empty,
+                "nothing of the system's sounds in the learner's turn");
+            Assert.That(chordOffs.FindAll(e => e.DspTime == 4.0), Has.Count.EqualTo(4));
+        }
+
+        [Test]
+        public void WithoutTurns_AnOrdinaryTimelineIsPlayedWhole()
+        {
+            RunToCompletion(Playback(TwoChordPhrase()));
+
+            Assert.That(TwoChordPhrase().Turns.IsEnabled, Is.False);
+            Assert.That(MelodyOns(), Has.Count.EqualTo(2));
+        }
     }
 }

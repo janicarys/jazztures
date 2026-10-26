@@ -1166,7 +1166,7 @@ MonoBehaviour:
   _puppet: {fileID: 1937435867}
   _leftHand: {fileID: 1054031027}
   _head: {fileID: 368964558}
-  _morphBeats: 1.5
+  _morphBeats: 0.5
   _ii: {fileID: 11400000, guid: 2574d55bf7453444a9b4bfa3bb4a7828, type: 2}
   _v: {fileID: 11400000, guid: d0f94a2c050fc9f45b4a52127318d458, type: 2}
   _i: {fileID: 11400000, guid: 624119ac0ea674340aa55cbb128bf684, type: 2}

@@ -440,6 +440,14 @@ namespace Jazztures.Lessons
                 _playback = new TimelinePlayback(_timeline, _clock, _gate, includeMelody: false);
                 _playback.Start(_phaseStartDsp + _plan.Tempo.BeatsToSeconds(_playbackLeadBeats));
             }
+            else if (policy.SystemPlayback == SystemPlayback.BackingOnly && _timeline.Turns.IsEnabled)
+            {
+                // ADR-0077: a call-and-response lesson. The "backing" is the system's turn of every round - its
+                // authored chords and melody, which the timeline plays only inside that turn; the learner has
+                // the rest. The turn window rides on the timeline, so nothing here says which beats are whose.
+                _playback = new TimelinePlayback(_timeline, _clock, _gate);
+                _playback.Start(_phaseStartDsp + _plan.Tempo.BeatsToSeconds(_playbackLeadBeats));
+            }
             else if (policy.SystemPlayback == SystemPlayback.BackingOnly && _logCues)
             {
                 // TODO(OPEN): backing track for Compose-on-the-Fly (CLAUDE.md §7).
@@ -451,7 +459,10 @@ namespace Jazztures.Lessons
             // it too: the melody's tones, the letters on the learner's fingers and the label on their left hand all
             // follow the selected chord, and without a script they would follow whatever the idle left hand did.
             // It selects at the instant the chords sound (the lead), so what is heard, shown and playable agree.
-            if (_plan.Hands.SystemSelectsChords())
+            //
+            // ADR-0077: a call-and-response lesson does the same in the system's turn only - the script selects
+            // the chords the system plays, and the left hand chooses for itself in the learner's.
+            if (_plan.Hands.SystemSelectsChords() || (policy.SystemPlayback == SystemPlayback.BackingOnly && _timeline.Turns.IsEnabled))
             {
                 StartScriptedHarmony(_phaseStartDsp + _plan.Tempo.BeatsToSeconds(_playbackLeadBeats));
             }
