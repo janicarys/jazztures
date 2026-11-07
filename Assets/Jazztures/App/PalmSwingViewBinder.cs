@@ -11,7 +11,8 @@ namespace Jazztures.App
     /// each note, and where the lane is.
     ///
     /// <para>
-    /// The lane is the one the hand reader set when the gate first opened (the palm's resting position). Until the hand
+    /// The trigger line stands where the hand reader set the lane when the pose had settled, and the cursor follows where
+    /// the hand is pointing. Until the hand
     /// has been seen, the trigger line stands in the right lane in front of the head, at <c>Lane Offset Right</c> and
     /// <c>Lane Distance</c> from <see cref="PalmSwingSettings"/>, so the "open palm, facing left" hint has somewhere to be.
     /// </para>
@@ -58,6 +59,11 @@ namespace Jazztures.App
             if (_headsetSource != null && _headsetSource.LaneSet)
             {
                 _view.SetLane(_headsetSource.LaneOrigin, _headsetSource.LaneRight);
+                if (_headsetSource.PointerValid)
+                {
+                    _view.SetPointer(_headsetSource.PointerWorld);
+                }
+
                 return;
             }
 

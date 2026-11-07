@@ -70,6 +70,15 @@ swings the fingers sideways) crosses it. The tilt that picks the direction is th
 alternative. The Core pipeline is unchanged: it still receives a lateral position in metres. **Unverified on a headset:** whether wrist flexion is comfortable and
 sweeps far enough, and whether pointing straight ahead while also tilting the fingers up and down is awkward.
 
+### First headset impressions, 2026-11-07
+After trying the Finger Ray version the student reported three things, all addressed (**unverified on a headset again**):
+1. **The visual was off:** it stood where the hand rested and was too big. It is now a small cursor that follows where the hand points, with the note letter,
+   direction and zone widgets beside it, and a short trigger line (12 cm) that stays fixed sideways, since it is what the hand crosses, but rides at the hand's height.
+2. **Neutral was "a bit down":** the tilt was measured from the horizontal, but a relaxed handshake pose points slightly downward. The angle is now measured from
+   the angle the hand rested at, taken once the pose has held for 0.4 s (`Rest Settle Seconds`).
+3. **The tilt to move up or down felt too big:** thresholds are now +10° / −14° from rest with 4° hysteresis (were +20° / −25° / 5° from the horizontal). These numbers are
+   guesses from that one report. Core's own defaults are unchanged (its tests use them); the settings asset overrides them.
+
 ### Cut after being built (2026-11-07)
 A keyboard stand-in for the right hand (`EditorSimulatedPalmInput`, for Play mode without a headset) was built and then removed at the student's request: the palm swing is tried on the headset or over Link only.
 

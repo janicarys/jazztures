@@ -13,15 +13,18 @@ namespace Jazztures.Config
     [CreateAssetMenu(menuName = "Jazztures/Config/Palm Swing", fileName = "PalmSwingSettings")]
     public sealed class PalmSwingSettings : ScriptableObject
     {
-        [Header("Direction — hand pitch angle, degrees above horizontal, + = fingers up")]
-        [Tooltip("Fingers at or above this angle read as Up. Lower than Down because the wrist bends less far toward the thumb.")]
-        [SerializeField] private float _upDegrees = DirectionThresholds.DefaultUpDegrees;
+        [Header("Direction — hand pitch angle in degrees, + = fingers up, measured from how the hand RESTS")]
+        [Tooltip("Fingers this far above their resting angle read as Up. Lower than Down because the wrist bends less far toward the thumb. The resting angle is taken when the hand has been in the pose for Rest Settle Seconds, so 'neutral' is wherever the hand naturally sits.")]
+        [SerializeField] private float _upDegrees = 10f;
 
-        [Tooltip("Fingers at or below this angle (negative) read as Down.")]
-        [SerializeField] private float _downDegrees = DirectionThresholds.DefaultDownDegrees;
+        [Tooltip("Fingers this far below their resting angle (negative) read as Down.")]
+        [SerializeField] private float _downDegrees = -14f;
 
         [Tooltip("How far back from a threshold the hand must come before the direction is left (Schmitt trigger).")]
-        [Min(0f)] [SerializeField] private float _directionHysteresisDegrees = DirectionThresholds.DefaultHysteresisDegrees;
+        [Min(0f)] [SerializeField] private float _directionHysteresisDegrees = 4f;
+
+        [Tooltip("The hand must hold the pose this long before its resting position and angle are taken as neutral, seconds. Re-taken on re-centre and whenever the input is switched off and on.")]
+        [Min(0f)] [SerializeField] private float _restSettleSeconds = 0.4f;
 
         [Tooltip("The direction (and register zone) is read this long BEFORE the crossing, because a fast swing drags the hand's tilt.")]
         [Min(0f)] [SerializeField] private float _lookBackSeconds = 0.05f;
@@ -114,6 +117,8 @@ namespace Jazztures.Config
         public float PointingPlaneDistanceMetres => _pointingPlaneDistanceMetres;
 
         public float MinPointingFacing => _minPointingFacing;
+
+        public float RestSettleSeconds => _restSettleSeconds;
 
         public float PalmFacingLeftDot => _palmFacingLeftDot;
 

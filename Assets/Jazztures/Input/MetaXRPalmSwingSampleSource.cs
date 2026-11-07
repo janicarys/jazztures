@@ -20,7 +20,8 @@ namespace Jazztures.Input
     /// </para>
     /// <para>
     /// <b>Pitch angle.</b> The direction wrist → middle knuckle, as an angle above the horizontal in <i>world</i>
-    /// space, not relative to the palm, so wrist, elbow and shoulder tilt all count.
+    /// space, not relative to the palm, so wrist, elbow and shoulder tilt all count. It is reported <i>relative to the
+    /// angle the hand rested at</i> once settled in the pose, so neutral is wherever the hand naturally sits.
     /// </para>
     /// <para>
     /// <b>Lane frame.</b> Origin = the palm centre when the gate first opens (or on <see cref="Recenter"/>);
@@ -59,6 +60,8 @@ namespace Jazztures.Input
         private Vector3 _laneRight = Vector3.right;
         private Vector3 _laneForward = Vector3.forward;
         private Vector3 _planePoint;            // Finger Ray: a point on the vertical plane the ray is cast at
+        private float _restPitch;               // the hand's pitch angle when the lane was set: "neutral"
+        private double _openSince = -1.0;       // when the gate (pose) last became continuously open, for the rest settle
         private bool _recenterRequested;
 
         /// <summary>For the visuals and diagnostics: why the gate is closed, or null while it is open.</summary>
@@ -71,6 +74,14 @@ namespace Jazztures.Input
         public Vector3 LaneRight => _laneRight;
 
         public bool LaneSet => _laneSet;
+
+        /// <summary>
+        /// Where the hand is pointing now, in world space: the ray's hit on the plane (Finger Ray) or the palm centre
+        /// (Palm Position). For the view's cursor. Valid only while <see cref="PointerValid"/>.
+        /// </summary>
+        public Vector3 PointerWorld { get; private set; }
+
+        public bool PointerValid { get; private set; }
 
         private void Awake()
         {
@@ -163,10 +174,25 @@ namespace Jazztures.Input
                 return Closed();
             }
 
-            GateClosedReason = null;
+            float rawPitch = Mathf.Asin(Mathf.Clamp(along.y, -1f, 1f)) * Mathf.Rad2Deg;
 
             if (!_laneSet || _recenterRequested)
             {
+                // Neutral is where the hand sits once it has settled into the pose, not the horizontal: a relaxed
+                // handshake pose points a little downward, and a threshold measured from the horizontal made "Same" unreachable.
+                double now = Time.unscaledTimeAsDouble;
+                if (_openSince < 0.0)
+                {
+                    _openSince = now;
+                }
+
+                if (!_recenterRequested && now - _openSince < _settings.RestSettleSeconds)
+                {
+                    GateClosedReason = "settling";
+                    return Closed(resetSettle: false);
+                }
+
+                _restPitch = rawPitch;
                 _laneRight = userRight;
                 _laneForward = forward;
                 _restPalm = palmCentre;
@@ -176,11 +202,13 @@ namespace Jazztures.Input
                 _recenterRequested = false;
             }
 
-            float pitch = Mathf.Asin(Mathf.Clamp(along.y, -1f, 1f)) * Mathf.Rad2Deg;
+            GateClosedReason = null;
             Vector3 position = ray ? RayHit(palmCentre, along) : palmCentre;
+            PointerWorld = position;
+            PointerValid = true;
             float lateral = Vector3.Dot(position - _laneOrigin, _laneRight);
             float height = (palmCentre - _restPalm).y;
-            return new PalmSwingSample(0.0, true, pitch, lateral, height);
+            return new PalmSwingSample(0.0, true, rawPitch - _restPitch, lateral, height);
         }
 
         // Where a ray from `origin` along `direction` meets the vertical plane through _planePoint. The caller has
@@ -191,6 +219,17 @@ namespace Jazztures.Input
             return origin + direction * t;
         }
 
-        private static PalmSwingSample Closed() => new PalmSwingSample(0.0, false, 0f, 0f, 0f);
+        // `resetSettle` is false only while the hand is still settling into the pose: any other reason to close the gate
+        // means the pose was lost, so the settle starts again.
+        private PalmSwingSample Closed(bool resetSettle = true)
+        {
+            if (resetSettle)
+            {
+                _openSince = -1.0;
+            }
+
+            PointerValid = false;
+            return new PalmSwingSample(0.0, false, 0f, 0f, 0f);
+        }
     }
 }

@@ -319,9 +319,10 @@ All `[TUNABLE]` and **entirely unmeasured** (no headset session yet). Pilot-cali
 
 | Parameter | Default | Measured | Status | Notes |
 | --------- | ------- | -------- | ------ | ----- |
-| Up angle | +20° | — | default | Fingers at or above this (world-space pitch above horizontal) read as Up. Lower than Down because the wrist bends less far toward the thumb. Lower it if Up is hard to reach; raise it if a level hand reads Up |
-| Down angle | −25° | — | default | Fingers at or below this read as Down |
-| Direction hysteresis | 5° | — | default | Leaving Up needs +15°, leaving Down −20°. Too small: the arrow flickers near a boundary. Too large: the held state lags the hand |
+| Up angle | +10° from rest | — | default (was +20° from the horizontal until 2026-11-07) | Fingers this far above their **resting angle** read as Up. Neutral is now the angle the hand rests at once settled in the pose, because a relaxed handshake pose points a little downward and thresholds from the horizontal made Same unreachable and the tilt too big. Lower than Down because the wrist bends less far toward the thumb. All values are guesses from the student's report, not measurements |
+| Down angle | −14° from rest | — | default (was −25°) | Fingers this far below their resting angle read as Down |
+| Direction hysteresis | 4° | — | default (was 5°) | Leaving Up needs +6°, leaving Down −10° from rest, so Same is about 16° wide. Too small: the arrow flickers near a boundary. Too large: the held state lags the hand |
+| Rest settle | 0.4 s | — | default | The hand must hold the pose this long before its resting angle and lane are taken as neutral (gate shows "settling" meanwhile). Re-taken on re-centre and whenever the input is switched off and on |
 | Look-back | 50 ms | — | default | The direction and the register zone are read this long before the crossing, because a fast swing drags the tilt. Too long: reads the previous gesture. Too short: reads the drag |
 | Crossing source | Finger Ray | — | default | **Added 2026-11-07 because Palm Position was hard to control.** Finger Ray casts a ray along the fingers (wrist → middle knuckle) at a vertical plane in front of the user; the trigger line is on that plane, so a wrist movement crosses it. Palm Position is the original: the whole hand must cross the line in space. Unverified on a headset |
 | Pointing plane distance | 0.55 m | — | default | Finger Ray only: how far beyond the resting hand the plane stands. About 1 cm of hit-point travel per degree of wrist movement at 0.55 m, so the 2 cm dead band is about 2°. Raise it for a more sensitive swing |
