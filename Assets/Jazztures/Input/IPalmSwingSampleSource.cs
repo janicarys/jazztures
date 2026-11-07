@@ -4,8 +4,8 @@ namespace Jazztures.Input
 {
     /// <summary>
     /// Where <see cref="PalmSwingInputSource"/> gets one frame of right-hand state, already in the lane frame
-    /// (ADR-0078). The real headset implementation is <see cref="MetaXRPalmSwingSampleSource"/>; the editor
-    /// uses <c>EditorSimulatedPalmInput</c> so the whole chain runs in Play mode without a headset.
+    /// (ADR-0078). The implementation is <see cref="MetaXRPalmSwingSampleSource"/>; the interface keeps
+    /// <see cref="PalmSwingInputSource"/> free of the SDK.
     /// </summary>
     public interface IPalmSwingSampleSource
     {

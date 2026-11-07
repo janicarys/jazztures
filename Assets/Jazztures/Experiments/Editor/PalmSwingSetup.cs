@@ -71,7 +71,6 @@ namespace Jazztures.Experiments.Editor
             }
 
             var meta = Ensure<MetaXRPalmSwingSampleSource>(go);
-            var sim = Ensure<EditorSimulatedPalmInput>(go);
             var input = Ensure<PalmSwingInputSource>(go);
             var view = Ensure<PalmSwingView>(go);
             var binder = Ensure<PalmSwingViewBinder>(go);
@@ -82,7 +81,6 @@ namespace Jazztures.Experiments.Editor
             Set(meta, "_settings", settings);
             Set(input, "_settings", settings);
             Set(input, "_sampleSource", meta);
-            Set(input, "_editorSimulation", sim);
             Set(view, "_head", head);
             Set(binder, "_palmSwing", input);
             Set(binder, "_headsetSource", meta);
@@ -111,7 +109,7 @@ namespace Jazztures.Experiments.Editor
             Undo.CollapseUndoOperations(group);
             EditorSceneManager.MarkSceneDirty(root.gameObject.scene);
             Debug.Log(palmSwing
-                ? "Palm swing setup: the right hand now plays the palm swing (Play mode uses the keyboard simulation: ↑/↓ tilt, A/D swing, Space gate). Switch back with Jazztures ▸ Experiments ▸ Use Finger Bend Again, or the Mode field on 'Palm Swing Input'. Save the scene (Ctrl+S)."
+                ? "Palm swing setup: the right hand now plays the palm swing (it needs the headset or Link: there is no keyboard stand-in). Switch back with Jazztures ▸ Experiments ▸ Use Finger Bend Again, or the Mode field on 'Palm Swing Input'. Save the scene (Ctrl+S)."
                 : "Palm swing setup: the right hand is back on the finger bends; the palm-swing input stays in the scene. Save the scene (Ctrl+S).");
         }
 

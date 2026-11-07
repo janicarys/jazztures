@@ -167,6 +167,7 @@ MonoBehaviour:
   _noteChannel: {fileID: 11400000, guid: 43f958cab8fb0b246b9829f3181537d2, type: 2}
   _touchTargets: {fileID: 1001962249}
   _fingerBend: {fileID: 698819752}
+  _palmSwing: {fileID: 1785984398}
 --- !u!114 &119089427
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -201,6 +202,7 @@ Transform:
   - {fileID: 1391259294}
   - {fileID: 698819754}
   - {fileID: 536244853}
+  - {fileID: 1785984404}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &119089429
@@ -2999,7 +3001,7 @@ MonoBehaviour:
   _catalog: {fileID: 11400000, guid: 309c59715a97ba04eb432e4e18ce4ca5, type: 2}
   _runner: {fileID: 771001001}
   _hud: {fileID: 771002003}
-  _melodyInput: {fileID: 698819752}
+  _melodyInput: {fileID: 1785984401}
   _performance: {fileID: 119089426}
   _freePlayMetronome: {fileID: 1391259296}
   _menuView: {fileID: 1677165494}
@@ -3401,6 +3403,143 @@ Transform:
   - {fileID: 125284774}
   - {fileID: 1192966268}
   m_Father: {fileID: 1912120936}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1785984397
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1785984404}
+  - component: {fileID: 1785984400}
+  - component: {fileID: 1785984399}
+  - component: {fileID: 1785984398}
+  - component: {fileID: 1785984403}
+  - component: {fileID: 1785984402}
+  - component: {fileID: 1785984401}
+  m_Layer: 0
+  m_Name: Palm Swing Input
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1785984398
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1785984397}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ba918ff2bb84ccbb017813839449096, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Input::Jazztures.Input.PalmSwingInputSource
+  _settings: {fileID: 11400000, guid: fca8cbb469e04deab08cfad193a47fe3, type: 2}
+  _sampleSource: {fileID: 1785984400}
+  _fallbackFunction: 0
+  _editorSimulation: {fileID: 1785984399}
+  _useSimulationInEditor: 1
+--- !u!114 &1785984399
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1785984397}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bcac6b48a01b41e3b94f2368b2df6bb7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Input::Jazztures.Input.EditorSimulatedPalmInput
+  _tiltStepDegrees: 15
+  _maxTiltDegrees: 60
+  _swingMetresPerSecond: 0.8
+  _fastMultiplier: 3
+  _heightMetresPerSecond: 0.25
+  _mouseMetresPerPixel: 0.002
+  _snapMetres: 0.1
+  _maxLateralMetres: 0.25
+  _maxHeightMetres: 0.3
+  _showOverlay: 1
+--- !u!114 &1785984400
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1785984397}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ea7263b3c694b14bd98bac69e224465, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Input::Jazztures.Input.MetaXRPalmSwingSampleSource
+  _rightHand: {fileID: 1265530301}
+  _head: {fileID: 368964558}
+  _settings: {fileID: 11400000, guid: fca8cbb469e04deab08cfad193a47fe3, type: 2}
+--- !u!114 &1785984401
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1785984397}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a4ad6fe2ba7415dbc6954e3036323a5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Input::Jazztures.Input.RightHandInputSwitch
+  _mode: 1
+  _fingerBend: {fileID: 698819752}
+  _palmSwing: {fileID: 1785984398}
+--- !u!114 &1785984402
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1785984397}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ceea1f667aab41a3914fbdaed87efa6c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.App::Jazztures.App.PalmSwingViewBinder
+  _palmSwing: {fileID: 1785984398}
+  _headsetSource: {fileID: 1785984400}
+  _view: {fileID: 1785984403}
+  _settings: {fileID: 11400000, guid: fca8cbb469e04deab08cfad193a47fe3, type: 2}
+  _head: {fileID: 368964558}
+--- !u!114 &1785984403
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1785984397}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 407593d22a05430fa8f5aeedb99d8100, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Jazztures.Presentation::Jazztures.Presentation.PalmSwingView
+  _head: {fileID: 368964558}
+  _hint: open palm, facing left
+--- !u!4 &1785984404
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1785984397}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 119089428}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1793244529
 GameObject:

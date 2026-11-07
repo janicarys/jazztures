@@ -57,11 +57,13 @@ nothing here settles it. `TODO(OPEN)`: decide after trying both in free play.
   `MelodyCursor`, `RegisterZoneClassifier`, `PalmSwingPipeline` (the chain, one sample in, one note out) and `PhraseResetPolicy`/`PhraseStart`.
   `MelodyEngine` gained `PlayPitch(pitch, speed)`; `TriggerTarget` now calls it, so finger-bend behaviour is unchanged.
 - **Unity:** `PalmSwingInputSource` (feeds the pipeline on the musical clock and sounds through `PlayPitch`, so the learning-mode gate, sampler and
-  recording work unchanged), `MetaXRPalmSwingSampleSource` (gate, world-space pitch angle, lane frame), `EditorSimulatedPalmInput` (keyboard),
-  `RightHandInputSwitch` (FingerBend / PalmSwing without code changes; it is the lesson flow's melody input), `PalmSwingView` (central-view line,
+  recording work unchanged), `MetaXRPalmSwingSampleSource` (gate, world-space pitch angle, lane frame), `RightHandInputSwitch` (FingerBend / PalmSwing without code changes; it is the lesson flow's melody input), `PalmSwingView` (central-view line,
   note marker, direction, at-limit, zone bars), `PalmSwingViewBinder` (glue between the input and the view), `PalmSwingSettings` (every `[TUNABLE]`).
 - **`Jazztures > Experiments > Use Palm-Swing Input` / `Use Finger Bend Again`** (`PalmSwingSetup`) wires the input into the open scene beside the finger
   bend (adding the finger bend first if missing). Both inputs stay in the scene; the switch picks one. Free play and the lessons use whichever it picks.
+
+### Cut after being built (2026-11-07)
+A keyboard stand-in for the right hand (`EditorSimulatedPalmInput`, for Play mode without a headset) was built and then removed at the student's request: the palm swing is tried on the headset or over Link only.
 
 ### A drill sandbox was built, then cut (2026-11-07)
 The brief asked for a sandbox scene: looping ii-V-I, a count-in, UU / DD / UD / DU drills in straight or swung rhythm, a scored CSV, and finger bend scored
@@ -76,9 +78,8 @@ comparison of palm swing against finger bend.** If the adviser asks for hit rate
   lessons (L4-L5 would be the place) to use.
 - **No new Core interface for "right-hand input".** Core never sees the hand; the existing seam is the binder `Behaviour` the lesson flow enables, so the
   switch sits there. A Core interface would have had nothing to abstract.
-- **Lane origin = the palm's resting position** (as specified), so on a headset the "right lane offset" cannot be enforced: it places the view only in the
-  editor simulation. Whether a leftward swing meets the left hand's strike plane is a headset check. The lane is re-set whenever the input is switched off
-  and on (between lessons); there is no re-centre trigger on a headset, only `PalmSwingInputSource.Recenter()` and the simulation's **R** key.
+- **Lane origin = the palm's resting position** (as specified), so the "right lane offset" cannot be enforced: it places the view only until the hand has been seen. Whether a leftward swing meets the left hand's strike plane is a headset check. The lane is re-set whenever the input is switched off
+  and on (between lessons); there is no re-centre trigger, only `PalmSwingInputSource.Recenter()`.
 - Height zones are switched on in `PalmSwingSettings` (Register Source), not at runtime.
 
 ### Not verified

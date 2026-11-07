@@ -11,9 +11,9 @@ namespace Jazztures.App
     /// each note, and where the lane is.
     ///
     /// <para>
-    /// On a headset the lane is the one the hand reader set when the gate first opened (the palm's resting position). In
-    /// the editor simulation, or before the hand has been seen, the trigger line stands in the right lane in front of the
-    /// head, at <c>Lane Offset Right</c> and <c>Lane Distance</c> from <see cref="PalmSwingSettings"/>.
+    /// The lane is the one the hand reader set when the gate first opened (the palm's resting position). Until the hand
+    /// has been seen, the trigger line stands in the right lane in front of the head, at <c>Lane Offset Right</c> and
+    /// <c>Lane Distance</c> from <see cref="PalmSwingSettings"/>, so the "open palm, facing left" hint has somewhere to be.
     /// </para>
     /// </summary>
     public sealed class PalmSwingViewBinder : MonoBehaviour
@@ -55,7 +55,7 @@ namespace Jazztures.App
 
         private void LateUpdate()
         {
-            if (_headsetSource != null && _headsetSource.LaneSet && !_palmSwing.UsesSimulation)
+            if (_headsetSource != null && _headsetSource.LaneSet)
             {
                 _view.SetLane(_headsetSource.LaneOrigin, _headsetSource.LaneRight);
                 return;

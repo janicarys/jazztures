@@ -336,7 +336,7 @@ All `[TUNABLE]` and **entirely unmeasured** (no headset session yet). Pilot-cali
 | Safe MIDI range | 48-103 | — | default | The final pitch is clamped here once an octave shift is added (the sampler reaches 108) |
 | Palm-facing-left gate | normal · right < −0.6 | — | default | Uses the SDK's palmar axis, assumed to point out of the palm: **verify the sign on device** |
 | Open-hand gate | every finger curl < 0.35 | — | default | Index..pinky, the SDK's own curl, normalised with its `CURL_RANGE`. The thumb is left out (it flickers). Well clear of the menu's fist (≥ 0.75 held 1 s), so the pose cannot exit a lesson |
-| Lane offset / distance | 0.25 m / 0.55 m | — | default | **Editor simulation only.** On a headset the lane origin is the palm's resting position when the gate first opens (ADR-0078) |
+| Lane offset / distance | 0.25 m / 0.55 m | — | default | Only where the trigger line and hint stand **until the hand has been seen**. After that the lane origin is the palm's resting position when the gate first opens (ADR-0078) |
 | Note length / velocity | the melody engine's | — | reused | Fixed melody sustain; velocity from the lateral speed at the crossing through the existing `VelocityCurve` (never below the §3.3 floor) |
 
 ### Right-hand note labels — `Config/MelodyConfig.asset` (ADR-0044)

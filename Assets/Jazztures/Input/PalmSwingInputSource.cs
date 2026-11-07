@@ -27,20 +27,12 @@ namespace Jazztures.Input
     {
         [SerializeField] private PalmSwingSettings _settings;
 
-        [Tooltip("A component implementing IPalmSwingSampleSource: the Meta hand reader on a headset, " +
-                 "EditorSimulatedPalmInput in the editor.")]
+        [Tooltip("A component implementing IPalmSwingSampleSource: the Meta hand reader.")]
         [SerializeField] private MonoBehaviour _sampleSource;
 
         [Tooltip("The chord the melody uses until the left hand has held one, and the one it keeps when the " +
                  "left hand lets go. A lesson where the left hand has not played yet must not silence the right.")]
         [SerializeField] private ChordFunction _fallbackFunction = ChordFunction.Two;
-
-        [Tooltip("Editor only: an IPalmSwingSampleSource to use in Play mode instead of the headset reader " +
-                 "(EditorSimulatedPalmInput). Ignored in a build.")]
-        [SerializeField] private MonoBehaviour _editorSimulation;
-
-        [Tooltip("Editor only: use the simulation above. Untick to drive the editor from a real hand over Link.")]
-        [SerializeField] private bool _useSimulationInEditor = true;
 
         private IMusicalClock _clock;
         private MelodyEngine _melody;
@@ -58,9 +50,6 @@ namespace Jazztures.Input
 
         public bool GateOpen => Pipeline != null && Pipeline.GateOpen;
 
-        /// <summary>True when the editor simulation, not the headset reader, is driving this input.</summary>
-        public bool UsesSimulation { get; private set; }
-
         /// <summary>Wire the domain up. Call once, from the composition root's <c>Awake</c>.</summary>
         public void Bind(IMusicalClock clock, MelodyEngine melody, HarmonyEngine harmony)
         {
@@ -69,13 +58,6 @@ namespace Jazztures.Input
             _harmony = harmony;
 
             _source = _sampleSource as IPalmSwingSampleSource;
-#if UNITY_EDITOR
-            if (_useSimulationInEditor && _editorSimulation is IPalmSwingSampleSource simulated)
-            {
-                _source = simulated;
-                UsesSimulation = true;
-            }
-#endif
             if (_source == null || _settings == null)
             {
                 Debug.LogError(
