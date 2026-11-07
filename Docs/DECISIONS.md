@@ -86,6 +86,14 @@ It costs about that much lag and delays the crossing timestamp by the same; Core
 in the view (0.05 s, visual only). **The line:** moving the trigger line up and down with the hand was distracting, so it is long (0.5 m) and fixed again; only the dot
 follows the hand, which the student liked.
 
+### The lane follows the body (2026-11-07)
+The student asked for the line, both the visual and the actual target, to follow the learner horizontally the way the left hand's strike plate does. The lane
+(the line's origin and the plane the finger ray is cast at) is now stored in a body frame and re-evaluated every frame: it follows the head's position, and its yaw
+through the same `LazyRecenter` with `LazyRecenterSettings.Default` that ADR-0015 and ADR-0040 use, horizontally only (its height stays where it was set). The trigger's
+lateral position is measured against the lane as it now stands, so the target moves with the line. The palm-left gate and the pointing check use the same committed
+facing rather than the head's instantaneous one, so a small head turn cannot flicker the gate. **Unverified on a headset:** the follow values are borrowed, not tuned for this input,
+and a lane that moves while the hand is crossing it could in principle create or hide a crossing; walking mid-phrase is the case to try.
+
 ### Cut after being built (2026-11-07)
 A keyboard stand-in for the right hand (`EditorSimulatedPalmInput`, for Play mode without a headset) was built and then removed at the student's request: the palm swing is tried on the headset or over Link only.
 

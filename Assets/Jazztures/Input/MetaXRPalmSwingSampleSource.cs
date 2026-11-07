@@ -24,8 +24,11 @@ namespace Jazztures.Input
     /// angle the hand rested at</i> once settled in the pose, so neutral is wherever the hand naturally sits.
     /// </para>
     /// <para>
-    /// <b>Lane frame.</b> Origin = the palm centre when the gate first opens (or on <see cref="Recenter"/>);
-    /// left-right axis = the head's right vector flattened to the horizontal at that moment (yaw only).
+    /// <b>Lane frame.</b> Origin = the palm centre once the pose has settled (or on <see cref="Recenter"/>); left-right
+    /// axis = the body's right, from the head's yaw only. The lane is then <b>body-anchored</b>, as the left hand's strike
+    /// plate is (ADR-0040): it follows the head's position every frame and its yaw lazily (the same <c>LazyRecenter</c>),
+    /// horizontally only, so walking or turning carries the trigger line and the plane the ray is cast at along with the
+    /// learner, and the trigger's lateral position is measured against the lane as it now stands.
     /// Lateral position is, by the <c>Crossing Source</c> setting, the palm centre's offset along it
     /// (<c>Palm Position</c>) or the hit point of a ray along the fingers on a vertical plane in front of the user
     /// (<c>Finger Ray</c>, where the origin is the resting ray's hit, so the line stands where the fingers pointed). Height
@@ -56,7 +59,12 @@ namespace Jazztures.Input
         private IHand _hand;
         private bool _laneSet;
         private Vector3 _laneOrigin;            // where the trigger line stands: the resting palm, or the resting ray's hit
-        private Vector3 _restPalm;              // the palm centre when the lane was set: the origin of "height"
+        private float _restPalmY;               // the palm centre's height when the lane was set: the origin of "height"
+        private LazyRecenter _recenter;         // follows the head's yaw lazily, as the strike plate and melody arc do (ADR-0040)
+        private float _lastYaw;
+        private Quaternion _facing = Quaternion.identity;
+        private Vector3 _originBody;            // the line's origin and the plane's point in the body frame: x, z relative to the
+        private Vector3 _planeBody;             // head and turned by the committed facing; y is a world height (no vertical follow)
         private Vector3 _laneRight = Vector3.right;
         private Vector3 _laneForward = Vector3.forward;
         private Vector3 _planePoint;            // Finger Ray: a point on the vertical plane the ray is cast at
@@ -105,6 +113,7 @@ namespace Jazztures.Input
         {
             // A new lesson / exercise gets a fresh lane, set where the hand is when it first opens.
             _laneSet = false;
+            _recenter = null;
         }
 
         public void Recenter() => _recenterRequested = true;
@@ -116,6 +125,8 @@ namespace Jazztures.Input
                 GateClosedReason = "not wired";
                 return Closed();
             }
+
+            UpdateFrame();
 
             if (!_hand.IsTrackedDataValid
                 || !_hand.GetJointPose(HandJointId.HandWristRoot, out Pose wrist)
@@ -134,14 +145,7 @@ namespace Jazztures.Input
                 }
             }
 
-            Vector3 userRight = Vector3.ProjectOnPlane(_head.right, Vector3.up);
-            if (userRight.sqrMagnitude < 1e-6f)
-            {
-                GateClosedReason = "head looking straight up or down";
-                return Closed();
-            }
-
-            userRight.Normalize();
+            Vector3 userRight = _facing * Vector3.right; // the body's right: the lane's frame, not the head's instantaneous one
 
             Vector3 palmar = _hand.Handedness == Handedness.Left ? Constants.LeftPalmar : Constants.RightPalmar;
             Vector3 palmNormal = wrist.rotation * palmar;
@@ -165,7 +169,7 @@ namespace Jazztures.Input
             Vector3 palmCentre = (wrist.position + knuckle.position) * 0.5f;
             Vector3 along = (knuckle.position - wrist.position).normalized;
             bool ray = _settings.CrossingSource == PalmSwingCrossingSource.FingerRay;
-            Vector3 forward = Vector3.Cross(userRight, Vector3.up);
+            Vector3 forward = _facing * Vector3.forward;
 
             // Finger Ray: the fingers must point toward the front, or the ray meets the plane far away or behind.
             if (ray && Vector3.Dot(along, forward) < _settings.MinPointingFacing)
@@ -195,9 +199,11 @@ namespace Jazztures.Input
                 _restPitch = rawPitch;
                 _laneRight = userRight;
                 _laneForward = forward;
-                _restPalm = palmCentre;
+                _restPalmY = palmCentre.y;
                 _planePoint = palmCentre + forward * _settings.PointingPlaneDistanceMetres;
                 _laneOrigin = ray ? RayHit(palmCentre, along) : palmCentre;
+                _originBody = ToBody(_laneOrigin);
+                _planeBody = ToBody(_planePoint);
                 _laneSet = true;
                 _recenterRequested = false;
             }
@@ -207,8 +213,53 @@ namespace Jazztures.Input
             PointerWorld = position;
             PointerValid = true;
             float lateral = Vector3.Dot(position - _laneOrigin, _laneRight);
-            float height = (palmCentre - _restPalm).y;
+            float height = palmCentre.y - _restPalmY;
             return new PalmSwingSample(0.0, true, rawPitch - _restPitch, lateral, height);
+        }
+
+        // The body frame: the head's position, turned by the lazily-followed facing, like the strike plate. The lane
+        // (the trigger line, and the plane the finger ray is cast at) is stored in it, so walking or turning carries both
+        // the visual line and the actual target along. Horizontal only: the stored y is a world height.
+        private void UpdateFrame()
+        {
+            Vector3 flat = _head.forward;
+            flat.y = 0f;
+            if (flat.sqrMagnitude > 1e-6f)
+            {
+                _lastYaw = Mathf.Atan2(flat.x, flat.z); // looking straight up or down: hold the last heading
+            }
+
+            if (_recenter == null)
+            {
+                _recenter = new LazyRecenter(LazyRecenterSettings.Default, _lastYaw);
+            }
+            else if (_recenterRequested)
+            {
+                _recenter.Reset(_lastYaw);
+            }
+
+            float committed = (float)_recenter.Update(_lastYaw, Time.unscaledDeltaTime);
+            _facing = Quaternion.AngleAxis(committed * Mathf.Rad2Deg, Vector3.up);
+
+            if (_laneSet)
+            {
+                _laneRight = _facing * Vector3.right;
+                _laneForward = _facing * Vector3.forward;
+                _laneOrigin = FromBody(_originBody);
+                _planePoint = FromBody(_planeBody);
+            }
+        }
+
+        private Vector3 ToBody(Vector3 world)
+        {
+            Vector3 local = Quaternion.Inverse(_facing) * new Vector3(world.x - _head.position.x, 0f, world.z - _head.position.z);
+            return new Vector3(local.x, world.y, local.z);
+        }
+
+        private Vector3 FromBody(Vector3 body)
+        {
+            Vector3 flat = _facing * new Vector3(body.x, 0f, body.z);
+            return new Vector3(_head.position.x + flat.x, body.y, _head.position.z + flat.z);
         }
 
         // Where a ray from `origin` along `direction` meets the vertical plane through _planePoint. The caller has
