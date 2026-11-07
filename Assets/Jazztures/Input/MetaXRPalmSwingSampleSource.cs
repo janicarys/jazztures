@@ -1,6 +1,7 @@
 using Jazztures.Config;
 using Jazztures.Core.Melody;
 using Oculus.Interaction.Input;
+using Oculus.Interaction.PoseDetection;
 using UnityEngine;
 
 namespace Jazztures.Input
