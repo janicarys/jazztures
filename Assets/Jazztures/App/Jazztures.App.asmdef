@@ -9,7 +9,8 @@
         "Jazztures.Events",
         "Jazztures.Diagnostics",
         "Jazztures.Lessons",
-        "Jazztures.Presentation"
+        "Jazztures.Presentation",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

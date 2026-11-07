@@ -35,10 +35,18 @@ namespace Jazztures.Input
                  "left hand lets go. A lesson where the left hand has not played yet must not silence the right.")]
         [SerializeField] private ChordFunction _fallbackFunction = ChordFunction.Two;
 
+        [Tooltip("Editor only: an IPalmSwingSampleSource to use in Play mode instead of the headset reader " +
+                 "(EditorSimulatedPalmInput). Ignored in a build.")]
+        [SerializeField] private MonoBehaviour _editorSimulation;
+
+        [Tooltip("Editor only: use the simulation above. Untick to drive the editor from a real hand over Link.")]
+        [SerializeField] private bool _useSimulationInEditor = true;
+
         private IMusicalClock _clock;
         private MelodyEngine _melody;
         private HarmonyEngine _harmony;
         private IPalmSwingSampleSource _source;
+        private RegisterSource? _registerOverride;
 
         /// <summary>The pure pipeline; null until <see cref="Bind"/>. Visuals and the sandbox read its state.</summary>
         public PalmSwingPipeline Pipeline { get; private set; }
@@ -49,7 +57,16 @@ namespace Jazztures.Input
         /// <summary>Raised after each note is handed to the melody engine.</summary>
         public event Action<PalmSwingNote> NotePlayed;
 
+        /// <summary>Raised when <see cref="Pipeline"/> was replaced (see <see cref="SetRegisterSource"/>): re-subscribe to its events.</summary>
+        public event Action<PalmSwingPipeline> PipelineRebuilt;
+
+        /// <summary>The register source in force: the runtime override if one was set, else the settings asset's.</summary>
+        public RegisterSource RegisterSource => _registerOverride ?? _settings.RegisterSource;
+
         public bool GateOpen => Pipeline != null && Pipeline.GateOpen;
+
+        /// <summary>True when the editor simulation, not the headset reader, is driving this input.</summary>
+        public bool UsesSimulation { get; private set; }
 
         /// <summary>Wire the domain up. Call once, from the composition root's <c>Awake</c>.</summary>
         public void Bind(IMusicalClock clock, MelodyEngine melody, HarmonyEngine harmony)
@@ -59,6 +76,13 @@ namespace Jazztures.Input
             _harmony = harmony;
 
             _source = _sampleSource as IPalmSwingSampleSource;
+#if UNITY_EDITOR
+            if (_useSimulationInEditor && _editorSimulation is IPalmSwingSampleSource simulated)
+            {
+                _source = simulated;
+                UsesSimulation = true;
+            }
+#endif
             if (_source == null || _settings == null)
             {
                 Debug.LogError(
@@ -68,9 +92,32 @@ namespace Jazztures.Input
                 return;
             }
 
-            Chord fallback = Progression.ChordFor(_fallbackFunction);
-            Pipeline = new PalmSwingPipeline(_settings.ToParameters(), fallback);
+            BuildPipeline(Progression.ChordFor(_fallbackFunction));
             harmony.ChordChanged += change => Pipeline.OnChordChanged(change.CurrentChord);
+        }
+
+        /// <summary>
+        /// Switch between no register logic and hand-height zones without touching the settings asset (a Play-mode
+        /// edit of a ScriptableObject would stick). Rebuilds the pipeline, keeping the chord it was on; call it
+        /// between runs, not mid-phrase.
+        /// </summary>
+        public void SetRegisterSource(RegisterSource source)
+        {
+            if (Pipeline == null || RegisterSource == source)
+            {
+                return;
+            }
+
+            _registerOverride = source;
+            BuildPipeline(Pipeline.Chord);
+        }
+
+        private void BuildPipeline(Chord chord)
+        {
+            PalmSwingParameters parameters = _settings.ToParameters();
+            parameters.Register = RegisterSource;
+            Pipeline = new PalmSwingPipeline(parameters, chord);
+            PipelineRebuilt?.Invoke(Pipeline);
         }
 
         /// <summary>Re-centre the lane on the hand and head as they are now (debug key or menu action).</summary>

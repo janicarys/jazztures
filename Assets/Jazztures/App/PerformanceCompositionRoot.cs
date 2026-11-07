@@ -94,6 +94,9 @@ namespace Jazztures.App
             + "Optional; bound to the same melody engine and harmony engine as the finger-bend input.")]
         [SerializeField] private Jazztures.Input.PalmSwingInputSource _palmSwing;
 
+        [Tooltip("The palm-swing sandbox (ADR-0078): drill, count-in, scoring and CSV. Optional; only the sandbox scene has one.")]
+        [SerializeField] private PalmSwingSandbox _palmSwingSandbox;
+
         private IHandPoseSource _poseSource;
         private GestureInterpreter _interpreter;
         private ChordStrikeDetector _strikeDetector;
@@ -276,6 +279,11 @@ namespace Jazztures.App
             if (_palmSwing != null)
             {
                 _palmSwing.Bind(clock, _melody, _harmony);
+            }
+
+            if (_palmSwingSandbox != null)
+            {
+                _palmSwingSandbox.Bind(clock, _gate, _scriptedHarmony, metronomeOutput);
             }
 
             if (_touchTargets != null)

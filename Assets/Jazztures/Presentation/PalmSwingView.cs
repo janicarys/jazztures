@@ -51,6 +51,11 @@ namespace Jazztures.Presentation
         /// <summary>Wire to the pipeline whose state is shown. Safe to call once, before or after enabling.</summary>
         public void Bind(PalmSwingPipeline pipeline)
         {
+            if (_pipeline != null)
+            {
+                _pipeline.PhraseReset -= OnReset;
+            }
+
             _pipeline = pipeline;
             pipeline.PhraseReset += OnReset;
             ShowLetter(pipeline.CursorPitch);
