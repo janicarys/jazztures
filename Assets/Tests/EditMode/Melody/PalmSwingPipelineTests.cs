@@ -454,5 +454,60 @@ namespace Jazztures.Tests.EditMode.Melody
 
             Assert.That(hand.Pitches, Is.EqualTo(new[] { 90 }));
         }
+
+        // ---- smoothing ----
+
+        [Test]
+        public void WithSmoothing_TheScriptedPathStillPlaysTheSamePitches()
+        {
+            var hand = new Hand(Make(p => p.SmoothingSeconds = 0.04));
+
+            hand.Angle = 30f;
+            hand.Hold(0.3);
+            hand.Swing(0.08f, 0.3);
+            hand.Swing(-0.08f, 0.3);
+            hand.Angle = -35f;
+            hand.Hold(0.3);
+            hand.Swing(0.08f, 0.3);
+
+            Assert.That(hand.Pitches, Is.EqualTo(new[] { 84, 86, 84 }));
+        }
+
+        [Test]
+        public void ASingleFrameSpikeAcrossTheLine_SoundsWithoutSmoothing_ButNotWithIt()
+        {
+            int Run(double smoothing)
+            {
+                var hand = new Hand(Make(p => p.SmoothingSeconds = smoothing));
+                hand.Angle = 30f;
+                hand.Hold(0.3);
+                hand.X = 0.08f;
+                hand.Tick(); // one bad tracking frame on the far side
+                hand.X = -0.08f;
+                hand.Hold(0.3);
+                return hand.Notes.Count;
+            }
+
+            Assert.That(Run(0.0), Is.EqualTo(1));
+            Assert.That(Run(0.04), Is.Zero);
+        }
+
+        [Test]
+        public void ASingleFrameTiltSpike_ReadsUpWithoutSmoothing_ButNotWithIt()
+        {
+            StepDirection Run(double smoothing)
+            {
+                PalmSwingPipeline pipeline = Make(p => p.SmoothingSeconds = smoothing);
+                var hand = new Hand(pipeline);
+                hand.Angle = 0f;
+                hand.Hold(0.3);
+                hand.Angle = 40f;
+                hand.Tick(); // one bad tracking frame
+                return pipeline.HeldDirection;
+            }
+
+            Assert.That(Run(0.0), Is.EqualTo(StepDirection.Up));
+            Assert.That(Run(0.04), Is.EqualTo(StepDirection.Same));
+        }
     }
 }

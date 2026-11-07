@@ -23,6 +23,9 @@ namespace Jazztures.Core.Melody
         private readonly CrossingTrigger _trigger;
         private readonly DirectionHistory _history = new DirectionHistory();
         private readonly RegisterZoneClassifier _zones;
+        private readonly MotionSmoother _angleSmoother;
+        private readonly MotionSmoother _lateralSmoother;
+        private readonly MotionSmoother _heightSmoother;
         private readonly MelodyCursor _cursor;
         private readonly bool _useZones;
         private readonly int _middleZone;
@@ -38,6 +41,9 @@ namespace Jazztures.Core.Melody
             _classifier = new DirectionClassifier(parameters.Direction);
             _trigger = new CrossingTrigger(parameters.Crossing);
             _zones = new RegisterZoneClassifier(parameters.Zones);
+            _angleSmoother = new MotionSmoother(parameters.SmoothingSeconds);
+            _lateralSmoother = new MotionSmoother(parameters.SmoothingSeconds);
+            _heightSmoother = new MotionSmoother(parameters.SmoothingSeconds);
             _middleZone = parameters.Zones.MiddleZone;
             _useZones = parameters.Register == RegisterSource.HandHeightZones;
             _cursor = new MelodyCursor(parameters.StartIndexFraction);
@@ -111,6 +117,9 @@ namespace Jazztures.Core.Melody
             _trigger.Reset();
             _classifier.Reset();
             _zones.Reset();
+            _angleSmoother.Reset();
+            _lateralSmoother.Reset();
+            _heightSmoother.Reset();
             _history.Clear();
         }
 
@@ -137,11 +146,16 @@ namespace Jazztures.Core.Melody
                 ApplyReset(PhraseResetReason.Rest);
             }
 
-            StepDirection direction = _classifier.Update(sample.PitchAngleDegrees);
-            int zone = _useZones ? _zones.Update(sample.HeightMetres) : 0;
+            // Smooth the raw hand signals first: tracking jitter would flicker the tilt and put stray crossings on the line.
+            float angle = _angleSmoother.Update(sample.Time, sample.PitchAngleDegrees);
+            float lateral = _lateralSmoother.Update(sample.Time, sample.LateralMetres);
+            float height = _heightSmoother.Update(sample.Time, sample.HeightMetres);
+
+            StepDirection direction = _classifier.Update(angle);
+            int zone = _useZones ? _zones.Update(height) : 0;
             _history.Record(sample.Time, direction, zone);
 
-            if (!_trigger.Update(sample.Time, sample.LateralMetres))
+            if (!_trigger.Update(sample.Time, lateral))
             {
                 return false;
             }

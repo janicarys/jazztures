@@ -319,6 +319,7 @@ All `[TUNABLE]` and **entirely unmeasured** (no headset session yet). Pilot-cali
 
 | Parameter | Default | Measured | Status | Notes |
 | --------- | ------- | -------- | ------ | ----- |
+| Motion smoothing | 0.04 s | — | default (2026-11-07) | Time constant of a low-pass filter on the tilt, swing and height signals, applied in `PalmSwingPipeline` before the tilt classifier and the trigger line. Removes tracking jitter (a flickering arrow, stray notes at the line) at the cost of about this much lag, which also delays the crossing's timestamp. 0 = off. Frame-rate independent. The cursor has its own 0.05 s easing in `PalmSwingView` (visual only, no effect on timing) |
 | Up angle | +10° from rest | — | default (was +20° from the horizontal until 2026-11-07) | Fingers this far above their **resting angle** read as Up. Neutral is now the angle the hand rests at once settled in the pose, because a relaxed handshake pose points a little downward and thresholds from the horizontal made Same unreachable and the tilt too big. Lower than Down because the wrist bends less far toward the thumb. All values are guesses from the student's report, not measurements |
 | Down angle | −14° from rest | — | default (was −25°) | Fingers this far below their resting angle read as Down |
 | Direction hysteresis | 4° | — | default (was 5°) | Leaving Up needs +6°, leaving Down −10° from rest, so Same is about 16° wide. Too small: the arrow flickers near a boundary. Too large: the held state lags the hand |

@@ -8,9 +8,10 @@ namespace Jazztures.Presentation
     /// The prototype's whole interface for the palm-swing input (ADR-0078), small and kept with the hand, in the
     /// <b>central</b> view (Session 4: peripheral cues cause head turns and lost focus). It is two things:
     /// <list type="bullet">
-    ///   <item>a short vertical <b>trigger line</b>, which stays where it is sideways (it is what the hand crosses) but
-    ///   rides at the hand's height, and flashes on each crossing;</item>
-    ///   <item>a small <b>cursor</b> that follows where the hand is pointing, with beside it the <b>note letter</b> (the
+    ///   <item>a long, fixed vertical <b>trigger line</b> (it is what the hand crosses; moving it with the hand was
+    ///   distracting), which flashes on each crossing;</item>
+    ///   <item>a small <b>cursor</b> dot that follows where the hand is pointing, eased so tracking jitter does not
+    ///   shake it, with beside it the <b>note letter</b> (the
     ///   last note played; the start pitch's letter flashes on a reset), the <b>direction</b> ▲ · ● · ▼ with the
     ///   <i>held</i> one lit (what the next swing will do), an <b>at-limit</b> bar when a step ran off the range, and,
     ///   with height zones on, <b>zone bars</b> with the current one lit.</item>
@@ -22,8 +23,7 @@ namespace Jazztures.Presentation
     /// </summary>
     public sealed class PalmSwingView : MonoBehaviour
     {
-        private const float LineHeightMetres = 0.12f;
-        private const float LineWidthMetres = 0.002f;
+        private const float LineWidthMetres = 0.003f;
         private const float FlashSeconds = 0.18f;
         private const float DimAlpha = 0.25f;
 
@@ -35,8 +35,14 @@ namespace Jazztures.Presentation
 
         [SerializeField] private Transform _head;
 
-        [Tooltip("Scales the whole display about the cursor. 1 is small; the trigger line is not scaled.")]
+        [Tooltip("Scales the cursor and its widgets. 1 is small; the trigger line is not scaled.")]
         [Min(0.3f)] [SerializeField] private float _scale = 1f;
+
+        [Tooltip("How tall the trigger line is, metres. It stays where it was set; only the cursor moves up and down.")]
+        [Min(0.05f)] [SerializeField] private float _lineHeightMetres = 0.5f;
+
+        [Tooltip("Time constant of the easing on the cursor's movement, seconds, on top of the input smoothing. 0 = none.")]
+        [Min(0f)] [SerializeField] private float _cursorFollowSeconds = 0.05f;
 
         [Tooltip("Hint shown while the gate is closed. Plain words: no theory vocabulary.")]
         [SerializeField] private string _hint = "open palm, facing left";
@@ -59,6 +65,7 @@ namespace Jazztures.Presentation
         private Vector3 _laneOrigin;
         private Vector3 _laneRight = Vector3.right;
         private Vector3 _pointer;
+        private Vector3 _shownPointer;
         private float _flashLineUntil = float.NegativeInfinity;
         private float _flashMarkerUntil = float.NegativeInfinity;
 
@@ -83,8 +90,7 @@ namespace Jazztures.Presentation
         }
 
         /// <summary>
-        /// Place the trigger line: <paramref name="origin"/> is where it stands (its horizontal position and depth; the
-        /// line rides at the hand's height), <paramref name="right"/> the horizontal left-to-right axis.
+        /// Place the trigger line: <paramref name="origin"/> is where its middle stands, <paramref name="right"/> the horizontal left-to-right axis.
         /// </summary>
         public void SetLane(Vector3 origin, Vector3 right)
         {
@@ -94,12 +100,18 @@ namespace Jazztures.Presentation
             if (!_hasPointer)
             {
                 _pointer = origin;
+                _shownPointer = origin;
             }
         }
 
         /// <summary>Where the hand is pointing now, in world space: the cursor goes here.</summary>
         public void SetPointer(Vector3 world)
         {
+            if (!_hasPointer)
+            {
+                _shownPointer = world;
+            }
+
             _hasPointer = true;
             _pointer = world;
         }
@@ -118,8 +130,8 @@ namespace Jazztures.Presentation
             _line = _lineRoot.gameObject.AddComponent<LineRenderer>();
             _line.useWorldSpace = false;
             _line.positionCount = 2;
-            _line.SetPosition(0, new Vector3(0f, -LineHeightMetres * 0.5f, 0f));
-            _line.SetPosition(1, new Vector3(0f, LineHeightMetres * 0.5f, 0f));
+            _line.SetPosition(0, new Vector3(0f, -_lineHeightMetres * 0.5f, 0f));
+            _line.SetPosition(1, new Vector3(0f, _lineHeightMetres * 0.5f, 0f));
             _line.widthMultiplier = LineWidthMetres;
             _line.sharedMaterial = _template;
             _line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -179,10 +191,11 @@ namespace Jazztures.Presentation
                 return;
             }
 
-            // The line stands where the lane puts it, but at the height of the hand; the cursor is where the hand points.
-            Vector3 linePosition = new Vector3(_laneOrigin.x, _pointer.y, _laneOrigin.z);
-            Face(_lineRoot, linePosition);
-            Face(_cluster, _pointer);
+            // The line stays where the lane put it; only the cursor moves with the hand, eased a little.
+            float follow = _cursorFollowSeconds <= 0f ? 1f : 1f - Mathf.Exp(-Time.unscaledDeltaTime / _cursorFollowSeconds);
+            _shownPointer = Vector3.Lerp(_shownPointer, _pointer, follow);
+            Face(_lineRoot, _laneOrigin);
+            Face(_cluster, _shownPointer);
             _cluster.localScale = Vector3.one * _scale;
 
             float now = Time.unscaledTime;

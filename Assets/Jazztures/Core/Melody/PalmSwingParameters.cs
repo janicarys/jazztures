@@ -14,6 +14,12 @@ namespace Jazztures.Core.Melody
 
         public RegisterZoneThresholds Zones { get; set; } = RegisterZoneThresholds.Default;
 
+        /// <summary>
+        /// Time constant of the low-pass filter on the tilt angle, lateral position and height, seconds. 0 = off (Core's
+        /// default, so the pure tests see raw samples); the Unity settings asset supplies the real value.
+        /// </summary>
+        public double SmoothingSeconds { get; set; } = 0.0;
+
         /// <summary>How long before a crossing the held direction (and zone) is read, seconds.</summary>
         public double LookBackSeconds { get; set; } = 0.050;
 

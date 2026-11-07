@@ -29,6 +29,10 @@ namespace Jazztures.Config
         [Tooltip("The direction (and register zone) is read this long BEFORE the crossing, because a fast swing drags the hand's tilt.")]
         [Min(0f)] [SerializeField] private float _lookBackSeconds = 0.05f;
 
+        [Header("Smoothing")]
+        [Tooltip("Low-pass time constant on the tilt, swing and height signals, seconds. Removes tracking jitter (stray notes at the line, a flickering arrow) at the cost of about this much lag. 0 = off.")]
+        [Range(0f, 0.2f)] [SerializeField] private float _motionSmoothingSeconds = 0.04f;
+
         [Header("Trigger line")]
         [Tooltip("What crosses the line. Palm Position: the palm centre must cross it in space. Finger Ray: a ray along the " +
                  "fingers is cast at a vertical plane in front of you and the line is on that plane, so pointing the fingers " +
@@ -141,6 +145,7 @@ namespace Jazztures.Config
                 Crossing = new CrossingThresholds(Mathf.Max(0f, _deadzoneMetres), Mathf.Max(0f, _lockoutSeconds)),
                 Zones = new RegisterZoneThresholds(
                     Mathf.Clamp(_zoneCount, 2, 3), Mathf.Max(0.01f, _zoneHeightCm / 100f), Mathf.Max(0f, _zoneHysteresisCm / 100f)),
+                SmoothingSeconds = Mathf.Max(0f, _motionSmoothingSeconds),
                 LookBackSeconds = Mathf.Max(0f, _lookBackSeconds),
                 Register = _registerSource,
                 PitchSet = _pitchSet,

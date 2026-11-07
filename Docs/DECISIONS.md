@@ -79,6 +79,13 @@ After trying the Finger Ray version the student reported three things, all addre
 3. **The tilt to move up or down felt too big:** thresholds are now +10° / −14° from rest with 4° hysteresis (were +20° / −25° / 5° from the horizontal). These numbers are
    guesses from that one report. Core's own defaults are unchanged (its tests use them); the settings asset overrides them.
 
+### Smoothing, and a fixed line (2026-11-07)
+Two further requests after the same session. **Smoothing:** the tilt angle, lateral position and height pass through a frame-rate-independent low-pass filter
+(`MotionSmoother`, 0.04 s by default, tested) before the classifier and the trigger line, so jitter neither flickers the arrow nor puts stray crossings on the line.
+It costs about that much lag and delays the crossing timestamp by the same; Core's own default is 0 (off) so the pure tests see raw samples. The cursor is also eased
+in the view (0.05 s, visual only). **The line:** moving the trigger line up and down with the hand was distracting, so it is long (0.5 m) and fixed again; only the dot
+follows the hand, which the student liked.
+
 ### Cut after being built (2026-11-07)
 A keyboard stand-in for the right hand (`EditorSimulatedPalmInput`, for Play mode without a headset) was built and then removed at the student's request: the palm swing is tried on the headset or over Link only.
 
