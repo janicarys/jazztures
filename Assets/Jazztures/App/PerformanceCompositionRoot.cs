@@ -89,6 +89,11 @@ namespace Jazztures.App
             + "as the touch targets. Only one of the two should be enabled at a time.")]
         [SerializeField] private Jazztures.Input.FingerBendBinder _fingerBend;
 
+        [Tooltip("EXPLORATION (ADR-0078, branch explore/melodic-movement-mapping): the palm-swing melody "
+            + "input — the right hand sets the melody's direction, each swing across a line sounds a note. "
+            + "Optional; bound to the same melody engine and harmony engine as the finger-bend input.")]
+        [SerializeField] private Jazztures.Input.PalmSwingInputSource _palmSwing;
+
         private IHandPoseSource _poseSource;
         private GestureInterpreter _interpreter;
         private ChordStrikeDetector _strikeDetector;
@@ -268,11 +273,16 @@ namespace Jazztures.App
                 _fingerBend.Bind(_melody);
             }
 
+            if (_palmSwing != null)
+            {
+                _palmSwing.Bind(clock, _melody, _harmony);
+            }
+
             if (_touchTargets != null)
             {
                 _touchTargets.Bind(_melody);
             }
-            else if (_fingerBend == null)
+            else if (_fingerBend == null && _palmSwing == null)
             {
                 Debug.LogWarning(
                     $"{nameof(PerformanceCompositionRoot)}: no {nameof(Jazztures.Presentation.TouchTargetBinder)} "
