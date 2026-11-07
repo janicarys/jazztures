@@ -78,6 +78,9 @@ namespace Jazztures.Input
         /// <summary>The lane's origin in world space (valid once the gate has opened).</summary>
         public Vector3 LaneOrigin => _laneOrigin;
 
+        /// <summary>The world height of the middle region: the palm's height when the lane was set (swing slices).</summary>
+        public float RegionOriginY => _restPalmY;
+
         /// <summary>The lane's left-right axis in world space.</summary>
         public Vector3 LaneRight => _laneRight;
 
@@ -202,6 +205,7 @@ namespace Jazztures.Input
                 _restPalmY = palmCentre.y;
                 _planePoint = palmCentre + forward * _settings.PointingPlaneDistanceMetres;
                 _laneOrigin = ray ? RayHit(palmCentre, along) : palmCentre;
+                _laneOrigin.y = _restPalmY; // swing slices: the line, its regions and the lesson circles are centred at the palm's resting height
                 _originBody = ToBody(_laneOrigin);
                 _planeBody = ToBody(_planePoint);
                 _laneSet = true;
@@ -210,7 +214,7 @@ namespace Jazztures.Input
 
             GateClosedReason = null;
             Vector3 position = ray ? RayHit(palmCentre, along) : palmCentre;
-            PointerWorld = position;
+            PointerWorld = new Vector3(position.x, palmCentre.y, position.z); // swing slices: the dot sits at the PALM's height, the line's lateral
             PointerValid = true;
             float lateral = Vector3.Dot(position - _laneOrigin, _laneRight);
             float height = palmCentre.y - _restPalmY;

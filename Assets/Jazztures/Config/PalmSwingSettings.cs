@@ -9,11 +9,17 @@ namespace Jazztures.Config
     /// engineering starting points, unmeasured on a headset — pilot-calibrate before any number here is written
     /// up (Docs/CALIBRATION.md). Core consumes them through <see cref="ToParameters"/>; nothing is hard-coded in
     /// the adapter.
+    ///
+    /// <para>
+    /// <b>explore/swing-slices:</b> the note is now chosen by palm height (regions), not tilt. The Direction, Phrase reset
+    /// and Register groups below are <b>unused</b> there; they stay serialised so the asset keeps its data and the
+    /// palm-swing branch's behaviour can be recovered. Swing-slice values are in the "Swing slices" group.
+    /// </para>
     /// </summary>
     [CreateAssetMenu(menuName = "Jazztures/Config/Palm Swing", fileName = "PalmSwingSettings")]
     public sealed class PalmSwingSettings : ScriptableObject
     {
-        [Header("Direction — hand pitch angle in degrees, + = fingers up, measured from how the hand RESTS")]
+        [Header("UNUSED on swing-slices — Direction (tilt). Hand pitch angle in degrees, + = fingers up, measured from how the hand RESTS")]
         [Tooltip("Fingers this far above their resting angle read as Up. Lower than Down because the wrist bends less far toward the thumb. The resting angle is taken when the hand has been in the pose for Rest Settle Seconds, so 'neutral' is wherever the hand naturally sits.")]
         [SerializeField] private float _upDegrees = 10f;
 
@@ -26,7 +32,7 @@ namespace Jazztures.Config
         [Tooltip("The hand must hold the pose this long before its resting position and angle are taken as neutral, seconds. Re-taken on re-centre and whenever the input is switched off and on.")]
         [Min(0f)] [SerializeField] private float _restSettleSeconds = 0.4f;
 
-        [Tooltip("The direction (and register zone) is read this long BEFORE the crossing, because a fast swing drags the hand's tilt.")]
+        [Tooltip("The palm's height region is read this long BEFORE the crossing, because a fast swing drags the hand's height (and, on the palm-swing branch, its tilt).")]
         [Min(0f)] [SerializeField] private float _lookBackSeconds = 0.05f;
 
         [Header("Smoothing")]
@@ -55,14 +61,30 @@ namespace Jazztures.Config
         [Tooltip("After a crossing, how long before another can sound, seconds.")]
         [Min(0f)] [SerializeField] private float _lockoutSeconds = (float)CrossingThresholds.DefaultLockoutSeconds;
 
-        [Header("Pitch set and range")]
-        [Tooltip("[OPEN] What the swing steps through: the active chord's tones, or the C major scale. Neither is decided (ADR-0078).")]
+        [Header("Swing slices — palm height picks the note")]
+        [Tooltip("How many height regions are stacked on the trigger line, each one a note. Region 0 is the lowest, the middle one sits at the height the palm rested at when the pose settled. With chord tones from MIDI 72, 9 is the fewest that reaches every pitch the current lessons use.")]
+        [Range(2, 16)] [SerializeField] private int _regionCount = HeightRegionLayout.DefaultRegionCount;
+
+        [Tooltip("Height of each region, centimetres. Smaller means more notes in reach but less margin for tracking jitter.")]
+        [Min(1f)] [SerializeField] private float _regionHeightCm = HeightRegionLayout.DefaultRegionHeightMetres * 100f;
+
+        [Tooltip("Near a region boundary the palm keeps its current region until it is this far (cm) past the edge, so a hand resting on a boundary does not flicker.")]
+        [Min(0f)] [SerializeField] private float _boundaryHysteresisCm = HeightRegionLayout.DefaultHysteresisMetres * 100f;
+
+        [Tooltip("Lesson circles: diameter, centimetres. About one region height, so a circle's height reads clearly against the line.")]
+        [Min(0.5f)] [SerializeField] private float _targetDiameterCm = HeightRegionLayout.DefaultRegionHeightMetres * 100f;
+
+        [Tooltip("DEVELOPER TUNING ONLY. Draw faint lines at the region boundaries on the trigger line. No note names, even when on.")]
+        [SerializeField] private bool _showRegionGuidesDebug;
+
+        [Header("Pitch set and range (Swing slices: lowPitch and pitchSetType)")]
+        [Tooltip("[OPEN] pitchSetType: what the regions play, ascending: the active chord's tones (root/3rd/5th/7th/9th repeated upward), or the C major scale. Neither is decided (ADR-0078, ADR-0080).")]
         [SerializeField] private PitchSetKind _pitchSet = PitchSetKind.ChordTones;
 
-        [Tooltip("Bottom of the cursor's range, MIDI. 72 matches the existing right-hand floor.")]
+        [Tooltip("lowPitch: region 0 plays the first pitch of the set at or above this, MIDI. 72 matches the existing right-hand floor, and with 9 chord-tone regions it is the ONLY value that covers every lesson pitch (10 regions allow 70-72).")]
         [Range(36, 96)] [SerializeField] private int _lowestMidi = 72;
 
-        [Tooltip("Size of the range in semitones. 18 is an octave and a half (8-10 positions with chord tones).")]
+        [Tooltip("UNUSED on swing-slices (the range is set by Region Count). Size of the cursor's range in semitones.")]
         [Range(7, 36)] [SerializeField] private int _spanSemitones = 18;
 
         [Tooltip("The smaller range used while Register Source is Hand Height Zones: one octave plus room for extensions.")]
@@ -71,14 +93,14 @@ namespace Jazztures.Config
         [Tooltip("Where a fresh cursor starts in the range: 0 = bottom, 1 = top. Drills and tasks give their own start pitch.")]
         [Range(0f, 1f)] [SerializeField] private float _startIndexFraction = 0.5f;
 
-        [Header("Phrase reset (separates shape from register)")]
+        [Header("UNUSED on swing-slices — Phrase reset (separates shape from register)")]
         [Tooltip("When the cursor jumps back to the phrase's start pitch without sounding. Combine freely. Default: On Task | On Rest.")]
         [SerializeField] private PhraseResetPolicy _resetPolicy = PhraseResetPolicy.OnTask | PhraseResetPolicy.OnRest;
 
         [Tooltip("On Rest: reset when no crossing has happened for this long, seconds.")]
         [Min(0.1f)] [SerializeField] private float _restResetSeconds = 1.5f;
 
-        [Header("Register (hand-height zones) — OFF by default")]
+        [Header("UNUSED on swing-slices — Register (hand-height zones)")]
         [Tooltip("None: the cursor alone decides the pitch. Hand Height Zones: the palm's height picks an octave, read between notes only.")]
         [SerializeField] private RegisterSource _registerSource = RegisterSource.None;
 
@@ -109,6 +131,10 @@ namespace Jazztures.Config
 
         [Tooltip("Where the trigger line and note marker sit, metres in front of the head.")]
         [Min(0.2f)] [SerializeField] private float _laneDistanceMetres = 0.55f;
+
+        public bool ShowRegionGuidesDebug => _showRegionGuidesDebug;
+
+        public float TargetDiameterMetres => _targetDiameterCm / 100f;
 
         public RegisterSource RegisterSource
         {
@@ -145,6 +171,9 @@ namespace Jazztures.Config
                 Crossing = new CrossingThresholds(Mathf.Max(0f, _deadzoneMetres), Mathf.Max(0f, _lockoutSeconds)),
                 Zones = new RegisterZoneThresholds(
                     Mathf.Clamp(_zoneCount, 2, 3), Mathf.Max(0.01f, _zoneHeightCm / 100f), Mathf.Max(0f, _zoneHysteresisCm / 100f)),
+                RegionCount = Mathf.Clamp(_regionCount, 2, 16),
+                RegionHeightMetres = Mathf.Max(0.01f, _regionHeightCm / 100f),
+                BoundaryHysteresisMetres = Mathf.Max(0f, _boundaryHysteresisCm / 100f),
                 SmoothingSeconds = Mathf.Max(0f, _motionSmoothingSeconds),
                 LookBackSeconds = Mathf.Max(0f, _lookBackSeconds),
                 Register = _registerSource,

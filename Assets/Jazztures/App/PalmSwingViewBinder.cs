@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Jazztures.App
 {
     /// <summary>
-    /// Glue between the palm-swing input and its central-view visuals (ADR-0078). <c>Presentation</c> must not know
+    /// Glue between the swing-slice input and its central-view visuals (ADR-0080, built on ADR-0078). <c>Presentation</c> must not know
     /// <c>Input</c> and the reverse, so this component, in the assembly that knows both, hands the view the pipeline,
     /// each note, and where the lane is.
     ///
@@ -43,6 +43,7 @@ namespace Jazztures.App
             }
 
             _view.Bind(_palmSwing.Pipeline);
+            _view.SetDebugGuides(_settings != null && _settings.ShowRegionGuidesDebug);
             _palmSwing.NotePlayed += _view.OnNote;
         }
 

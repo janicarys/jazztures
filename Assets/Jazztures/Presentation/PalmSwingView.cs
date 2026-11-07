@@ -1,41 +1,29 @@
 using Jazztures.Core.Melody;
-using Jazztures.Core.Music;
 using UnityEngine;
 
 namespace Jazztures.Presentation
 {
     /// <summary>
-    /// The prototype's whole interface for the palm-swing input (ADR-0078), small and kept with the hand, in the
-    /// <b>central</b> view (Session 4: peripheral cues cause head turns and lost focus). It is two things:
-    /// <list type="bullet">
-    ///   <item>a long, fixed vertical <b>trigger line</b> (it is what the hand crosses; moving it with the hand was
-    ///   distracting), which flashes on each crossing;</item>
-    ///   <item>a small <b>cursor</b> dot that follows where the hand is pointing, eased so tracking jitter does not
-    ///   shake it, with beside it the <b>note letter</b> (the
-    ///   last note played; the start pitch's letter flashes on a reset), the <b>direction</b> ▲ · ● · ▼ with the
-    ///   <i>held</i> one lit (what the next swing will do), an <b>at-limit</b> bar when a step ran off the range, and,
-    ///   with height zones on, <b>zone bars</b> with the current one lit.</item>
-    /// </list>
-    /// When the gate is closed everything dims and a short hint says what pose is wanted. No note highways, no targets,
-    /// no colour-only information (CLAUDE.md §3.10). Reads the pure <see cref="PalmSwingPipeline"/>; never writes to it.
-    /// Where things stand comes from <see cref="SetLane"/> and <see cref="SetPointer"/>, so this assembly needs
-    /// nothing from Input.
+    /// The swing-slice right hand's whole interface (ADR-0080, built on ADR-0078), small and kept with the hand, in the
+    /// <b>central</b> view (Session 4: peripheral cues cause head turns and lost focus): a long, fixed vertical
+    /// <b>trigger line</b>, which flashes on each crossing, and a small dot at the <b>palm's height</b> on it (lateral
+    /// position from where the fingers point). <b>Nothing names a note</b>: no letters, no region labels, no highlight of
+    /// the region the hand is in; the only feedback for which note was chosen is the sound. When the gate is closed
+    /// everything dims and a short hint says what pose is wanted. With <see cref="SetDebugGuides"/> on (developer tuning
+    /// only) faint lines mark the region boundaries; still no names. Reads the pure <see cref="SwingSlicesPipeline"/>;
+    /// never writes to it. Where things stand comes from <see cref="SetLane"/> and <see cref="SetPointer"/>.
     /// </summary>
     public sealed class PalmSwingView : MonoBehaviour
     {
         private const float LineWidthMetres = 0.003f;
         private const float FlashSeconds = 0.18f;
         private const float DimAlpha = 0.25f;
-
-        // Offsets of the widgets from the cursor, metres, in the view's own up/right.
-        private const float MarkerUp = 0.05f;
-        private const float DirectionRight = 0.045f;
-        private const float DirectionStep = 0.02f;
-        private const float ZoneRight = -0.05f;
+        private const float GuideWidthMetres = 0.04f;
+        private const int MaxGuides = 17;
 
         [SerializeField] private Transform _head;
 
-        [Tooltip("Scales the cursor and its widgets. 1 is small; the trigger line is not scaled.")]
+        [Tooltip("Scales the cursor. 1 is small; the trigger line is not scaled.")]
         [Min(0.3f)] [SerializeField] private float _scale = 1f;
 
         [Tooltip("How tall the trigger line is, metres. It stays where it was set; only the cursor moves up and down.")]
@@ -47,18 +35,14 @@ namespace Jazztures.Presentation
         [Tooltip("Hint shown while the gate is closed. Plain words: no theory vocabulary.")]
         [SerializeField] private string _hint = "open palm, facing left";
 
-        private PalmSwingPipeline _pipeline;
+        private SwingSlicesPipeline _pipeline;
         private Transform _lineRoot;
         private Transform _cluster;
         private LineRenderer _line;
         private MeshRenderer _cursor;
-        private TextMesh _marker;
         private TextMesh _hintText;
-        private MeshRenderer _up;
-        private MeshRenderer _same;
-        private MeshRenderer _down;
-        private MeshRenderer _limitBar;
-        private MeshRenderer[] _zoneBars;
+        private LineRenderer[] _guides;
+        private bool _debugGuides;
         private Material _template;
         private bool _hasLane;
         private bool _hasPointer;
@@ -67,27 +51,27 @@ namespace Jazztures.Presentation
         private Vector3 _pointer;
         private Vector3 _shownPointer;
         private float _flashLineUntil = float.NegativeInfinity;
-        private float _flashMarkerUntil = float.NegativeInfinity;
 
         /// <summary>Wire to the pipeline whose state is shown. Safe to call before or after enabling, and again for a new pipeline.</summary>
-        public void Bind(PalmSwingPipeline pipeline)
+        public void Bind(SwingSlicesPipeline pipeline)
         {
-            if (_pipeline != null)
-            {
-                _pipeline.PhraseReset -= OnReset;
-            }
-
             _pipeline = pipeline;
-            pipeline.PhraseReset += OnReset;
-            ShowLetter(pipeline.CursorPitch);
+
+            // The line must be long enough to hold the whole stack of regions.
+            float stack = pipeline.Layout.RegionCount * pipeline.Layout.RegionHeightMetres + 0.05f;
+            _lineHeightMetres = Mathf.Max(_lineHeightMetres, stack);
+            if (_line != null)
+            {
+                _line.SetPosition(0, new Vector3(0f, -_lineHeightMetres * 0.5f, 0f));
+                _line.SetPosition(1, new Vector3(0f, _lineHeightMetres * 0.5f, 0f));
+            }
         }
 
-        /// <summary>A note was sounded (crossing flash, and the marker takes its letter).</summary>
-        public void OnNote(PalmSwingNote note)
-        {
-            _flashLineUntil = Time.unscaledTime + FlashSeconds;
-            ShowLetter(note.CursorPitch);
-        }
+        /// <summary>Developer tuning only: draw faint lines at the region boundaries. No names, ever.</summary>
+        public void SetDebugGuides(bool on) => _debugGuides = on;
+
+        /// <summary>A note was sounded: the line flashes. Which note is not shown.</summary>
+        public void OnNote(SwingSlicesNote note) => _flashLineUntil = Time.unscaledTime + FlashSeconds;
 
         /// <summary>
         /// Place the trigger line: <paramref name="origin"/> is where its middle stands, <paramref name="right"/> the horizontal left-to-right axis.
@@ -142,39 +126,27 @@ namespace Jazztures.Presentation
 
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             _cursor = MakeShape("Cursor", Disc(), Vector3.zero, 0.008f);
-            _marker = MakeText("Note Marker", font, 90, new Vector3(0f, MarkerUp, 0f), TextAnchor.MiddleCenter, 0.0045f);
             _hintText = MakeText("Gate Hint", font, 50, new Vector3(0f, -0.035f, 0f), TextAnchor.UpperCenter, 0.0045f);
             _hintText.text = _hint;
 
-            var indicator = new Vector3(DirectionRight, MarkerUp, 0f);
-            _up = MakeShape("Direction Up", Triangle(up: true), indicator + new Vector3(0f, DirectionStep, 0f), 0.014f);
-            _same = MakeShape("Direction Same", Disc(), indicator, 0.008f);
-            _down = MakeShape("Direction Down", Triangle(up: false), indicator + new Vector3(0f, -DirectionStep, 0f), 0.014f);
-
-            _limitBar = MakeShape("At Limit Bar", Quad(), new Vector3(0f, MarkerUp, 0f), 1f);
-            _limitBar.transform.localScale = new Vector3(0.035f, 0.004f, 1f);
-
-            _zoneBars = new MeshRenderer[3];
-            for (int z = 0; z < _zoneBars.Length; z++)
+            _guides = new LineRenderer[MaxGuides];
+            for (int g = 0; g < _guides.Length; g++)
             {
-                _zoneBars[z] = MakeShape($"Zone Bar {z}", Quad(), new Vector3(ZoneRight, MarkerUp + (z - 1) * 0.011f, 0f), 1f);
-                _zoneBars[z].transform.localScale = new Vector3(0.018f, 0.005f, 1f);
+                var guide = new GameObject($"Region Guide {g}");
+                guide.transform.SetParent(_lineRoot, worldPositionStays: false);
+                LineRenderer renderer = guide.AddComponent<LineRenderer>();
+                renderer.useWorldSpace = false;
+                renderer.positionCount = 2;
+                renderer.widthMultiplier = LineWidthMetres * 0.5f;
+                renderer.sharedMaterial = _template;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                renderer.enabled = false;
+                _guides[g] = renderer;
             }
 
             _lineRoot.gameObject.SetActive(false);
             _cluster.gameObject.SetActive(false);
-            if (_pipeline != null)
-            {
-                ShowLetter(_pipeline.CursorPitch);
-            }
-        }
-
-        private void OnDestroy()
-        {
-            if (_pipeline != null)
-            {
-                _pipeline.PhraseReset -= OnReset;
-            }
         }
 
         private void LateUpdate()
@@ -205,36 +177,7 @@ namespace Jazztures.Presentation
             SetLineColor(new Color(1f, 1f, 1f, Mathf.Lerp(0.3f, 0.95f, lineFlash) * gate));
 
             SetShape(_cursor, true, gate);
-
-            float markerFlash = Mathf.Clamp01((_flashMarkerUntil - now) / FlashSeconds);
-            _marker.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.85f, 1f, markerFlash) * gate);
-            _marker.transform.localScale = Vector3.one * (0.0045f * (1f + 0.35f * markerFlash));
-
-            StepDirection held = _pipeline.HeldDirection;
-            SetShape(_up, held == StepDirection.Up, gate);
-            SetShape(_same, held == StepDirection.Same, gate);
-            SetShape(_down, held == StepDirection.Down, gate);
-
-            bool zones = _pipeline.Zone >= 0;
-            for (int z = 0; z < _zoneBars.Length; z++)
-            {
-                bool shown = zones && z < _pipeline.ZoneCount;
-                _zoneBars[z].gameObject.SetActive(shown);
-                if (shown)
-                {
-                    SetShape(_zoneBars[z], z == _pipeline.Zone, gate);
-                }
-            }
-
-            bool atLimit = _pipeline.AtLimit;
-            _limitBar.gameObject.SetActive(atLimit);
-            if (atLimit)
-            {
-                // Above the marker for a climb that ran out, below it for a descent.
-                float side = held == StepDirection.Down ? -1f : 1f;
-                _limitBar.transform.localPosition = new Vector3(0f, MarkerUp + side * 0.03f, 0f);
-                SetShape(_limitBar, true, gate);
-            }
+            UpdateGuides(gate);
 
             _hintText.gameObject.SetActive(!_pipeline.GateOpen);
             _hintText.color = new Color(1f, 1f, 1f, 0.8f);
@@ -254,17 +197,25 @@ namespace Jazztures.Presentation
             }
         }
 
-        private void OnReset(PhraseResetReason reason, Pitch startPitch)
+        // Developer tuning only: a faint short line at every region boundary of the stack. Never a name or a highlight.
+        private void UpdateGuides(float gate)
         {
-            _flashMarkerUntil = Time.unscaledTime + FlashSeconds * 2f;
-            ShowLetter(startPitch);
-        }
-
-        private void ShowLetter(Pitch pitch)
-        {
-            if (_marker != null)
+            int edges = _debugGuides ? _pipeline.Layout.RegionCount + 1 : 0;
+            for (int g = 0; g < _guides.Length; g++)
             {
-                _marker.text = PitchNames.Of(pitch.Class);
+                bool shown = g < edges;
+                _guides[g].enabled = shown;
+                if (!shown)
+                {
+                    continue;
+                }
+
+                float y = _pipeline.Layout.EdgeOf(g);
+                _guides[g].SetPosition(0, new Vector3(-GuideWidthMetres * 0.5f, y, 0f));
+                _guides[g].SetPosition(1, new Vector3(GuideWidthMetres * 0.5f, y, 0f));
+                var color = new Color(1f, 1f, 1f, 0.15f * gate);
+                _guides[g].startColor = color;
+                _guides[g].endColor = color;
             }
         }
 
@@ -308,17 +259,6 @@ namespace Jazztures.Presentation
             renderer.receiveShadows = false;
             return renderer;
         }
-
-        private static Mesh Triangle(bool up)
-        {
-            float y = up ? 0.5f : -0.5f;
-            return Build("Triangle", new[] { new Vector3(0f, y, 0f), new Vector3(-0.5f, -y, 0f), new Vector3(0.5f, -y, 0f) }, new[] { 0, 1, 2 });
-        }
-
-        private static Mesh Quad() => Build(
-            "Quad",
-            new[] { new Vector3(-0.5f, -0.5f, 0f), new Vector3(-0.5f, 0.5f, 0f), new Vector3(0.5f, 0.5f, 0f), new Vector3(0.5f, -0.5f, 0f) },
-            new[] { 0, 1, 2, 0, 2, 3 });
 
         private static Mesh Disc()
         {

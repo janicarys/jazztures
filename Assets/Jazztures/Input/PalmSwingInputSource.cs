@@ -10,15 +10,14 @@ using UnityEngine;
 namespace Jazztures.Input
 {
     /// <summary>
-    /// EXPLORATION (ADR-0078, branch <c>explore/melodic-movement-mapping</c>): the right hand sets the
-    /// <i>direction</i> of the melody, not its pitches. Tilt the open, left-facing palm so the fingers point up,
-    /// straight or down; swing it across a vertical trigger line, either way, and each crossing sounds one
-    /// note that steps up, repeats or steps down. A drop-in alternative to <see cref="FingerBendBinder"/>:
+    /// EXPLORATION (ADR-0080, branch <c>explore/swing-slices</c>, built on the palm swing of ADR-0078): the open,
+    /// left-facing palm's <i>height</i> picks one of a stack of regions, each a note; swinging it across a vertical
+    /// trigger line, either way, sounds the note of the region it was in. Moving up and down is silent. A drop-in alternative to <see cref="FingerBendBinder"/>:
     /// it is handed the same <see cref="MelodyEngine"/> and sounds through <see cref="MelodyEngine.PlayPitch"/>,
     /// so the learning-mode gate, the sampler and any recording work unchanged.
     ///
     /// <para>
-    /// All decisions are in the pure <see cref="PalmSwingPipeline"/>; the hand reading is behind
+    /// All decisions are in the pure <see cref="SwingSlicesPipeline"/>; the hand reading is behind
     /// <see cref="IPalmSwingSampleSource"/>. This component only feeds one into the other every frame on the
     /// musical clock, forwards chord changes, and plays what comes out.
     /// </para>
@@ -40,13 +39,13 @@ namespace Jazztures.Input
         private IPalmSwingSampleSource _source;
 
         /// <summary>The pure pipeline; null until <see cref="Bind"/>. The view reads its state.</summary>
-        public PalmSwingPipeline Pipeline { get; private set; }
+        public SwingSlicesPipeline Pipeline { get; private set; }
 
         /// <summary>The note most recently sounded, valid once <see cref="NotePlayed"/> has fired.</summary>
-        public PalmSwingNote LastNote { get; private set; }
+        public SwingSlicesNote LastNote { get; private set; }
 
         /// <summary>Raised after each note is handed to the melody engine.</summary>
-        public event Action<PalmSwingNote> NotePlayed;
+        public event Action<SwingSlicesNote> NotePlayed;
 
         public bool GateOpen => Pipeline != null && Pipeline.GateOpen;
 
@@ -67,7 +66,7 @@ namespace Jazztures.Input
                 return;
             }
 
-            Pipeline = new PalmSwingPipeline(_settings.ToParameters(), Progression.ChordFor(_fallbackFunction));
+            Pipeline = new SwingSlicesPipeline(_settings.ToParameters(), Progression.ChordFor(_fallbackFunction));
             harmony.ChordChanged += change => Pipeline.OnChordChanged(change.CurrentChord);
         }
 
@@ -89,9 +88,9 @@ namespace Jazztures.Input
 
             PalmSwingSample raw = _source.Read();
             var sample = new PalmSwingSample(
-                _clock.Now, raw.GateOpen, raw.PitchAngleDegrees, raw.LateralMetres, raw.HeightMetres);
+                _clock.Now, raw.GateOpen, 0f, raw.LateralMetres, raw.HeightMetres);
 
-            if (!Pipeline.Update(sample, out PalmSwingNote note))
+            if (!Pipeline.Update(sample, out SwingSlicesNote note))
             {
                 return;
             }
@@ -100,8 +99,7 @@ namespace Jazztures.Input
             LastNote = note;
             NotePlayed?.Invoke(note);
             DiagLog.Log(
-                $"[PalmSwing] {note.Pitch} · {note.SampledDirection} · {note.Swing} · {note.SpeedMetresPerSecond:0.00} m/s" +
-                (note.AtLimit ? " · at limit" : string.Empty));
+                $"[SwingSlices] {note.Pitch} · region {note.Region} · {note.Swing} · {note.SpeedMetresPerSecond:0.00} m/s");
         }
     }
 }
