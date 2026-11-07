@@ -3441,8 +3441,6 @@ MonoBehaviour:
   _settings: {fileID: 11400000, guid: fca8cbb469e04deab08cfad193a47fe3, type: 2}
   _sampleSource: {fileID: 1785984400}
   _fallbackFunction: 0
-  _editorSimulation: {fileID: 1785984399}
-  _useSimulationInEditor: 1
 --- !u!114 &1785984399
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3465,6 +3463,10 @@ MonoBehaviour:
   _maxLateralMetres: 0.25
   _maxHeightMetres: 0.3
   _showOverlay: 1
+  _tilt: 0
+  _lateral: -0.08
+  _height: 0
+  _gate: 1
 --- !u!114 &1785984400
 MonoBehaviour:
   m_ObjectHideFlags: 0

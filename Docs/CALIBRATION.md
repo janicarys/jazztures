@@ -323,7 +323,10 @@ All `[TUNABLE]` and **entirely unmeasured** (no headset session yet). Pilot-cali
 | Down angle | −25° | — | default | Fingers at or below this read as Down |
 | Direction hysteresis | 5° | — | default | Leaving Up needs +15°, leaving Down −20°. Too small: the arrow flickers near a boundary. Too large: the held state lags the hand |
 | Look-back | 50 ms | — | default | The direction and the register zone are read this long before the crossing, because a fast swing drags the tilt. Too long: reads the previous gesture. Too short: reads the drag |
-| Trigger dead band | 2 cm (total) | — | default | A crossing is beyond −1 cm to beyond +1 cm. Hovering on the line must never sound. Raise if tracking jitter fires notes; lower if a small swing is missed |
+| Crossing source | Finger Ray | — | default | **Added 2026-11-07 because Palm Position was hard to control.** Finger Ray casts a ray along the fingers (wrist → middle knuckle) at a vertical plane in front of the user; the trigger line is on that plane, so a wrist movement crosses it. Palm Position is the original: the whole hand must cross the line in space. Unverified on a headset |
+| Pointing plane distance | 0.55 m | — | default | Finger Ray only: how far beyond the resting hand the plane stands. About 1 cm of hit-point travel per degree of wrist movement at 0.55 m, so the 2 cm dead band is about 2°. Raise it for a more sensitive swing |
+| Min pointing facing | 0.2 | — | default | Finger Ray only: the fingers must point at least this far toward the front (cosine off forward) or the gate closes ("fingers not pointing forward") |
+| Trigger dead band | 2 cm (total) | — | default | (On the pointing plane with Finger Ray.) A crossing is beyond −1 cm to beyond +1 cm. Hovering on the line must never sound. Raise if tracking jitter fires notes; lower if a small swing is missed |
 | Crossing lockout | 80 ms | — | default | After a crossing, how long before another. Must stay below half a swing period at the fastest strumming (~125 ms at 4 Hz) |
 | Pitch set | Chord tones | — | **`[OPEN]`** | Chord tones of the active chord, or the C major scale. Decide after the pilot drills |
 | Lowest pitch / span | MIDI 72 / 18 semitones | — | default | The cursor's range: an octave and a half, 7-9 positions with chord tones. 72 matches the right-hand floor (§3.1) |

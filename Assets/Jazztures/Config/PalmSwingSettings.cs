@@ -27,6 +27,21 @@ namespace Jazztures.Config
         [Min(0f)] [SerializeField] private float _lookBackSeconds = 0.05f;
 
         [Header("Trigger line")]
+        [Tooltip("What crosses the line. Palm Position: the palm centre must cross it in space. Finger Ray: a ray along the " +
+                 "fingers is cast at a vertical plane in front of you and the line is on that plane, so pointing the fingers " +
+                 "across it (a wrist movement) is enough. With Finger Ray, the dead band below is on that plane, in metres " +
+                 "(2 cm at 0.55 m is about 2 degrees).")]
+        [SerializeField] private PalmSwingCrossingSource _crossingSource = PalmSwingCrossingSource.FingerRay;
+
+        [Tooltip("Finger Ray only: how far beyond the resting hand the vertical plane stands, metres. The further it is, " +
+                 "the more distance the ray's hit point travels per degree of wrist movement (about 1 cm per degree at 0.55 m): " +
+                 "raise it for a more sensitive swing, lower it for a calmer one.")]
+        [Min(0.1f)] [SerializeField] private float _pointingPlaneDistanceMetres = 0.55f;
+
+        [Tooltip("Finger Ray only: the fingers must point at least this far toward the front (cosine of the angle off " +
+                 "the user's forward direction) or the gate closes: a ray that is nearly sideways or vertical hits the plane far away.")]
+        [Range(0.05f, 0.9f)] [SerializeField] private float _minPointingFacing = 0.2f;
+
         [Tooltip("Total width of the dead band around the vertical trigger line, metres. A crossing is from beyond one edge to beyond the other.")]
         [Min(0f)] [SerializeField] private float _deadzoneMetres = CrossingThresholds.DefaultDeadzoneMetres;
 
@@ -93,6 +108,12 @@ namespace Jazztures.Config
             get => _registerSource;
             set => _registerSource = value;
         }
+
+        public PalmSwingCrossingSource CrossingSource => _crossingSource;
+
+        public float PointingPlaneDistanceMetres => _pointingPlaneDistanceMetres;
+
+        public float MinPointingFacing => _minPointingFacing;
 
         public float PalmFacingLeftDot => _palmFacingLeftDot;
 

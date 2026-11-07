@@ -62,6 +62,14 @@ nothing here settles it. `TODO(OPEN)`: decide after trying both in free play.
 - **`Jazztures > Experiments > Use Palm-Swing Input` / `Use Finger Bend Again`** (`PalmSwingSetup`) wires the input into the open scene beside the finger
   bend (adding the finger bend first if missing). Both inputs stay in the scene; the switch picks one. Free play and the lessons use whichever it picks.
 
+### Crossing by pointing, not by contact (2026-11-07)
+The student found the first version hard to control: the palm centre had to physically cross a line in space, which means moving the whole hand to a precise place.
+A second **Crossing Source**, `FingerRay` (now the default), casts a ray along the fingers at a vertical plane in front of the user and puts the trigger line
+on that plane. The line then stands where the fingers pointed when the gate first opened, and a wrist movement (with the palm facing left, flexing the wrist
+swings the fingers sideways) crosses it. The tilt that picks the direction is the same finger axis, so one hand pose carries both. `PalmPosition` is kept as the
+alternative. The Core pipeline is unchanged: it still receives a lateral position in metres. **Unverified on a headset:** whether wrist flexion is comfortable and
+sweeps far enough, and whether pointing straight ahead while also tilting the fingers up and down is awkward.
+
 ### Cut after being built (2026-11-07)
 A keyboard stand-in for the right hand (`EditorSimulatedPalmInput`, for Play mode without a headset) was built and then removed at the student's request: the palm swing is tried on the headset or over Link only.
 
