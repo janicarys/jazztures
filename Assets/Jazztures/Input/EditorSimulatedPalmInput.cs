@@ -7,7 +7,7 @@ namespace Jazztures.Input
 {
     /// <summary>
     /// EDITOR ONLY (ADR-0078): a keyboard-and-mouse stand-in for the right hand, so the whole palm-swing chain —
-    /// pipeline, melody engine, sampler, sandbox logger — runs in Play mode without a headset. It implements the
+    /// pipeline, melody engine, sampler — runs in Play mode without a headset. It implements the
     /// same <see cref="IPalmSwingSampleSource"/> the headset reader does.
     ///
     /// <para>

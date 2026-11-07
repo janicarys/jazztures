@@ -331,18 +331,13 @@ All `[TUNABLE]` and **entirely unmeasured** (no headset session yet). Pilot-cali
 | Start index | 0.5 | — | default | Where a fresh cursor starts in the range. Drills and tasks give their own start pitch |
 | Reset policy | `OnTask \| OnRest` | — | default | `OnBar` is built but off. `OnRest` is the "no crossing for…" reset below |
 | Rest reset | 1.5 s | — | default | No crossing for this long returns the cursor to the phrase's start pitch |
-| Register source | None | — | default | `HandHeightZones` is built but off; the sandbox toggles it with **G** |
+| Register source | None | — | default | `HandHeightZones` is built but off; turn it on in the asset |
 | Zone count / height / hysteresis | 3 / 12 cm / 3 cm | — | default | Zones are centred on the lane origin. **Headset check:** how far the hand drifts in height while swinging, and whether 12 cm is wide enough. Zones shift by exactly 12 semitones per zone |
 | Safe MIDI range | 48-103 | — | default | The final pitch is clamped here once an octave shift is added (the sampler reaches 108) |
 | Palm-facing-left gate | normal · right < −0.6 | — | default | Uses the SDK's palmar axis, assumed to point out of the palm: **verify the sign on device** |
 | Open-hand gate | every finger curl < 0.35 | — | default | Index..pinky, the SDK's own curl, normalised with its `CURL_RANGE`. The thumb is left out (it flickers). Well clear of the menu's fist (≥ 0.75 held 1 s), so the pose cannot exit a lesson |
 | Lane offset / distance | 0.25 m / 0.55 m | — | default | **Editor simulation only.** On a headset the lane origin is the palm's resting position when the gate first opens (ADR-0078) |
-| Match window | ±150 ms | — | default | A target beat matches the nearest crossing within this; no crossing is a miss, an unmatched crossing is an extra (a double-trigger shows up here) |
-| Tracking-loss log threshold | 0.2 s | — | default | A closed gate shorter than this is not logged. Matches the visual cue delay in §3.5 |
 | Note length / velocity | the melody engine's | — | reused | Fixed melody sustain; velocity from the lateral speed at the crossing through the existing `VelocityCurve` (never below the §3.3 floor) |
-
-The sandbox CSV is `PalmSwing_<time>_<drill>_<bpm>_<rhythm>_<input>.csv` under `Application.persistentDataPath`; columns are specified in `DrillCsv.Header`
-(`tracking_lost_ms` is a trailing addition). Pull it off a Quest with `adb pull`.
 
 ### Right-hand note labels — `Config/MelodyConfig.asset` (ADR-0044)
 

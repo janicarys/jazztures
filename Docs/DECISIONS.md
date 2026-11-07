@@ -50,37 +50,40 @@ and a UD sequence can never move higher. Two mechanisms separate them:
 ### `[OPEN]` - the pitch set
 What the cursor steps through is **not decided**: the active chord's tones (root/3rd/5th/7th/9th over about an octave and a half; the
 default, and the one that keeps the chord-tone constraint) or the C major scale over the same range. `PalmSwingSettings` carries the choice;
-the sandbox does not settle it. `TODO(OPEN)`: decide after the pilot drills.
+nothing here settles it. `TODO(OPEN)`: decide after trying both in free play.
 
 ### What was built
 - **Core (`Core/Melody`, pure C#, edit-mode tests):** `StepDirection`, `DirectionClassifier`, `CrossingTrigger`, `DirectionHistory`, `PitchSet`,
-  `MelodyCursor`, `RegisterZoneClassifier`, `PalmSwingPipeline` (the chain, one sample in, one note out), `PhraseResetPolicy`/`PhraseStart`,
-  and for the sandbox `SwingDrill`, `DrillSchedule`, `DrillMatcher`, `DrillCsv`. `MelodyEngine` gained `PlayPitch(pitch, speed)`; `TriggerTarget`
-  now calls it, so finger-bend behaviour is unchanged.
+  `MelodyCursor`, `RegisterZoneClassifier`, `PalmSwingPipeline` (the chain, one sample in, one note out) and `PhraseResetPolicy`/`PhraseStart`.
+  `MelodyEngine` gained `PlayPitch(pitch, speed)`; `TriggerTarget` now calls it, so finger-bend behaviour is unchanged.
 - **Unity:** `PalmSwingInputSource` (feeds the pipeline on the musical clock and sounds through `PlayPitch`, so the learning-mode gate, sampler and
   recording work unchanged), `MetaXRPalmSwingSampleSource` (gate, world-space pitch angle, lane frame), `EditorSimulatedPalmInput` (keyboard),
-  `RightHandInputSwitch` (FingerBend / PalmSwing without code changes), `PalmSwingView` (central-view line, note marker, direction, at-limit,
-  zone bars), `PalmSwingSettings` (every `[TUNABLE]`).
-- **Sandbox:** `PalmSwingSandbox` loops ii-V-I (one chord a bar, selected and sounded by the existing scripted harmony and harmony engine) at 60 / 70 / 80 BPM
-  with a 4-beat count-in, straight quarters or swung eighths, drills UU / DD / UD / DU, a CSV per run under `Application.persistentDataPath`, and an on-panel
-  summary. Finger-bend runs in the same scene; each press is scored as up / same / down by its pitch movement.
-  `Jazztures > Experiments > Palm Swing > Create Sandbox Scene` builds `Scenes/Sandbox/PalmSwingSandbox.unity` from a copy of `main.unity`.
+  `RightHandInputSwitch` (FingerBend / PalmSwing without code changes; it is the lesson flow's melody input), `PalmSwingView` (central-view line,
+  note marker, direction, at-limit, zone bars), `PalmSwingViewBinder` (glue between the input and the view), `PalmSwingSettings` (every `[TUNABLE]`).
+- **`Jazztures > Experiments > Use Palm-Swing Input` / `Use Finger Bend Again`** (`PalmSwingSetup`) wires the input into the open scene beside the finger
+  bend (adding the finger bend first if missing). Both inputs stay in the scene; the switch picks one. Free play and the lessons use whichever it picks.
+
+### A drill sandbox was built, then cut (2026-11-07)
+The brief asked for a sandbox scene: looping ii-V-I, a count-in, UU / DD / UD / DU drills in straight or swung rhythm, a scored CSV, and finger bend scored
+the same way, to compare the two inputs with numbers. It was built (`PalmSwingSandbox`, `DrillSchedule`, `DrillMatcher`, `DrillCsv`, `SwingDrill`, a CSV logger,
+a panel and a scene tool; commits `cb5c58d` and `eb5ea06`) and then **removed at the student's request**: free play is enough to judge whether the gesture
+feels right, and the sandbox was the largest unverified part of the branch (CLAUDE.md §6.9, prefer deleting to adding). **Consequence: there is no scored
+comparison of palm swing against finger bend.** If the adviser asks for hit rates and timing offsets, recover those two commits from the branch history.
 
 ### Decisions taken without being asked (all reversible)
+- **Only the rest reset is live.** Nothing calls `BeginTask` (a task's start pitch) or `NotifyBarLine` now that the drill runner is gone, so in free play a reset
+  happens only after 1.5 s without a crossing, back to the chord root near the middle of the range. The task and bar resets stay in Core, tested, for the
+  lessons (L4-L5 would be the place) to use.
 - **No new Core interface for "right-hand input".** Core never sees the hand; the existing seam is the binder `Behaviour` the lesson flow enables, so the
   switch sits there. A Core interface would have had nothing to abstract.
-- **Task = four targets** (one bar of quarters, or two beats of swung eighths); each task restarts from the drill's start pitch, halfway between its last
-  beat and the next, so a late crossing from one task cannot land in the next.
-- **`tracking_lost_ms` is a trailing column added to the specified CSV set**, because a dropout is an interval. "Tracking lost" means the *gate* was closed
-  (hand lost, low confidence, palm not facing left, hand not open) for at least 0.2 s; they are not distinguished in the file.
 - **Lane origin = the palm's resting position** (as specified), so on a headset the "right lane offset" cannot be enforced: it places the view only in the
-  editor simulation. Whether a leftward swing meets the left hand's strike plane is a headset check.
-- The sandbox scene **disables the lesson flow**, so the menu and tutorial do not compete for the right hand, and is **not** added to the build settings.
-- `App` gained a reference to `Unity.InputSystem` (already in the project) for the sandbox's debug keys.
+  editor simulation. Whether a leftward swing meets the left hand's strike plane is a headset check. The lane is re-set whenever the input is switched off
+  and on (between lessons); there is no re-centre trigger on a headset, only `PalmSwingInputSource.Recenter()` and the simulation's **R** key.
+- Height zones are switched on in `PalmSwingSettings` (Register Source), not at runtime.
 
 ### Not verified
 Core and its tests passed (the student ran them). **Everything Unity-side was written without compiling in the Editor and has not been run**: the adapter,
-visuals, sandbox, CSV logger, scene tool and the new `PalmSwingSettings.asset`. Nothing was tried on a headset: palm-normal sign (the SDK's palmar axis
+visuals, binder, setup tool and the new `PalmSwingSettings.asset`. Nothing was tried on a headset: palm-normal sign (the SDK's palmar axis
 is assumed to point out of the palm), tracking with the palm edge-on to the cameras, dropouts in fast swings, both hands together, accidental lesson exits,
 and whether 12 cm height zones are wide enough. Defaults in `PalmSwingSettings` are engineering starting points (Docs/CALIBRATION.md), not findings.
 

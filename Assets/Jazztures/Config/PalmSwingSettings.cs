@@ -5,7 +5,7 @@ namespace Jazztures.Config
 {
     /// <summary>
     /// Every `[TUNABLE]` for the palm-swing right-hand prototype (ADR-0078): hand pose gate, direction angles,
-    /// the trigger line, phrase reset, hand-height register zones, and the sandbox's scoring window. All
+    /// the trigger line, phrase reset and hand-height register zones. All
     /// engineering starting points, unmeasured on a headset — pilot-calibrate before any number here is written
     /// up (Docs/CALIBRATION.md). Core consumes them through <see cref="ToParameters"/>; nothing is hard-coded in
     /// the adapter.
@@ -88,10 +88,6 @@ namespace Jazztures.Config
         [Tooltip("Where the trigger line and note marker sit, metres in front of the head.")]
         [Min(0.2f)] [SerializeField] private float _laneDistanceMetres = 0.55f;
 
-        [Header("Sandbox scoring")]
-        [Tooltip("A target beat matches the nearest crossing within this many seconds either side.")]
-        [Min(0.01f)] [SerializeField] private float _matchWindowSeconds = 0.15f;
-
         public RegisterSource RegisterSource
         {
             get => _registerSource;
@@ -105,8 +101,6 @@ namespace Jazztures.Config
         public float LaneOffsetRightMetres => _laneOffsetRightMetres;
 
         public float LaneDistanceMetres => _laneDistanceMetres;
-
-        public float MatchWindowSeconds => _matchWindowSeconds;
 
         /// <summary>Build the pure-C# parameter bag the Core pipeline reads.</summary>
         public PalmSwingParameters ToParameters()

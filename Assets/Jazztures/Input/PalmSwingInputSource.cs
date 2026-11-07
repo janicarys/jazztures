@@ -46,9 +46,8 @@ namespace Jazztures.Input
         private MelodyEngine _melody;
         private HarmonyEngine _harmony;
         private IPalmSwingSampleSource _source;
-        private RegisterSource? _registerOverride;
 
-        /// <summary>The pure pipeline; null until <see cref="Bind"/>. Visuals and the sandbox read its state.</summary>
+        /// <summary>The pure pipeline; null until <see cref="Bind"/>. The view reads its state.</summary>
         public PalmSwingPipeline Pipeline { get; private set; }
 
         /// <summary>The note most recently sounded, valid once <see cref="NotePlayed"/> has fired.</summary>
@@ -56,12 +55,6 @@ namespace Jazztures.Input
 
         /// <summary>Raised after each note is handed to the melody engine.</summary>
         public event Action<PalmSwingNote> NotePlayed;
-
-        /// <summary>Raised when <see cref="Pipeline"/> was replaced (see <see cref="SetRegisterSource"/>): re-subscribe to its events.</summary>
-        public event Action<PalmSwingPipeline> PipelineRebuilt;
-
-        /// <summary>The register source in force: the runtime override if one was set, else the settings asset's.</summary>
-        public RegisterSource RegisterSource => _registerOverride ?? _settings.RegisterSource;
 
         public bool GateOpen => Pipeline != null && Pipeline.GateOpen;
 
@@ -92,32 +85,8 @@ namespace Jazztures.Input
                 return;
             }
 
-            BuildPipeline(Progression.ChordFor(_fallbackFunction));
+            Pipeline = new PalmSwingPipeline(_settings.ToParameters(), Progression.ChordFor(_fallbackFunction));
             harmony.ChordChanged += change => Pipeline.OnChordChanged(change.CurrentChord);
-        }
-
-        /// <summary>
-        /// Switch between no register logic and hand-height zones without touching the settings asset (a Play-mode
-        /// edit of a ScriptableObject would stick). Rebuilds the pipeline, keeping the chord it was on; call it
-        /// between runs, not mid-phrase.
-        /// </summary>
-        public void SetRegisterSource(RegisterSource source)
-        {
-            if (Pipeline == null || RegisterSource == source)
-            {
-                return;
-            }
-
-            _registerOverride = source;
-            BuildPipeline(Pipeline.Chord);
-        }
-
-        private void BuildPipeline(Chord chord)
-        {
-            PalmSwingParameters parameters = _settings.ToParameters();
-            parameters.Register = RegisterSource;
-            Pipeline = new PalmSwingPipeline(parameters, chord);
-            PipelineRebuilt?.Invoke(Pipeline);
         }
 
         /// <summary>Re-centre the lane on the hand and head as they are now (debug key or menu action).</summary>
