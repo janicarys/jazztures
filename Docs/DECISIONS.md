@@ -8,6 +8,42 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0080 — Right-hand input: swing slices (height regions) exploration
+
+**Date:** 2026-11-07 · **Status:** **Proposed — prototype for comparison only.** Lives on `explore/swing-slices` (cut from
+`explore/melodic-movement-mapping` at `8eafbe6`); not a thesis decision and must not be merged as one · **Base:** ADR-0078 (palm swing),
+whose gate, lane frame, crossing trigger and look-back history are reused unchanged · `CLAUDE.md` is deliberately **not** edited.
+(Numbered 0080 because `explore/finger-strum` already holds ADR-0079.)
+
+### What changed
+Absolute **height regions** replace tilt. The vertical trigger line is divided into `regionCount` bands (default 9 x 4.5 cm, middle band at the
+palm's resting height); each band is one note. Palm height picks the band and is silent. A sideways swing across the line, either way,
+plays the band's pitch, read from `lookBackMs` (50) before the crossing. Swinging back and forth at one height repeats the note. On a chord
+change the bands retune at once and keep their heights; a sounding note keeps its pitch. With no chord held the fallback chord is used.
+
+### Why
+- The tilt felt awkward, and relative steps make the register drift.
+- The finger strum could not leap.
+- Regions plus a sideways trigger give leaps, silent repositioning and repeats.
+
+### No note visuals, by design
+No names, letters, region labels or hovered-region highlight, so the learner attends to movement and listens to the result. Kept: the faint
+trigger line and its flash, the gate dim/hint, and the dot, now at the palm's height. `showRegionGuidesDebug` (off) draws region boundaries for tuning only.
+
+### `[OPEN]` the pitch set
+Regions play the active chord's tones ascending from `lowPitch` (default), or the C major scale (`pitchSetType`). Undecided. Chord tones are
+pitch-sorted rather than degree-stacked because the 9th (root+14) sits above the next root (root+12), which would break height = pitch.
+**With 9 regions and chord tones, `lowPitch` 72 is the only value that covers every pitch the current lessons use** (Dm7 74 77 81 84 88,
+G7 79 83 86 89 93, Cmaj7 72 76 79 83 86); zero margin. 10 regions allow 70-72.
+
+### Not done / not verified
+- **Lesson circles (plain, unlabelled, arriving at the region height on the beat) are NOT built yet.** Lessons are not playable with this input until they are.
+- Nothing was compiled in Unity or run on a headset; the new EditMode tests have not been run.
+- Unverified on device: reach and separability of 4.5 cm bands under jitter, parallax between the line (about 0.55 m beyond the hand) and the palm.
+- Left, disconnected: `PalmSwingPipeline`, `DirectionClassifier`, `MelodyCursor`, `PitchSet`, `RegisterZone*`, `PhraseReset*`, and the tilt/zone/reset settings. The letter-bearing right-hand views are gated on the finger-bend input, so they are hidden here.
+
+---
+
 ## ADR-0078 — Right-hand input: palm swing (melodic direction) prototype
 
 **Date:** 2026-11-07 · **Status:** **Proposed — prototype for comparison only.** Lives on `explore/melodic-movement-mapping`

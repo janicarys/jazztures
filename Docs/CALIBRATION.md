@@ -345,6 +345,21 @@ All `[TUNABLE]` and **entirely unmeasured** (no headset session yet). Pilot-cali
 | Lane offset / distance | 0.25 m / 0.55 m | — | default | Only where the trigger line and hint stand **until the hand has been seen**. After that the lane origin is the palm's resting position when the gate first opens (ADR-0078) |
 | Note length / velocity | the melody engine's | — | reused | Fixed melody sustain; velocity from the lateral speed at the crossing through the existing `VelocityCurve` (never below the §3.3 floor) |
 
+### Right-hand swing slices — EXPLORATION, branch `explore/swing-slices` only — `Config/PalmSwingSettings.asset` (ADR-0080)
+
+All `[TUNABLE]`, engineering defaults, unmeasured on a headset. The tilt, phrase-reset and register-zone rows above are unused on this branch.
+
+| Parameter | Default | Note |
+|---|---|---|
+| Region count | 9 | Bands on the trigger line, each a note. 9 is the fewest that reaches every lesson pitch with chord tones from 72 |
+| Region height | 4.5 cm | About 40 cm in total. Smaller = more reach, less margin for jitter |
+| Boundary hysteresis | 1.0 cm | The palm keeps its band until this far past the edge |
+| Look-back | 50 ms | Existing setting; the band is read this long before the crossing |
+| Low pitch (`lowPitch`) | 72 | Existing `Lowest Midi`; first pitch of the set at or above it is region 0 |
+| Pitch set type | Chord tones | `[OPEN]` chord tones or C major scale |
+| Target diameter | 4.5 cm | Lesson circles (not yet built); about one region height |
+| Show region guides (debug) | off | Developer tuning only; draws boundaries, never names |
+
 ### Right-hand note labels — `Config/MelodyConfig.asset` (ADR-0044)
 
 | Parameter       | Default            | Measured | Status  | Notes                                                                                                                            |
