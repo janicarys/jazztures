@@ -113,7 +113,7 @@ namespace Jazztures.Core.Melody
             return best >= 0 ? best : _pitches.Length / 2;
         }
 
-        private static bool Belongs(PitchSetKind kind, Chord chord, Pitch pitch)
+        internal static bool Belongs(PitchSetKind kind, Chord chord, Pitch pitch)
         {
             if (kind == PitchSetKind.CMajorScale)
             {

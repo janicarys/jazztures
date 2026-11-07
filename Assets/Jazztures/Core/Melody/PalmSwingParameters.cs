@@ -23,6 +23,15 @@ namespace Jazztures.Core.Melody
         /// <summary>How long before a crossing the held direction (and zone) is read, seconds.</summary>
         public double LookBackSeconds { get; set; } = 0.050;
 
+        /// <summary>Swing slices: how many height regions, each one a note. `[TUNABLE]`.</summary>
+        public int RegionCount { get; set; } = HeightRegionLayout.DefaultRegionCount;
+
+        /// <summary>Swing slices: height of each region, metres. `[TUNABLE]`.</summary>
+        public float RegionHeightMetres { get; set; } = HeightRegionLayout.DefaultRegionHeightMetres;
+
+        /// <summary>Swing slices: how far past a region's edge the hand keeps it, metres. `[TUNABLE]`.</summary>
+        public float BoundaryHysteresisMetres { get; set; } = HeightRegionLayout.DefaultHysteresisMetres;
+
         public RegisterSource Register { get; set; } = RegisterSource.None;
 
         /// <summary>`[OPEN]`: chord tones or the C major scale.</summary>
