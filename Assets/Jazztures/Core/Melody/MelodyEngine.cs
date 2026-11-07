@@ -144,11 +144,22 @@ namespace Jazztures.Core.Melody
 
             _lastTriggerTime[targetIndex] = now;
 
-            Pitch pitch = set[targetIndex].Pitch;
-            byte velocity = VelocityCurve.FromSpeed(fingertipSpeedMetresPerSecond);
+            PlayPitch(set[targetIndex].Pitch, fingertipSpeedMetresPerSecond);
+            return true;
+        }
+
+        /// <summary>
+        /// Sound <paramref name="pitch"/> as a right-hand melody note, on the same path a touched or pressed
+        /// target takes: the mode-gated sink, the velocity curve, the fixed sustain with its paired note-off.
+        /// For inputs that choose the pitch themselves (the palm swing, ADR-0078). It applies <b>no</b> gate and
+        /// no per-target cooldown — deciding that the input was deliberate is the caller's job.
+        /// </summary>
+        public void PlayPitch(Pitch pitch, float speedMetresPerSecond)
+        {
+            double now = _clock.Now;
+            byte velocity = VelocityCurve.FromSpeed(speedMetresPerSecond);
             _sink.Send(NoteEvent.On(pitch, velocity, now, MidiChannel.Melody, Handedness.Right));
             Register(pitch, now + _sustainSeconds, now);
-            return true;
         }
 
         /// <summary>Send note-offs for every note whose sustain has elapsed.</summary>
