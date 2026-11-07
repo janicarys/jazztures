@@ -313,6 +313,37 @@ point — its lowest recent point while free, its peak while held — never from
 | Require high confidence | off | — | default | `FingerBendBinder` toggle. On: skip any frame where ANY finger is low-confidence (the first version's behaviour). Off by default — one flickering finger silenced all five |
 | Loudness           | tip speed, floored at the engine's entry gate | — | default | `TODO(OPEN)`: a slow deliberate press sounds quietly instead of being dropped; curl speed may be a better source |
 
+### Right-hand palm swing — EXPLORATION, branch `explore/melodic-movement-mapping` only — `Config/PalmSwingSettings.asset` (ADR-0078)
+
+All `[TUNABLE]` and **entirely unmeasured** (no headset session yet). Pilot-calibrate before any number is written up.
+
+| Parameter | Default | Measured | Status | Notes |
+| --------- | ------- | -------- | ------ | ----- |
+| Up angle | +20° | — | default | Fingers at or above this (world-space pitch above horizontal) read as Up. Lower than Down because the wrist bends less far toward the thumb. Lower it if Up is hard to reach; raise it if a level hand reads Up |
+| Down angle | −25° | — | default | Fingers at or below this read as Down |
+| Direction hysteresis | 5° | — | default | Leaving Up needs +15°, leaving Down −20°. Too small: the arrow flickers near a boundary. Too large: the held state lags the hand |
+| Look-back | 50 ms | — | default | The direction and the register zone are read this long before the crossing, because a fast swing drags the tilt. Too long: reads the previous gesture. Too short: reads the drag |
+| Trigger dead band | 2 cm (total) | — | default | A crossing is beyond −1 cm to beyond +1 cm. Hovering on the line must never sound. Raise if tracking jitter fires notes; lower if a small swing is missed |
+| Crossing lockout | 80 ms | — | default | After a crossing, how long before another. Must stay below half a swing period at the fastest strumming (~125 ms at 4 Hz) |
+| Pitch set | Chord tones | — | **`[OPEN]`** | Chord tones of the active chord, or the C major scale. Decide after the pilot drills |
+| Lowest pitch / span | MIDI 72 / 18 semitones | — | default | The cursor's range: an octave and a half, 7-9 positions with chord tones. 72 matches the right-hand floor (§3.1) |
+| Span with height zones | 16 semitones | — | default | The smaller range used while height zones are on (one octave plus room); the zones add the octaves |
+| Start index | 0.5 | — | default | Where a fresh cursor starts in the range. Drills and tasks give their own start pitch |
+| Reset policy | `OnTask \| OnRest` | — | default | `OnBar` is built but off. `OnRest` is the "no crossing for…" reset below |
+| Rest reset | 1.5 s | — | default | No crossing for this long returns the cursor to the phrase's start pitch |
+| Register source | None | — | default | `HandHeightZones` is built but off; the sandbox toggles it with **G** |
+| Zone count / height / hysteresis | 3 / 12 cm / 3 cm | — | default | Zones are centred on the lane origin. **Headset check:** how far the hand drifts in height while swinging, and whether 12 cm is wide enough. Zones shift by exactly 12 semitones per zone |
+| Safe MIDI range | 48-103 | — | default | The final pitch is clamped here once an octave shift is added (the sampler reaches 108) |
+| Palm-facing-left gate | normal · right < −0.6 | — | default | Uses the SDK's palmar axis, assumed to point out of the palm: **verify the sign on device** |
+| Open-hand gate | every finger curl < 0.35 | — | default | Index..pinky, the SDK's own curl, normalised with its `CURL_RANGE`. The thumb is left out (it flickers). Well clear of the menu's fist (≥ 0.75 held 1 s), so the pose cannot exit a lesson |
+| Lane offset / distance | 0.25 m / 0.55 m | — | default | **Editor simulation only.** On a headset the lane origin is the palm's resting position when the gate first opens (ADR-0078) |
+| Match window | ±150 ms | — | default | A target beat matches the nearest crossing within this; no crossing is a miss, an unmatched crossing is an extra (a double-trigger shows up here) |
+| Tracking-loss log threshold | 0.2 s | — | default | A closed gate shorter than this is not logged. Matches the visual cue delay in §3.5 |
+| Note length / velocity | the melody engine's | — | reused | Fixed melody sustain; velocity from the lateral speed at the crossing through the existing `VelocityCurve` (never below the §3.3 floor) |
+
+The sandbox CSV is `PalmSwing_<time>_<drill>_<bpm>_<rhythm>_<input>.csv` under `Application.persistentDataPath`; columns are specified in `DrillCsv.Header`
+(`tracking_lost_ms` is a trailing addition). Pull it off a Quest with `adb pull`.
+
 ### Right-hand note labels — `Config/MelodyConfig.asset` (ADR-0044)
 
 | Parameter       | Default            | Measured | Status  | Notes                                                                                                                            |

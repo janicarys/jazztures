@@ -8,6 +8,89 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0078 — Right-hand input: palm swing (melodic direction) prototype
+
+**Date:** 2026-11-07 · **Status:** **Proposed — prototype for comparison only.** Lives on `explore/melodic-movement-mapping`
+(cut from `explore/finger-bend-keys` at `f084089`); not a thesis decision and must not be merged as one · **Milestone:** M6 (right
+hand) · **Sits beside:** ADR-0050 (finger bend), which is **unchanged** · **Changes the thesis:** it *would* — see the end.
+`CLAUDE.md` is deliberately **not** edited.
+
+### Source
+The student's brief after the **6 Nov 2026 adviser meeting**, which also cites the **Session 4 finger-curl findings** as the reason
+the one-finger-per-tone right hand is being replaced. The Session 4 observations used here (peripheral cues cause head turns and lost
+focus; a right hand that is silent until the left hand has played is a complaint) are **as relayed in the brief** - the session notes are
+not in the repo, so they are not re-checked here. The adviser's direction: the right hand controls the **direction** of the melody, not
+individual pitches, which matches the up/down sequence patterns (UU, DD, UD, DU and their extensions) of ImproVisAR's Sequences lesson.
+
+### The gesture
+- **Pose (the gate):** right hand open, palm facing left (thumb up, like a handshake), fingers extended, tracking high-confidence.
+  Everything below is silent while the gate is closed.
+- **Direction (a held state):** tilt the hand so the fingers point **up**, **straight** or **down**. That is whether the *next* note steps
+  up, repeats, or steps down. Measured in world space, so wrist, elbow and shoulder tilt all count.
+- **Onset:** swing the hand **horizontally** across a vertical trigger line. Each crossing, **either way**, sounds one note (strum-like).
+  The direction is read from 50 ms *before* the crossing, because a fast swing drags the hand's tilt.
+- A **melody cursor** turns the steps into pitches: it clamps at the ends of the range (flagging `AtLimit`), and snaps to the nearest pitch
+  of the new set (the lower on a tie) when the left hand changes chord. With no chord ever held it uses a fallback chord, so a lesson
+  where the left hand has not played yet does not silence the right.
+
+### Direction versus register
+Relative steps alone make the tilt decide both the *shape* of a phrase and *where it ends up*: UU climbs out of range, DD needs room below,
+and a UD sequence can never move higher. Two mechanisms separate them:
+- **A. Phrase reset (built, ON by default: `OnTask | OnRest`).** The cursor jumps to a start pitch without sounding. Policies, as flags:
+  `OnRest` (no crossing for 1.5 s), `OnBar` (each bar line from the audio clock), `OnTask` (a drill task or Compose-on-the-Fly answer
+  begins). The start pitch comes from the drill/lesson (`PhraseStart`), not from the cursor: DD starts high, UU low; with none, the chord
+  root nearest the middle of the range. A start pitch outside the current set snaps to the nearest member.
+- **B. Hand-height register zones (built, OFF by default).** The palm's height above the lane origin picks one of 2 or 3 zones; the output is
+  the cursor's pitch shifted by `(zone - middleZone) x 12`, clamped to a safe MIDI range. The zone is read at the same look-back time as the
+  direction, so a zone change takes effect **between** notes and never re-pitches a sounding one. With zones on the cursor range shrinks to
+  about an octave plus room.
+- **Rejected:** *wrap-around* at the ends (an up gesture would sound down) and *automatic drift toward the middle* (it would change the
+  learner's melody behind their back). Both would make the gesture lie.
+
+### `[OPEN]` - the pitch set
+What the cursor steps through is **not decided**: the active chord's tones (root/3rd/5th/7th/9th over about an octave and a half; the
+default, and the one that keeps the chord-tone constraint) or the C major scale over the same range. `PalmSwingSettings` carries the choice;
+the sandbox does not settle it. `TODO(OPEN)`: decide after the pilot drills.
+
+### What was built
+- **Core (`Core/Melody`, pure C#, edit-mode tests):** `StepDirection`, `DirectionClassifier`, `CrossingTrigger`, `DirectionHistory`, `PitchSet`,
+  `MelodyCursor`, `RegisterZoneClassifier`, `PalmSwingPipeline` (the chain, one sample in, one note out), `PhraseResetPolicy`/`PhraseStart`,
+  and for the sandbox `SwingDrill`, `DrillSchedule`, `DrillMatcher`, `DrillCsv`. `MelodyEngine` gained `PlayPitch(pitch, speed)`; `TriggerTarget`
+  now calls it, so finger-bend behaviour is unchanged.
+- **Unity:** `PalmSwingInputSource` (feeds the pipeline on the musical clock and sounds through `PlayPitch`, so the learning-mode gate, sampler and
+  recording work unchanged), `MetaXRPalmSwingSampleSource` (gate, world-space pitch angle, lane frame), `EditorSimulatedPalmInput` (keyboard),
+  `RightHandInputSwitch` (FingerBend / PalmSwing without code changes), `PalmSwingView` (central-view line, note marker, direction, at-limit,
+  zone bars), `PalmSwingSettings` (every `[TUNABLE]`).
+- **Sandbox:** `PalmSwingSandbox` loops ii-V-I (one chord a bar, selected and sounded by the existing scripted harmony and harmony engine) at 60 / 70 / 80 BPM
+  with a 4-beat count-in, straight quarters or swung eighths, drills UU / DD / UD / DU, a CSV per run under `Application.persistentDataPath`, and an on-panel
+  summary. Finger-bend runs in the same scene; each press is scored as up / same / down by its pitch movement.
+  `Jazztures > Experiments > Palm Swing > Create Sandbox Scene` builds `Scenes/Sandbox/PalmSwingSandbox.unity` from a copy of `main.unity`.
+
+### Decisions taken without being asked (all reversible)
+- **No new Core interface for "right-hand input".** Core never sees the hand; the existing seam is the binder `Behaviour` the lesson flow enables, so the
+  switch sits there. A Core interface would have had nothing to abstract.
+- **Task = four targets** (one bar of quarters, or two beats of swung eighths); each task restarts from the drill's start pitch, halfway between its last
+  beat and the next, so a late crossing from one task cannot land in the next.
+- **`tracking_lost_ms` is a trailing column added to the specified CSV set**, because a dropout is an interval. "Tracking lost" means the *gate* was closed
+  (hand lost, low confidence, palm not facing left, hand not open) for at least 0.2 s; they are not distinguished in the file.
+- **Lane origin = the palm's resting position** (as specified), so on a headset the "right lane offset" cannot be enforced: it places the view only in the
+  editor simulation. Whether a leftward swing meets the left hand's strike plane is a headset check.
+- The sandbox scene **disables the lesson flow**, so the menu and tutorial do not compete for the right hand, and is **not** added to the build settings.
+- `App` gained a reference to `Unity.InputSystem` (already in the project) for the sandbox's debug keys.
+
+### Not verified
+Core and its tests passed (the student ran them). **Everything Unity-side was written without compiling in the Editor and has not been run**: the adapter,
+visuals, sandbox, CSV logger, scene tool and the new `PalmSwingSettings.asset`. Nothing was tried on a headset: palm-normal sign (the SDK's palmar axis
+is assumed to point out of the palm), tracking with the palm edge-on to the cameras, dropouts in fast swings, both hands together, accidental lesson exits,
+and whether 12 cm height zones are wide enough. Defaults in `PalmSwingSettings` are engineering starting points (Docs/CALIBRATION.md), not findings.
+
+### What changes in the paper
+CLAUDE.md §1.3 and §3.1 (right hand = ten touch targets, a stable spatial map of scale degree) are not met - already so on this branch since ADR-0050, and
+palm swing drops spatial pitch altogether. §1.3's "the learner chooses every note; the system only removes the wrong ones" becomes "the learner chooses the
+*contour*; the cursor chooses the pitch" - the largest conceptual change. See the end-of-task list for the rest (§3.3, §3.4, §3.9, §3.10).
+
+---
+
 ## ADR-0077 — An Antecedent–consequent lesson (lesson 5): Compose on the Fly only, the system plays the first half of every round
 
 **Date:** 2026-10-22 · **Status:** Accepted (student's call, from `Docs/handoff/2026-10-22-lesson-structure.md`) — **Core change and tests done
