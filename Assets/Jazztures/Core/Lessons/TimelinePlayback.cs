@@ -220,8 +220,10 @@ namespace Jazztures.Core.Lessons
                     continue; // builder forbids this, but never dereference a null chord
                 }
 
-                Pitch pitch = ChordToneSet.For(Progression.ChordFor(function.Value))[note.TargetIndex].Pitch;
-                double onOffset = SwingQuantizer.SwingToSeconds(note.Beat.Position, timeline.Swing, tempo);
+                Pitch pitch = note.HasFixedPitch
+                    ? new Pitch(note.MidiPitch)
+                    : ChordToneSet.For(Progression.ChordFor(function.Value))[note.TargetIndex].Pitch;
+                double onOffset = tempo.BeatsToSeconds(note.PlayedBeat(timeline.Swing));
 
                 events.Add(new ScheduledEvent(onOffset,
                     NoteEvent.On(pitch, note.Velocity, 0.0, MidiChannel.Accompaniment, Handedness.Right)));

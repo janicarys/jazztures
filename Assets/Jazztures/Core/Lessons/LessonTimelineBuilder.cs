@@ -102,6 +102,18 @@ namespace Jazztures.Core.Lessons
             return this;
         }
 
+        /// <summary>A note at a fixed MIDI pitch, whatever the chord (a scale lesson); optionally exempt from swing.</summary>
+        public LessonTimelineBuilder PitchedNote(double beat, int midiPitch, byte velocity = 90, bool straight = false)
+        {
+            if (midiPitch < Pitch.MinMidi || midiPitch > Pitch.MaxMidi)
+            {
+                throw new ArgumentOutOfRangeException(nameof(midiPitch), midiPitch, "Not a MIDI pitch.");
+            }
+
+            _notes.Add(new TimelineNote(new Beat(beat), 0, velocity, midiPitch, straight));
+            return this;
+        }
+
         public LessonTimelineBuilder Marker(double beat, string name)
         {
             _markers.Add(new TimelineMarker(new Beat(beat), name));

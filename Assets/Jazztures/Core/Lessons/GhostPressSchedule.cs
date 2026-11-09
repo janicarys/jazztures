@@ -79,7 +79,7 @@ namespace Jazztures.Core.Lessons
             {
                 TimelineNote note = timeline.Notes[i];
                 int finger = FingerFor(note.TargetIndex);
-                double onset = SwingQuantizer.Swing(note.Beat.Position, timeline.Swing);
+                double onset = note.PlayedBeat(timeline.Swing);
                 onsets[finger].Add(onset);
                 allOnsets[i] = onset;
                 allFingers[i] = finger;

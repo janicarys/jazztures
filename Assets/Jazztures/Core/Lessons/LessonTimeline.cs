@@ -173,7 +173,7 @@ namespace Jazztures.Core.Lessons
             var seconds = new double[_notes.Length + pulse.Length];
             for (int i = 0; i < _notes.Length; i++)
             {
-                seconds[i] = SwingQuantizer.SwingToSeconds(_notes[i].Beat.Position, Swing, Tempo);
+                seconds[i] = Tempo.BeatsToSeconds(_notes[i].PlayedBeat(Swing));
             }
 
             for (int i = 0; i < pulse.Length; i++)

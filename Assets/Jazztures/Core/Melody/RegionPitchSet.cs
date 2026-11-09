@@ -52,6 +52,23 @@ namespace Jazztures.Core.Melody
             return new RegionPitchSet(pitches, chord);
         }
 
+        /// <summary>A set of exactly these ascending pitches (a lesson's fixed regions).</summary>
+        public static RegionPitchSet FromPitches(int[] midiPitches, Chord chord)
+        {
+            if (midiPitches == null || midiPitches.Length == 0)
+            {
+                throw new ArgumentException("A region set needs at least one pitch.", nameof(midiPitches));
+            }
+
+            var pitches = new Pitch[midiPitches.Length];
+            for (int i = 0; i < pitches.Length; i++)
+            {
+                pitches[i] = new Pitch(midiPitches[i]);
+            }
+
+            return new RegionPitchSet(pitches, chord);
+        }
+
         /// <summary>The region that plays exactly <paramref name="pitch"/>, if there is one.</summary>
         public bool TryRegionOf(Pitch pitch, out int region)
         {

@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using Jazztures.Core.Music;
 
@@ -21,13 +22,14 @@ namespace Jazztures.Core.Melody
     {
         private readonly PalmSwingParameters _parameters;
         private readonly CrossingTrigger _trigger;
-        private readonly HeightRegionLayout _layout;
+        private HeightRegionLayout _layout;
         private readonly DirectionHistory _history = new DirectionHistory();
         private readonly MotionSmoother _lateralSmoother;
         private readonly MotionSmoother _heightSmoother;
 
         private Chord _chord;
         private RegionPitchSet _pitches;
+        private LessonPitchSet? _override;
 
         public SwingSlicesPipeline(PalmSwingParameters parameters, Chord fallbackChord)
         {
@@ -42,6 +44,23 @@ namespace Jazztures.Core.Melody
         }
 
         public bool GateOpen { get; private set; }
+
+        /// <summary>The lesson's own pitch set, or null for the swing-slices default (chord tones, retuned per chord).</summary>
+        public LessonPitchSet? Override => _override;
+
+        /// <summary>
+        /// Use a lesson's own regions (ADR-0081): its count and pitches, which then ignore chord changes. Null returns to the
+        /// default. Call between lessons, never mid-phrase; it forgets the hand's current region.
+        /// </summary>
+        public void ApplyOverride(LessonPitchSet? set)
+        {
+            _override = set;
+            int count = set != null ? set.RegionCount : _parameters.RegionCount;
+            _layout = new HeightRegionLayout(
+                count, _parameters.RegionHeightMetres, _parameters.BoundaryHysteresisMetres);
+            _pitches = BuildSet(_chord);
+            _history.Clear();
+        }
 
         public HeightRegionLayout Layout => _layout;
 
@@ -61,7 +80,10 @@ namespace Jazztures.Core.Melody
             }
 
             _chord = chord.Value;
-            _pitches = BuildSet(_chord);
+            if (_override == null)
+            {
+                _pitches = BuildSet(_chord); // a lesson's own regions do not follow the chord
+            }
         }
 
         /// <summary>The gate closed or tracking was lost: forget the hand. Notes cannot fire by re-arriving.</summary>
@@ -109,7 +131,8 @@ namespace Jazztures.Core.Melody
             return true;
         }
 
-        private RegionPitchSet BuildSet(Chord chord) => RegionPitchSet.Build(
-            _parameters.PitchSet, chord, _parameters.LowestMidi, _parameters.RegionCount);
+        private RegionPitchSet BuildSet(Chord chord) => _override != null
+            ? _override.Build(chord)
+            : RegionPitchSet.Build(_parameters.PitchSet, chord, _parameters.LowestMidi, _parameters.RegionCount);
     }
 }
