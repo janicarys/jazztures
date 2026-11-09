@@ -3002,6 +3002,7 @@ MonoBehaviour:
   _runner: {fileID: 771001001}
   _hud: {fileID: 771002003}
   _melodyInput: {fileID: 1785984401}
+  _palmSwing: {fileID: 1785984398}
   _performance: {fileID: 119089426}
   _freePlayMetronome: {fileID: 1391259296}
   _menuView: {fileID: 1677165494}
@@ -3514,6 +3515,7 @@ MonoBehaviour:
   _view: {fileID: 1785984403}
   _settings: {fileID: 11400000, guid: fca8cbb469e04deab08cfad193a47fe3, type: 2}
   _head: {fileID: 368964558}
+  _ghostChannel: {fileID: 11400000, guid: ff61668f9b6a4853accc8af87d511f03, type: 2}
 --- !u!114 &1785984403
 MonoBehaviour:
   m_ObjectHideFlags: 0

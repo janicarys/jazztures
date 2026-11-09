@@ -20,6 +20,7 @@ namespace Jazztures.Presentation
         private const float LineWidthMetres = 0.003f;
         private const float FlashSeconds = 0.18f;
         private const float DimAlpha = 0.25f;
+        private const float LineMarginMetres = 0.02f;
         private const float GuideWidthMetres = 0.04f;
         private const int MaxGuides = 17;
         private const int MaxCircles = 12;
@@ -218,6 +219,10 @@ namespace Jazztures.Presentation
                 return;
             }
 
+            // The line is exactly as tall as the stack of regions in play (a lesson's own region count changes it), so it
+            // never reaches below the lowest note.
+            FitLineToRegions();
+
             // The line stays where the lane put it; only the cursor moves with the hand, eased a little.
             float follow = _cursorFollowSeconds <= 0f ? 1f : 1f - Mathf.Exp(-Time.unscaledDeltaTime / _cursorFollowSeconds);
             _shownPointer = Vector3.Lerp(_shownPointer, _pointer, follow);
@@ -237,6 +242,22 @@ namespace Jazztures.Presentation
 
             _hintText.gameObject.SetActive(!_pipeline.GateOpen);
             _hintText.color = new Color(1f, 1f, 1f, 0.8f);
+        }
+
+        private float _fittedStack = -1f;
+
+        private void FitLineToRegions()
+        {
+            float stack = _pipeline.Layout.RegionCount * _pipeline.Layout.RegionHeightMetres + LineMarginMetres;
+            if (Mathf.Approximately(stack, _fittedStack))
+            {
+                return;
+            }
+
+            _fittedStack = stack;
+            _lineHeightMetres = stack;
+            _line.SetPosition(0, new Vector3(0f, -stack * 0.5f, 0f));
+            _line.SetPosition(1, new Vector3(0f, stack * 0.5f, 0f));
         }
 
         // Stand `root` at `position`, turned to face the head about the vertical (so a vertical line stays vertical and
