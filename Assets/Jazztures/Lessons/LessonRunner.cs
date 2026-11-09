@@ -130,6 +130,7 @@ namespace Jazztures.Lessons
 
         private ScriptedHarmony _scriptedHarmony;
         private GhostStrikeSchedule _strikes = GhostStrikeSchedule.None;
+        private NoteCueSchedule _noteCues = NoteCueSchedule.None;
         private GhostPressSchedule _presses = GhostPressSchedule.None;
         private double _playbackLeadBeats; // where the system sounds the chords: how many beats its playback trails the ghost
         private OnsetCapture _capture;
@@ -389,7 +390,8 @@ namespace Jazztures.Lessons
             _strikes = GhostStrikeSchedule.None;
             bool systemSoundsChords = policy.SystemPlayback == SystemPlayback.Full
                                       || policy.SystemPlayback == SystemPlayback.HarmonyOnly;
-            if (policy.GhostHandsVisible && ((_plan.Hands & ActiveHands.Left) != 0 || systemSoundsChords))
+            if (policy.GhostHandsVisible && !_lesson.ChordsOnTheBeat
+                && ((_plan.Hands & ActiveHands.Left) != 0 || systemSoundsChords))
             {
                 double afterPose = systemSoundsChords
                     ? System.Math.Ceiling(_ghostStrikeAfterPoseBeats)
@@ -409,6 +411,9 @@ namespace Jazztures.Lessons
             // ADR-0055: where the learner plays the right hand, the ghost right hand presses a finger per
             // note, landing on the note's onset. Whether the view shows it depends on the right-hand input
             // (finger bends, ADR-0050); the runner just says what the notes ask for.
+            _noteCues = policy.GhostHandsVisible && (_plan.Hands & ActiveHands.Right) != 0
+                ? NoteCueSchedule.FromTimeline(_timeline)
+                : NoteCueSchedule.None;
             _presses = GhostPressSchedule.None;
             if (policy.GhostHandsVisible && (_plan.Hands & ActiveHands.Right) != 0)
             {
@@ -471,7 +476,10 @@ namespace Jazztures.Lessons
 
             if (_metronome != null)
             {
-                _metronome.Start(_phaseStartDsp);
+                // ADR-0081: an audible count-in starts the pulse at the top of the lead-in, so the learner hears the
+                // lead-in's beats; it stays on the same grid (the lead-in is whole beats, so beat 0 is still a click).
+                double countIn = _lesson.AudibleCountIn ? _plan.Tempo.BeatsToSeconds(_leadInBeats) : 0.0;
+                _metronome.Start(_phaseStartDsp - countIn);
                 _metronomeOutput?.Begin(_metronome);
             }
 
@@ -691,7 +699,7 @@ namespace Jazztures.Lessons
                 beatNow, pose, poseChangedAt, LitTargetAt(melodyBeat),
                 _strikes.ProgressAt(beatNow), _strikes.ContactsUpTo(beatNow),
                 pressFinger, pressProgress, _timeline.ChordFunctionAt(System.Math.Max(0.0, melodyBeat)),
-                nextFinger, nextPose, _presses, melodyBeat));
+                nextFinger, nextPose, _presses, melodyBeat, _noteCues, leftGhostShown: !_lesson.ChordsOnTheBeat));
         }
 
         private int LitTargetAt(double beatNow)
@@ -700,7 +708,7 @@ namespace Jazztures.Lessons
             for (int i = 0; i < _timeline.Notes.Count; i++)
             {
                 TimelineNote note = _timeline.Notes[i];
-                double onset = SwingQuantizer.Swing(note.Beat.Position, _timeline.Swing);
+                double onset = note.PlayedBeat(_timeline.Swing);
                 if (beatNow >= onset && beatNow < onset + litForBeats)
                 {
                     return note.TargetIndex;

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Jazztures.Core.Harmony;
 using Jazztures.Core.Lessons;
+using Jazztures.Core.Melody;
 using Jazztures.Core.Music;
 using Jazztures.Core.Timing;
 using UnityEngine;
@@ -31,6 +32,10 @@ namespace Jazztures.Lessons
         [TextArea(1, 3)]
         [SerializeField] private string _menuDescription = string.Empty;
 
+        [Tooltip("What the menu card says about the hands, overriding the one worked out from Hands (for example 'Left, right or both' " +
+                 "for a lesson the learner can do either way). Empty uses Hands.")]
+        [SerializeField] private string _handsLabel = string.Empty;
+
         [Tooltip("Plain-language theory shown alongside the exercise. No jargon without explanation (§1.5).")]
         [TextArea(2, 6)]
         [SerializeField] private string _conceptExplanation = string.Empty;
@@ -39,6 +44,43 @@ namespace Jazztures.Lessons
                  "waits until they have all been shown. When empty, the single explanation above is shown " +
                  "instead, for the HUD's default hold, without delaying the lesson.")]
         [SerializeField] private List<ConceptSlideEntry> _conceptSlides = new List<ConceptSlideEntry>();
+
+        [Header("Menu card (ADR-0081)")]
+        [Tooltip("Shown on the menu as 'Coming soon' and cannot be opened or started. A placeholder for a lesson not built yet.")]
+        [SerializeField] private bool _locked;
+
+        [Tooltip("Choosing the card starts the lesson at once: no mode screen and no tempo card. The lesson runs all its modes " +
+                 "itself, in order, at its own tempo.")]
+        [SerializeField] private bool _startsDirectly;
+
+        [Tooltip("The steps this card runs, one after another. Empty for an ordinary lesson. When set, this asset is only the " +
+                 "menu card: its own timeline is unused.")]
+        [SerializeField] private LessonSequence _sequence;
+
+        [Header("Right hand regions (ADR-0081)")]
+        [Tooltip("Fixed notes for the swing-slice regions instead of the active chord's tones; they do not retune on a chord " +
+                 "change. The default leaves the swing-slices behaviour unchanged.")]
+        [SerializeField] private LessonPitchSetKind _pitchSetKind = LessonPitchSetKind.ChordTonesDefault;
+
+        [Tooltip("CMajorScale: the lowest MIDI note (60 = C4).")]
+        [Range(36, 96)]
+        [SerializeField] private int _pitchSetLowestMidi = 60;
+
+        [Tooltip("CMajorScale: how many height regions.")]
+        [Range(2, 16)]
+        [SerializeField] private int _pitchSetRegionCount = 9;
+
+        [Tooltip("FixedList: the pitch of each region, bottom to top (MIDI, ascending).")]
+        [SerializeField] private List<int> _pitchSetFixed = new List<int>();
+
+        [Tooltip("The system's chords sound exactly on this lesson's own beats, and there is no left ghost hand striking them. " +
+                 "Without it, a lesson whose chords are system-played delays them by the ghost's strike time so the sound meets " +
+                 "the hand. The Swing lesson's band must stay on the metronome's grid.")]
+        [SerializeField] private bool _chordsOnTheBeat;
+
+        [Tooltip("Click on every beat of the silent lead-in too, so the learner hears the count before each phase. " +
+                 "Needs the metronome on.")]
+        [SerializeField] private bool _audibleCountIn;
 
         [Header("Musical setting")]
         [Min(20f)]
@@ -106,6 +148,44 @@ namespace Jazztures.Lessons
         [Header("Cue track — text / visual / control (ADR-0011)")]
         [SerializeField] private List<CueEntry> _cues = new List<CueEntry>();
 
+        // Set only by LessonSequence when it makes a step at run time (a step is data in the sequence asset, not an asset of its own).
+        private Func<double, LessonTimeline> _timelineFactory;
+        private LessonScript _scriptOverride;
+
+        /// <summary>
+        /// Make this definition a run-time step of a sequence (ADR-0081): its notes and chords come from
+        /// <paramref name="timeline"/>, its cues from <paramref name="script"/>, not from the serialised lists.
+        /// </summary>
+        internal void ConfigureStep(
+            string id, string title, IEnumerable<ConceptSlide> slides, IEnumerable<LearningMode> modes, float tempoBpm,
+            float swingRatio, LessonPitchSetKind pitchSetKind, int lowestMidi, int regionCount,
+            Func<double, LessonTimeline> timeline, LessonScript script)
+        {
+            _id = id;
+            _title = title;
+            _tempoBpm = tempoBpm;
+            _swingRatio = swingRatio;
+            _beatsPerBar = SwingLessonBuilder.BeatsPerBar;
+            _hands = ActiveHands.Right;
+            _useMetronome = true;
+            _audibleCountIn = true;
+            _chordsOnTheBeat = true;
+            _startsDirectly = true;
+            _metronomeSubdivision = MetronomeSubdivision.None;
+            _modes = new List<LearningMode>(modes);
+            _conceptSlides = new List<ConceptSlideEntry>();
+            foreach (ConceptSlide slide in slides)
+            {
+                _conceptSlides.Add(new ConceptSlideEntry { text = slide.Text, seconds = slide.Seconds });
+            }
+
+            _pitchSetKind = pitchSetKind;
+            _pitchSetLowestMidi = lowestMidi;
+            _pitchSetRegionCount = regionCount;
+            _timelineFactory = timeline;
+            _scriptOverride = script;
+        }
+
         public LessonId LessonId => new LessonId(_id);
 
         public string Title => _title;
@@ -113,10 +193,47 @@ namespace Jazztures.Lessons
         /// <summary>What the menu shows under this lesson's card while it is highlighted; empty shows nothing.</summary>
         public string MenuDescription => _menuDescription ?? string.Empty;
 
+        /// <summary>The card's own words for the hands, or empty to derive them from <see cref="Hands"/>.</summary>
+        public string HandsLabel => _handsLabel ?? string.Empty;
+
         /// <summary>Which hands the learner plays in this lesson.</summary>
         public ActiveHands Hands => _hands;
 
         public bool UseMetronome => _useMetronome;
+
+        /// <summary>The metronome also clicks through the lead-in, so the learner hears the count before each phase.</summary>
+        public bool AudibleCountIn => _audibleCountIn && _useMetronome;
+
+        /// <summary>The system's chords sound on the lesson's beats with no ghost strike (no playback lead, no left ghost).</summary>
+        public bool ChordsOnTheBeat => _chordsOnTheBeat;
+
+        /// <summary>A placeholder card: "Coming soon", never started.</summary>
+        public bool IsLocked => _locked;
+
+        /// <summary>No mode screen: choosing the card starts the lesson, which runs all its modes.</summary>
+        public bool StartsDirectly => _startsDirectly;
+
+        /// <summary>The steps this card runs in turn, or null for an ordinary lesson.</summary>
+        public LessonSequence Sequence => _sequence;
+
+        /// <summary>The lesson's own region pitches for the swing-slice right hand, or null for the swing-slices default.</summary>
+        public LessonPitchSet PitchSet
+        {
+            get
+            {
+                switch (_pitchSetKind)
+                {
+                    case LessonPitchSetKind.CMajorScale:
+                        return LessonPitchSet.CMajorScale(_pitchSetLowestMidi, _pitchSetRegionCount);
+                    case LessonPitchSetKind.FixedList:
+                        return _pitchSetFixed != null && _pitchSetFixed.Count > 0
+                            ? LessonPitchSet.Fixed(_pitchSetFixed.ToArray())
+                            : null;
+                    default:
+                        return null;
+                }
+            }
+        }
 
         /// <summary>Whether the lesson's metronome also clicks the "and" between beats, and where (straight or swung).</summary>
         public MetronomeSubdivision MetronomeSubdivision => _metronomeSubdivision;
@@ -164,6 +281,11 @@ namespace Jazztures.Lessons
 
         public LessonTimeline BuildTimeline(double tempoBpm)
         {
+            if (_timelineFactory != null)
+            {
+                return _timelineFactory(tempoBpm);
+            }
+
             var builder = new LessonTimelineBuilder()
                 .WithTempo(new Tempo(tempoBpm))
                 .WithSwing(BuildSwing())
@@ -179,7 +301,14 @@ namespace Jazztures.Lessons
 
             foreach (NoteEntry note in _notes)
             {
-                builder.Note(note.beat, note.targetIndex, (byte)Mathf.Clamp(note.velocity, 1, 127));
+                if (note.midiPitch >= 0)
+                {
+                    builder.PitchedNote(note.beat, note.midiPitch, (byte)Mathf.Clamp(note.velocity, 1, 127), note.straight);
+                }
+                else
+                {
+                    builder.Note(note.beat, note.targetIndex, (byte)Mathf.Clamp(note.velocity, 1, 127));
+                }
             }
 
             foreach (MarkerEntry marker in _markers)
@@ -192,6 +321,11 @@ namespace Jazztures.Lessons
 
         public LessonScript BuildScript()
         {
+            if (_scriptOverride != null)
+            {
+                return _scriptOverride;
+            }
+
             var builder = new LessonScriptBuilder();
             foreach (CueEntry cue in _cues)
             {
@@ -299,6 +433,12 @@ namespace Jazztures.Lessons
             [Min(0f)] public float beat;
             [Range(0, 9)] public int targetIndex;
             [Range(1, 127)] public int velocity = 90;
+
+            [Tooltip("A fixed MIDI pitch, whatever the chord (-1 = use Target Index, the chord-tone slot).")]
+            [Range(-1, 127)] public int midiPitch = -1;
+
+            [Tooltip("Played exactly where it is written even in a swung lesson.")]
+            public bool straight;
         }
 
         [Serializable]

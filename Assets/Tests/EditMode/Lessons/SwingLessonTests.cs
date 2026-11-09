@@ -70,6 +70,28 @@ namespace Jazztures.Tests.EditMode.Lessons
             Assert.That(expected, Is.EqualTo(fromNotes).Within(1e-9));
         }
 
+        [Test]
+        public void TheCircleSchedule_ArrivesOnEachNotesSwungBeat_AtItsFixedPitch_InTimeOrder()
+        {
+            LessonTimeline timeline = Build("1 2 3 4");
+
+            NoteCueSchedule cues = NoteCueSchedule.FromTimeline(timeline);
+
+            Assert.That(cues.Count, Is.EqualTo(4));
+            double[] onsets = Enumerable.Range(0, cues.Count).Select(cues.OnsetBeat).ToArray();
+            Assert.That(onsets, Is.EqualTo(timeline.Notes.Select(n => n.PlayedBeat(timeline.Swing)).ToArray()).Within(1e-9));
+            Assert.That(Enumerable.Range(0, cues.Count).Select(cues.MidiPitch), Is.EqualTo(new[] { 60, 62, 64, 65 }));
+            Assert.That(cues.FirstAtOrAfter(0.7), Is.EqualTo(2)); // the note at 2/3 has gone; the one on beat 2 is next
+        }
+
+        [Test]
+        public void ALongLessonBeat_SchedulesNothingPast_ARestBar()
+        {
+            NoteCueSchedule cues = NoteCueSchedule.FromTimeline(Build("1 2 3 4"));
+
+            Assert.That(cues.FirstAtOrAfter(2.0), Is.EqualTo(cues.Count)); // bars 2-4 rest: no more circles
+        }
+
         // --- Pattern data -------------------------------------------------------------------
 
         [Test]

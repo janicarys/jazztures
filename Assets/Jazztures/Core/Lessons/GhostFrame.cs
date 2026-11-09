@@ -43,7 +43,9 @@ namespace Jazztures.Core.Lessons
             int nextFinger = GhostPressSchedule.NoFinger,
             ChordFunction? nextMelodyPose = null,
             GhostPressSchedule? pressSchedule = null,
-            double melodyBeat = 0.0)
+            double melodyBeat = 0.0,
+            NoteCueSchedule? noteCues = null,
+            bool leftGhostShown = true)
         {
             Beat = beat;
             DemonstratedPose = demonstratedPose;
@@ -58,8 +60,22 @@ namespace Jazztures.Core.Lessons
             NextMelodyPose = nextFinger < 0 ? null : nextMelodyPose;
             PressSchedule = pressSchedule;
             MelodyBeat = melodyBeat;
+            NoteCues = noteCues;
+            LeftGhostShown = leftGhostShown;
             Visible = true;
         }
+
+        /// <summary>
+        /// Every note of the phrase with its swung onset and fixed pitch, for the swing-slice circles (ADR-0081); null when the
+        /// lesson has none to show. Timed on <see cref="MelodyBeat"/>.
+        /// </summary>
+        public NoteCueSchedule? NoteCues { get; }
+
+        /// <summary>
+        /// False when the left ghost hand should stay away although the frame is visible (the Swing lesson's chords come with
+        /// the band, not from a hand to copy). Always true in a lesson that shows the chord strikes.
+        /// </summary>
+        public bool LeftGhostShown { get; }
 
         /// <summary>True when the ghost hands should be drawn at all (from the mode policy).</summary>
         public bool Visible { get; }

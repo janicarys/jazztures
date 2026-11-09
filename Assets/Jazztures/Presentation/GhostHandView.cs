@@ -210,7 +210,7 @@ namespace Jazztures.Presentation
 
             Vector3 viewer = _head != null ? _head.position : Vector3.zero;
             _chordName.Place(
-                frame.Visible,
+                frame.Visible && frame.LeftGhostShown,
                 _nameAnchor.position + Vector3.up * NameHoverAboveHandMetres,
                 viewer,
                 Time.deltaTime);
@@ -218,9 +218,10 @@ namespace Jazztures.Presentation
 
         private void ShowFrame(GhostFrame frame)
         {
-            SetGhostVisible(frame.Visible);
+            bool shown = frame.Visible && frame.LeftGhostShown;
+            SetGhostVisible(shown);
 
-            if (!frame.Visible)
+            if (!shown)
             {
                 ClearDemoLight();
                 _chordName.Reset();

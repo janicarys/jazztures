@@ -60,6 +60,10 @@ namespace Jazztures.App
                  "the ten markers.")]
         [SerializeField] private Behaviour _melodyInput;
 
+        [Tooltip("The swing-slice right hand. A lesson with its own region pitches (the Swing lesson's C major scale, ADR-0081) " +
+                 "hands them to its pipeline here; every other lesson leaves the default. Optional.")]
+        [SerializeField] private PalmSwingInputSource _palmSwing;
+
         [Tooltip("PerformanceCompositionRoot — disabled while a menu is open so left-hand poses don't " +
                  "trigger chords while you're choosing.")]
         [SerializeField] private PerformanceCompositionRoot _performance;
@@ -103,6 +107,7 @@ namespace Jazztures.App
 
         private readonly List<LessonDefinition> _lessons = new List<LessonDefinition>();
         private readonly List<string> _labels = new List<string>();
+        private readonly List<bool> _disabled = new List<bool>();
 
         private MenuNavigator _navigator;
         private MenuGestureRecognizer _recognizer;
@@ -156,7 +161,7 @@ namespace Jazztures.App
             var infos = new List<MenuLessonInfo>(_lessons.Count);
             foreach (LessonDefinition lesson in _lessons)
             {
-                infos.Add(new MenuLessonInfo(lesson.Modes, lesson.TempoBpm));
+                infos.Add(new MenuLessonInfo(lesson.Modes, lesson.TempoBpm, lesson.IsLocked, lesson.StartsDirectly));
             }
 
             var model = new MenuModel(
@@ -172,6 +177,7 @@ namespace Jazztures.App
             _navigator = new MenuNavigator(model);
             _navigator.Changed += Render;
             _navigator.Bumped += OnBumped;
+            _navigator.LockedChosen += OnLockedChosen;
             _navigator.IntentRaised += OnIntent;
             _navigator.RunAborted += StopRunSystems;
             _runner.Completed += OnRunCompleted;
@@ -267,6 +273,7 @@ namespace Jazztures.App
             {
                 _navigator.Changed -= Render;
                 _navigator.Bumped -= OnBumped;
+                _navigator.LockedChosen -= OnLockedChosen;
                 _navigator.IntentRaised -= OnIntent;
                 _navigator.RunAborted -= StopRunSystems;
             }
@@ -283,6 +290,15 @@ namespace Jazztures.App
 
         private void Update()
         {
+            if (_startNextStepPending)
+            {
+                _startNextStepPending = false;
+                if (_navigator != null && _navigator.IsRunning)
+                {
+                    StartNextStep();
+                }
+            }
+
             if (_tutorialRunner != null && _tutorialRunner.IsRunning)
             {
                 MenuHandFrame frame = _menuInput.LastFrame;
@@ -384,6 +400,10 @@ namespace Jazztures.App
 
         private void OnBumped(int direction) => _menuView.Bump(direction);
 
+        // A locked card opens nothing; the card already says "Coming soon", so the answer is the same small shake a
+        // flick with nowhere to go gets.
+        private void OnLockedChosen(int lesson) => _menuView.Bump(1);
+
         // --- Rendering ---------------------------------------------------------------------
 
         private void Render()
@@ -408,10 +428,15 @@ namespace Jazztures.App
             SetInputContext(MenuInputContext.Menu);
 
             _labels.Clear();
+            _disabled.Clear();
             for (int i = 0; i < _navigator.Items.Count; i++)
             {
-                _labels.Add(LabelOf(_navigator.Items[i]));
+                MenuItem item = _navigator.Items[i];
+                _labels.Add(LabelOf(item));
+                _disabled.Add(item.Kind == MenuItemKind.Lesson && _lessons[item.LessonIndex].IsLocked);
             }
+
+            _menuView.SetDisabledCards(_disabled);
 
             // A new screen fades and drifts in the direction the learner went; the same screen
             // redrawn (a flick, the tempo card changing) lets the row glide instead.
@@ -462,7 +487,9 @@ namespace Jazztures.App
             switch (item.Kind)
             {
                 case MenuItemKind.Lesson:
-                    return $"{item.LessonIndex + 1}. {_lessons[item.LessonIndex].Title}";
+                    // The title, then which hand(s) the lesson uses (Session 4), or that it is not ready (ADR-0081).
+                    return $"{item.LessonIndex + 1}. {_lessons[item.LessonIndex].Title}\n"
+                         + (_lessons[item.LessonIndex].IsLocked ? "Coming soon" : HandsLineOf(_lessons[item.LessonIndex]));
                 case MenuItemKind.FreePlay:
                     return $"{_lessons.Count + 1}. Free play";
                 case MenuItemKind.Mode:
@@ -480,6 +507,16 @@ namespace Jazztures.App
                 default:
                     return string.Empty;
             }
+        }
+
+        private static string HandsLineOf(LessonDefinition lesson) =>
+            lesson.HandsLabel.Length > 0 ? lesson.HandsLabel : HandsLine(lesson.Hands);
+
+        private static string HandsLine(ActiveHands hands)
+        {
+            bool left = (hands & ActiveHands.Left) != 0;
+            bool right = (hands & ActiveHands.Right) != 0;
+            return left && right ? "Both hands" : right ? "Right hand" : "Left hand";
         }
 
         private string TitleOf(MenuScreen screen)
@@ -568,7 +605,7 @@ namespace Jazztures.App
             switch (item.Kind)
             {
                 case MenuItemKind.Lesson:
-                    return _lessons[item.LessonIndex].MenuDescription;
+                    return _lessons[item.LessonIndex].IsLocked ? "Coming soon." : _lessons[item.LessonIndex].MenuDescription;
                 case MenuItemKind.FreePlay:
                     return "Play freely with both hands. No lesson, nothing to match.";
                 case MenuItemKind.Mode:
@@ -599,7 +636,7 @@ namespace Jazztures.App
                 case LearningMode.TryYourself:
                     return rightHandOnly
                         ? "The chords play for you. Curl each finger as its letter arrives."
-                        : "Copy the ghost hand. It waits until you match each shape.";
+                        : "Copy the ghost hand. Your chord sounds when you match its shape.";
                 case LearningMode.TestYourself:
                     return "No guide this time. Play it yourself, then see how you did.";
                 case LearningMode.ComposeOnTheFly:
@@ -628,20 +665,75 @@ namespace Jazztures.App
             StartLesson(_lessons[intent.LessonIndex], intent.Mode, intent.TempoBpm);
         }
 
+        // A sequence card (ADR-0081): its steps run one after another with no menu between, each one a run-time
+        // lesson built from the sequence's data. Null when an ordinary lesson is running.
+        private LessonSequence _sequence;
+        private int _sequenceStep;
+        private LessonDefinition _stepLesson;
+        private bool _startNextStepPending;
+
         private void StartLesson(LessonDefinition lesson, LearningMode mode, double tempoBpm)
         {
             _lastResult = string.Empty;
             _closingCaption = string.Empty;
+            EndSequence();
 
+            if (lesson.Sequence != null && lesson.Sequence.StepCount > 0)
+            {
+                _sequence = lesson.Sequence;
+                _sequenceStep = -1;
+                StartNextStep();
+                return;
+            }
+
+            BeginLesson(lesson, () => _runner.LoadLesson(lesson, mode, tempoBpm));
+        }
+
+        // Step 0 of a sequence, then each next one when the last finishes. Returns false when there is no next.
+        private bool StartNextStep()
+        {
+            if (_sequence == null || _sequenceStep + 1 >= _sequence.StepCount)
+            {
+                return false;
+            }
+
+            _sequenceStep++;
+            LessonDefinition previous = _stepLesson;
+            _stepLesson = _sequence.BuildStep(_sequenceStep);
+            LessonDefinition step = _stepLesson;
+            BeginLesson(step, () => _runner.LoadLesson(step)); // the step's whole plan: its modes, in order
+            if (previous != null) Destroy(previous);
+            return true;
+        }
+
+        private void EndSequence()
+        {
+            _sequence = null;
+            _sequenceStep = -1;
+            if (_stepLesson != null)
+            {
+                Destroy(_stepLesson);
+                _stepLesson = null;
+            }
+        }
+
+        private void BeginLesson(LessonDefinition lesson, Action load)
+        {
             if (_freePlayMetronome != null) _freePlayMetronome.End();
 
             // HUD + performance on first, so they catch the lesson's opening phase/cue events.
             if (_hud != null) _hud.enabled = true;
             if (_performance != null) _performance.enabled = true;
 
+            // ADR-0081: a lesson's own regions (or none: the swing-slices default) before its first note can sound.
+            if (_palmSwing != null && _palmSwing.Pipeline != null)
+            {
+                _palmSwing.Pipeline.ApplyOverride(lesson.PitchSet);
+            }
+
             try
             {
-                _runner.LoadLesson(lesson, mode, tempoBpm);
+                load();
             }
             catch (Exception e)
             {
@@ -676,6 +768,23 @@ namespace Jazztures.App
                 return;
             }
 
+            // A sequence goes straight on to its next step; only the last one shows the post-run menu.
+            if (_sequence != null && _sequenceStep + 1 < _sequence.StepCount)
+            {
+                _startNextStepPending = true; // not from inside the runner's own Completed event: next frame
+                return;
+            }
+
+            if (_sequence != null)
+            {
+                string closing = _sequence.ClosingText;
+                EndSequence();
+                StopRunSystems();
+                _closingCaption = closing;
+                _navigator.RunCompleted();
+                return;
+            }
+
             // A caption raised in this same frame is the lesson's closing line (the cue that fires when
             // its last phase ends): the HUD is about to be switched off, so keep it for the menu.
             _closingCaption = Time.frameCount == _lastCaptionFrame ? _lastCaption : string.Empty;
@@ -703,11 +812,14 @@ namespace Jazztures.App
         /// <summary>Everything a lesson or free play switches on, switched off — the menu is the idle state.</summary>
         private void StopRunSystems()
         {
+            _startNextStepPending = false;
+            if (_palmSwing != null && _palmSwing.Pipeline != null) _palmSwing.Pipeline.ApplyOverride(null);
             if (_runner != null) _runner.StopLesson();
             if (_hud != null) _hud.enabled = false;
             if (_melodyInput != null) _melodyInput.enabled = false; // also hides the target markers
             if (_performance != null) _performance.enabled = false;
             if (_freePlayMetronome != null) _freePlayMetronome.End();
+            EndSequence(); // after the runner has let go of the step it was playing
         }
     }
 }
