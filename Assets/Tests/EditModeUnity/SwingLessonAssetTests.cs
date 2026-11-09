@@ -32,7 +32,7 @@ namespace Jazztures.Tests.EditModeUnity
             List<LessonDefinition> lessons = MenuLessons();
 
             Assert.That(lessons.Select(l => l.Title), Is.EqualTo(new[] { "Swing", "Harmony", "Two-hand swing", "Sequences", "Motifs" }));
-            Assert.That(lessons.Select(l => l.IsLocked), Is.EqualTo(new[] { false, false, true, true, true }));
+            Assert.That(lessons.Select(l => l.IsLocked), Is.EqualTo(new[] { false, false, false, false, false })); // the three samples are playable; the locked state is exercised below
         }
 
         [Test]
@@ -65,28 +65,23 @@ namespace Jazztures.Tests.EditModeUnity
         }
 
         [Test]
-        public void LockedCards_AreNotStartable()
+        public void ALockedCard_IsNotStartable()
         {
             var model = new MenuModel(
-                MenuLessons().Select(l => new MenuLessonInfo(l.Modes, l.TempoBpm, l.IsLocked, l.StartsDirectly)),
+                new[]
+                {
+                    new MenuLessonInfo(new[] { LearningMode.WatchAndListen }, 60),
+                    new MenuLessonInfo(new[] { LearningMode.WatchAndListen }, 60, locked: true),
+                },
                 offerFreePlay: false);
             var menu = new MenuNavigator(model);
             var intents = new List<MenuIntent>();
             menu.IntentRaised += intents.Add;
 
-            for (int card = 2; card < 5; card++)
-            {
-                menu = new MenuNavigator(model);
-                menu.IntentRaised += intents.Add;
-                for (int i = 0; i < card; i++)
-                {
-                    menu.Handle(MenuGesture.FlickLeft);
-                }
+            menu.Handle(MenuGesture.FlickLeft);
+            menu.Handle(MenuGesture.Strike);
 
-                menu.Handle(MenuGesture.Strike);
-                Assert.That(menu.Screen, Is.EqualTo(MenuScreen.Main), "card " + card);
-            }
-
+            Assert.That(menu.Screen, Is.EqualTo(MenuScreen.Main));
             Assert.That(intents, Is.Empty);
         }
 

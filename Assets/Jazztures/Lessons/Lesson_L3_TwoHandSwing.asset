@@ -16,7 +16,86 @@ MonoBehaviour:
   _title: Two-hand swing
   _menuDescription: Swing with your right hand while your left hand plays the chords.
   _handsLabel: 
-  _locked: 1
+  _locked: 0
+  _pitchSetKind: 1
+  _pitchSetLowestMidi: 60
+  _pitchSetRegionCount: 9
+  _chordsOnTheBeat: 0
+  _audibleCountIn: 1
+  _conceptSlides:
+  - text: 'Now both hands. Your left hand plays the chords. Your right hand swings the notes.'
+    seconds: 6
+  - text: 'Left hand: make each chord shape and strike down. Right hand: follow the circles.'
+    seconds: 6
   _tempoBpm: 60
+  _swingRatio: 0.6667
+  _beatsPerBar: 4
   _hands: 3
-  _modes: 01000000
+  _useMetronome: 1
+  _minimumLengthBeats: 8
+  _modes: 0100000002000000
+  _chords:
+  - beat: 0
+    function: 0
+  - beat: 2
+    function: 0
+  - beat: 4
+    function: 1
+  - beat: 6
+    function: 1
+  _notes:
+  - beat: 0.0
+    targetIndex: 0
+    velocity: 90
+    midiPitch: 60
+    straight: 0
+  - beat: 0.5
+    targetIndex: 0
+    velocity: 90
+    midiPitch: 64
+    straight: 0
+  - beat: 1.0
+    targetIndex: 0
+    velocity: 90
+    midiPitch: 67
+    straight: 0
+  - beat: 1.5
+    targetIndex: 0
+    velocity: 90
+    midiPitch: 64
+    straight: 0
+  - beat: 4.0
+    targetIndex: 0
+    velocity: 90
+    midiPitch: 62
+    straight: 0
+  - beat: 4.5
+    targetIndex: 0
+    velocity: 90
+    midiPitch: 65
+    straight: 0
+  - beat: 5.0
+    targetIndex: 0
+    velocity: 90
+    midiPitch: 69
+    straight: 0
+  - beat: 5.5
+    targetIndex: 0
+    velocity: 90
+    midiPitch: 65
+    straight: 0
+  _cues:
+  - triggerKind: 0
+    beat: 4
+    marker: 
+    learnerAction: 0
+    narrowToFunction: 0
+    function: 0
+    narrowToTarget: 0
+    targetIndex: 0
+    actionKind: 0
+    text: 'Chords with the left, notes with the right.'
+    slot: 0
+    actionTargetIndex: 0
+    color: 0
+    flag: 0
