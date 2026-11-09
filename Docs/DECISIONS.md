@@ -16,10 +16,11 @@ whose gate, lane frame, crossing trigger and look-back history are reused unchan
 (Numbered 0080 because `explore/finger-strum` already holds ADR-0079.)
 
 ### What changed
-Absolute **height regions** replace tilt. The vertical trigger line is divided into `regionCount` bands (default 9 x 4.5 cm, middle band at the
-palm's resting height); each band is one note. Palm height picks the band and is silent. A sideways swing across the line, either way,
-plays the band's pitch, read from `lookBackMs` (50) before the crossing. Swinging back and forth at one height repeats the note. On a chord
-change the bands retune at once and keep their heights; a sounding note keeps its pitch. With no chord held the fallback chord is used.
+Absolute **height regions** replace tilt. The vertical trigger line is divided into `regionCount` bands (default 15 x 4.5 cm, middle band at the
+palm's resting height; two lesson octaves, extended same day from 9 x 4.5 cm = one octave); each band is one note. Palm height picks the band
+and is silent. A sideways swing across the line, either way, plays the band's pitch, read from `lookBackMs` (50) before the crossing. Swinging
+back and forth at one height repeats the note. On a chord change the bands retune at once and keep their heights; a sounding note keeps its
+pitch. With no chord held the fallback chord is used.
 
 ### Why
 - The tilt felt awkward, and relative steps make the register drift.
@@ -33,8 +34,11 @@ trigger line and its flash, the gate dim/hint, and the dot, now at the palm's he
 ### `[OPEN]` the pitch set
 Regions play the active chord's tones ascending from `lowPitch` (default), or the C major scale (`pitchSetType`). Undecided. Chord tones are
 pitch-sorted rather than degree-stacked because the 9th (root+14) sits above the next root (root+12), which would break height = pitch.
-**With 9 regions and chord tones, `lowPitch` 72 is the only value that covers every pitch the current lessons use** (Dm7 74 77 81 84 88,
-G7 79 83 86 89 93, Cmaj7 72 76 79 83 86); zero margin. 10 regions allow 70-72.
+**With 15 regions and chord tones, `lowPitch` 70-72 covers both lesson octaves**: all ten chord-tone targets of each chord land on a region
+(Dm7 74 77 81 84 88 / 86 89 93 96 100, G7 79 83 86 89 93 / 91 95 98 101 105, Cmaj7 72 76 79 83 86 / 84 88 91 95 98). 14 regions is the fewest
+but covers only from exactly 72, and any even count puts the resting height on a band boundary. The stack is now about 68 cm tall — the band
+height (and so the reach) will need pilot calibration. The C major scale would need around 20 regions to reach its second octave: an input for
+the `[OPEN]` decision.
 
 ### Not done / not verified
 - **Lesson circles (plain, unlabelled, arriving at the region height on the beat) are NOT built yet.** Lessons are not playable with this input until they are.

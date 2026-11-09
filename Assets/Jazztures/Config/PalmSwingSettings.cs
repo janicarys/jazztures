@@ -62,7 +62,7 @@ namespace Jazztures.Config
         [Min(0f)] [SerializeField] private float _lockoutSeconds = (float)CrossingThresholds.DefaultLockoutSeconds;
 
         [Header("Swing slices — palm height picks the note")]
-        [Tooltip("How many height regions are stacked on the trigger line, each one a note. Region 0 is the lowest, the middle one sits at the height the palm rested at when the pose settled. With chord tones from MIDI 72, 9 is the fewest that reaches every pitch the current lessons use.")]
+        [Tooltip("How many height regions are stacked on the trigger line, each one a note. Region 0 is the lowest, the middle one sits at the height the palm rested at when the pose settled. With chord tones from MIDI 72, 15 is the fewest odd count that reaches every pitch both lesson octaves use (9 reached one octave; 14 is the fewest outright but only works from exactly 72, and even counts put the resting height on a band boundary).")]
         [Range(2, 16)] [SerializeField] private int _regionCount = HeightRegionLayout.DefaultRegionCount;
 
         [Tooltip("Height of each region, centimetres. Smaller means more notes in reach but less margin for tracking jitter.")]
@@ -81,7 +81,7 @@ namespace Jazztures.Config
         [Tooltip("[OPEN] pitchSetType: what the regions play, ascending: the active chord's tones (root/3rd/5th/7th/9th repeated upward), or the C major scale. Neither is decided (ADR-0078, ADR-0080).")]
         [SerializeField] private PitchSetKind _pitchSet = PitchSetKind.ChordTones;
 
-        [Tooltip("lowPitch: region 0 plays the first pitch of the set at or above this, MIDI. 72 matches the existing right-hand floor, and with 9 chord-tone regions it is the ONLY value that covers every lesson pitch (10 regions allow 70-72).")]
+        [Tooltip("lowPitch: region 0 plays the first pitch of the set at or above this, MIDI. 72 matches the existing right-hand floor, and with 15 chord-tone regions every value of 70-72 covers both lesson octaves (14 regions allow only 72, 9 only reached one octave).")]
         [Range(36, 96)] [SerializeField] private int _lowestMidi = 72;
 
         [Tooltip("UNUSED on swing-slices (the range is set by Region Count). Size of the cursor's range in semitones.")]

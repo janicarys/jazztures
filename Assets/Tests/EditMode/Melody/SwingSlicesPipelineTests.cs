@@ -5,15 +5,16 @@ using NUnit.Framework;
 
 namespace Jazztures.Tests.EditMode.Melody
 {
-    // Cmaj7 is the fallback chord. Its nine regions are 72 74 76 79 83 84 86 88 91; Dm7's are 72 74 76 77 81 84 86 88 89.
-    // Region k's centre is (k - 4) * 4.5 cm above the lane origin. Smoothing is off (Core default).
+    // Cmaj7 is the fallback chord. Its fifteen regions are 72 74 76 79 83 84 86 88 91 95 96 98 100 103 107; Dm7's are
+    // 72 74 76 77 81 84 86 88 89 93 96 98 100 101 105. Region 7 is the middle one; region k's centre is
+    // (k - 7) * 4.5 cm above the lane origin. Smoothing is off (Core default).
     public class SwingSlicesPipelineTests
     {
         private const double Frame = 1.0 / 90.0;
         private const float Left = -0.08f;
         private const float Right = 0.08f;
 
-        private static float Centre(int region) => (region - 4) * 0.045f;
+        private static float Centre(int region) => (region - 7) * 0.045f;
 
         private sealed class Hand
         {
@@ -182,7 +183,7 @@ namespace Jazztures.Tests.EditMode.Melody
             hand.Hold(0.3);
             hand.Swing(Left);
 
-            Assert.That(hand.Notes.ConvertAll(n => n.Region), Is.EqualTo(new[] { 8, 0 }));
+            Assert.That(hand.Notes.ConvertAll(n => n.Region), Is.EqualTo(new[] { 14, 0 }));
         }
 
         [Test]

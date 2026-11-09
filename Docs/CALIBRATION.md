@@ -351,11 +351,11 @@ All `[TUNABLE]`, engineering defaults, unmeasured on a headset. The tilt, phrase
 
 | Parameter | Default | Note |
 |---|---|---|
-| Region count | 9 | Bands on the trigger line, each a note. 9 is the fewest that reaches every lesson pitch with chord tones from 72 |
-| Region height | 4.5 cm | About 40 cm in total. Smaller = more reach, less margin for jitter |
+| Region count | 15 | Bands on the trigger line, each a note. 15 is the fewest odd count that reaches every two-octave lesson pitch with chord tones from 70-72 (14 fits only from exactly 72; odd keeps a band centred on the resting height). 9 reached one octave |
+| Region height | 4.5 cm | About 68 cm in total across 15 bands. Smaller = more reach, less margin for jitter |
 | Boundary hysteresis | 1.0 cm | The palm keeps its band until this far past the edge |
 | Look-back | 50 ms | Existing setting; the band is read this long before the crossing |
-| Low pitch (`lowPitch`) | 72 | Existing `Lowest Midi`; first pitch of the set at or above it is region 0 |
+| Low pitch (`lowPitch`) | 72 | Existing `Lowest Midi`; first pitch of the set at or above it is region 0. With 15 chord-tone regions, 70-72 all cover both lesson octaves |
 | Pitch set type | Chord tones | `[OPEN]` chord tones or C major scale |
 | Target diameter | 4.5 cm | Lesson circles (not yet built); about one region height |
 | Show region guides (debug) | off | Developer tuning only; draws boundaries, never names |

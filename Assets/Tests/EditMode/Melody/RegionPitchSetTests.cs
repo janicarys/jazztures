@@ -17,6 +17,20 @@ namespace Jazztures.Tests.EditMode.Melody
             return result;
         }
 
+        // The default count; the fixed-9 tests below pin the count parameter's behaviour, not the branch default.
+        private const int DefaultCount = HeightRegionLayout.DefaultRegionCount;
+
+        [Test]
+        public void BothLessonOctaves_AscendingChordTones_FromTheDefaultLow()
+        {
+            Assert.That(Midis(RegionPitchSet.Build(PitchSetKind.ChordTones, Chord.Cmaj7, 72, DefaultCount)),
+                Is.EqualTo(new[] { 72, 74, 76, 79, 83, 84, 86, 88, 91, 95, 96, 98, 100, 103, 107 }));
+            Assert.That(Midis(RegionPitchSet.Build(PitchSetKind.ChordTones, Chord.Dm7, 72, DefaultCount)),
+                Is.EqualTo(new[] { 72, 74, 76, 77, 81, 84, 86, 88, 89, 93, 96, 98, 100, 101, 105 }));
+            Assert.That(Midis(RegionPitchSet.Build(PitchSetKind.ChordTones, Chord.G7, 72, DefaultCount)),
+                Is.EqualTo(new[] { 74, 77, 79, 81, 83, 86, 89, 91, 93, 95, 98, 101, 103, 105, 107 }));
+        }
+
         [Test]
         public void Dm7_FillsTheRegions() =>
             Assert.That(Midis(RegionPitchSet.Build(PitchSetKind.ChordTones, Chord.Dm7, 72, 9)),
@@ -50,17 +64,22 @@ namespace Jazztures.Tests.EditMode.Melody
             }
         }
 
-        // Every pitch the current lessons use: chord-tone indices 0-4 of each chord (floor 72) must land on a region.
+        // Every pitch the current lessons use, both octaves: chord-tone indices 0-9 (ChordToneSet.TargetCount) of each
+        // chord must land on a region, whether the low pitch is the default 72 or the lowest 70 that 15 regions fit.
         [Test]
         public void EveryLessonPitch_LandsOnARegion_ForItsChord()
         {
-            foreach (Chord chord in new[] { Chord.Dm7, Chord.G7, Chord.Cmaj7 })
+            foreach (int low in new[] { 70, 72 })
             {
-                RegionPitchSet set = RegionPitchSet.Build(PitchSetKind.ChordTones, chord, 72, 9);
-                ChordToneSet tones = ChordToneSet.For(chord);
-                for (int i = 0; i < ChordToneSet.DegreesPerOctave; i++)
+                foreach (Chord chord in new[] { Chord.Dm7, Chord.G7, Chord.Cmaj7 })
                 {
-                    Assert.That(set.TryRegionOf(tones[i].Pitch, out _), Is.True, $"{chord} target {i} = {tones[i].Pitch}");
+                    RegionPitchSet set = RegionPitchSet.Build(PitchSetKind.ChordTones, chord, low, DefaultCount);
+                    ChordToneSet tones = ChordToneSet.For(chord);
+                    for (int i = 0; i < ChordToneSet.TargetCount; i++)
+                    {
+                        Assert.That(set.TryRegionOf(tones[i].Pitch, out _), Is.True,
+                            $"{chord} lowPitch {low}: target {i} = {tones[i].Pitch}");
+                    }
                 }
             }
         }

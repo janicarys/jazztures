@@ -15,7 +15,10 @@ namespace Jazztures.Core.Melody
     /// </summary>
     public sealed class HeightRegionLayout
     {
-        public const int DefaultRegionCount = 9;
+        // 15 is the fewest odd count that reaches every two-octave lesson pitch with chord tones from lowPitch 70-72
+        // (14 is the fewest outright but only works from exactly 72; an even count puts the resting height on a band
+        // boundary). 9 reached one octave.
+        public const int DefaultRegionCount = 15;
         public const float DefaultRegionHeightMetres = 0.045f;
         public const float DefaultHysteresisMetres = 0.010f;
 
