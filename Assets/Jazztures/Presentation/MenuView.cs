@@ -152,6 +152,8 @@ namespace Jazztures.Presentation
         private float _phaseT;
         private int _direction = 1; // +1 deeper (old drifts up), -1 shallower (old sinks)
         private float _alpha = 1f;
+        private readonly List<bool> _disabled = new List<bool>();
+        private static readonly Color DisabledText = new Color(0.50f, 0.51f, 0.55f, 1f);
         private float _offsetY;
         private bool _hasPending;
         private readonly List<string> _pendingLabels = new List<string>();
@@ -248,6 +250,22 @@ namespace Jazztures.Presentation
             // From mid-fade-in, start fading out from the alpha already reached rather than popping to full.
             BeginPhase(Phase.Out, _phase == Phase.In ? 1f - _phaseT : 0f, direction);
             RefreshAll();
+        }
+
+        /// <summary>
+        /// Cards that cannot be chosen (a lesson "Coming soon", ADR-0081) are drawn dim and flat so they read as unavailable.
+        /// Index-aligned with the labels of the next <see cref="Show"/>; null or short means every card is available.
+        /// </summary>
+        public void SetDisabledCards(IReadOnlyList<bool> disabled)
+        {
+            _disabled.Clear();
+            if (disabled != null)
+            {
+                for (int i = 0; i < disabled.Count; i++)
+                {
+                    _disabled.Add(disabled[i]);
+                }
+            }
         }
 
         public void Hide()
@@ -575,13 +593,20 @@ namespace Jazztures.Presentation
                 _plates[i].transform.localPosition = new Vector3(x, _offsetY, 0.01f);
                 _plates[i].transform.localScale = new Vector3(_cardWidthMetres * size, _cardHeightMetres * size, 1f);
 
-                Color text = Color.Lerp(Color.Lerp(_idleColor, _focusColor, focus), _pulseColor, pulse);
+                bool disabled = i < _disabled.Count && _disabled[i];
+                Color text = Color.Lerp(Color.Lerp(_idleColor, _focusColor, focus), _pulseColor, disabled ? 0f : pulse);
+                if (disabled)
+                {
+                    text = Color.Lerp(text, DisabledText, 0.85f);
+                    text.a *= 0.55f;
+                }
+
                 text.a *= fade;
                 _labels[i].color = text;
 
                 Color plate = Color.Lerp(_plateIdleColor, _plateFocusColor, focus);
-                plate = Color.Lerp(plate, _pulseColor, pulse * 0.35f);
-                plate.a = Mathf.Lerp(_plateIdleColor.a, _plateFocusColor.a, focus) * fade;
+                plate = Color.Lerp(plate, _pulseColor, (disabled ? 0f : pulse) * 0.35f);
+                plate.a = Mathf.Lerp(_plateIdleColor.a, _plateFocusColor.a, focus) * fade * (disabled ? 0.5f : 1f);
                 Write(_plates[i], plate);
             }
         }

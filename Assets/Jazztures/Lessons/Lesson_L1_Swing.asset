@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a012f129b373e64a9eda0554e10d291, type: 3}
+  m_Name: Lesson_L1_Swing
+  m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.LessonDefinition
+  _id: L1
+  _title: Swing
+  _menuDescription: Feel the swing rhythm. Play notes going up and down while the band plays.
+  _startsDirectly: 1
+  _sequence: {fileID: 11400000, guid: 29b5678724b048db9279c3714c0cefa1, type: 2}
+  _tempoBpm: 60
+  _swingRatio: 0.6667
+  _hands: 2
+  _useMetronome: 1
+  _modes: 0100000002000000

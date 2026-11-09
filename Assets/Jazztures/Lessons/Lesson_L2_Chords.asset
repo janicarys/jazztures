@@ -13,9 +13,8 @@ MonoBehaviour:
   m_Name: Lesson_L2_Chords
   m_EditorClassIdentifier: Jazztures.Lessons::Jazztures.Lessons.LessonDefinition
   _id: L2
-  _title: Chords
-  _menuDescription: Learn three chords with your left hand. Each one has its own
-    hand shape.
+  _title: Harmony
+  _menuDescription: Learn the three chord shapes of the ii-V-I and when to play them.
   _conceptExplanation: 
   _conceptSlides:
   - text: You've already played the notes of chords. Now you'll play whole chords
