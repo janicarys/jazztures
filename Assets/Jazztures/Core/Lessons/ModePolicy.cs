@@ -78,7 +78,7 @@ namespace Jazztures.Core.Lessons
 
             LearningMode.TryYourself => new ModePolicy(
                 SystemPlayback.None, ghostHandsVisible: true, UserAudioGate.OnlyWhenGestureCorrect,
-                deferFeedback: false, gateOnGesture: true),
+                deferFeedback: false, gateOnGesture: false), // the phrase never waits for the learner; audio is still the reward
 
             LearningMode.TestYourself => new ModePolicy(
                 SystemPlayback.None, ghostHandsVisible: false, UserAudioGate.Always,

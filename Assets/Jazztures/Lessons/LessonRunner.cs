@@ -55,7 +55,9 @@ namespace Jazztures.Lessons
 
         [Tooltip("Gesture-gated modes (Try Yourself, left-hand lesson): after the ghost has had " +
                  "this many beats to form a pose, the lesson holds there until the learner confirms " +
-                 "it. Match this to GhostHandView's morph beats so the ghost settles before the wait.")]
+                 "it. Match this to GhostHandView's morph beats so the ghost settles before the wait. " +
+                 "The hold never cuts the ghost's strike short: it waits until the strike has landed and " +
+                 "lifted (Ghost strike settings below) if that is later.")]
         [Min(0f)]
         [SerializeField] private float _gateSettleBeats = 1.5f;
 
@@ -601,7 +603,10 @@ namespace Jazztures.Lessons
                 return wanted;
             }
 
-            double holdAt = chordBeat + _gateSettleBeats;
+            // Hold only once the ghost has formed the pose AND struck and lifted off the pad: the demonstration
+            // never waits on the learner's match, only the move to the next chord does.
+            double holdAt = chordBeat + System.Math.Max(
+                _gateSettleBeats, _ghostStrikeAfterPoseBeats + _ghostStrikeReturnBeats);
             if (wanted <= holdAt)
             {
                 return wanted; // still letting the ghost form the pose

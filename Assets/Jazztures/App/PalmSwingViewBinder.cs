@@ -57,6 +57,15 @@ namespace Jazztures.App
 
         private void LateUpdate()
         {
+            // The lesson flow enables the right-hand input only while a lesson (or free play) that uses the right
+            // hand is running, so the interface follows it: absent from the menu and the tutorial.
+            bool active = _palmSwing.isActiveAndEnabled;
+            _view.SetShown(active);
+            if (!active)
+            {
+                return;
+            }
+
             if (_headsetSource != null && _headsetSource.LaneSet)
             {
                 _view.SetLane(_headsetSource.LaneOrigin, _headsetSource.LaneRight);

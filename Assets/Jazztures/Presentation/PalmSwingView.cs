@@ -45,6 +45,7 @@ namespace Jazztures.Presentation
         private bool _debugGuides;
         private Material _template;
         private bool _hasLane;
+        private bool _shown;
         private bool _hasPointer;
         private Vector3 _laneOrigin;
         private Vector3 _laneRight = Vector3.right;
@@ -66,6 +67,9 @@ namespace Jazztures.Presentation
                 _line.SetPosition(1, new Vector3(0f, _lineHeightMetres * 0.5f, 0f));
             }
         }
+
+        /// <summary>Show or hide the whole interface. Hidden outside lessons, like the left hand's strike plane.</summary>
+        public void SetShown(bool shown) => _shown = shown;
 
         /// <summary>Developer tuning only: draw faint lines at the region boundaries. No names, ever.</summary>
         public void SetDebugGuides(bool on) => _debugGuides = on;
@@ -156,9 +160,10 @@ namespace Jazztures.Presentation
                 return;
             }
 
-            _lineRoot.gameObject.SetActive(_hasLane);
-            _cluster.gameObject.SetActive(_hasLane);
-            if (!_hasLane)
+            bool visible = _hasLane && _shown;
+            _lineRoot.gameObject.SetActive(visible);
+            _cluster.gameObject.SetActive(visible);
+            if (!visible)
             {
                 return;
             }
