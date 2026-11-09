@@ -69,6 +69,9 @@ namespace Jazztures.Core.Menu
         /// </summary>
         public event Action<int>? Bumped;
 
+        /// <summary>The learner chose a locked card; nothing opened. The argument is its lesson index.</summary>
+        public event Action<int>? LockedChosen;
+
         /// <summary>The learner chose something that starts a run. Raised after <see cref="Changed"/>.</summary>
         public event Action<MenuIntent>? IntentRaised;
 
@@ -200,8 +203,7 @@ namespace Jazztures.Core.Menu
             switch (item.Kind)
             {
                 case MenuItemKind.Lesson:
-                    ShowModes(item.LessonIndex, null);
-                    Changed?.Invoke();
+                    OpenLesson(item.LessonIndex);
                     break;
 
                 case MenuItemKind.FreePlay:
@@ -244,6 +246,25 @@ namespace Jazztures.Core.Menu
 
                     break;
             }
+        }
+
+        private void OpenLesson(int lesson)
+        {
+            MenuLessonInfo info = _model.Lessons[lesson];
+            if (info.Locked)
+            {
+                LockedChosen?.Invoke(lesson);
+                return;
+            }
+
+            if (info.Direct)
+            {
+                BeginRun(lesson, info.Modes[0]);
+                return;
+            }
+
+            ShowModes(lesson, null);
+            Changed?.Invoke();
         }
 
         private void BeginRun(int lesson, LearningMode mode)
@@ -320,7 +341,8 @@ namespace Jazztures.Core.Menu
             _items.Clear();
             _selected = 0; // the safe card: a hand still dropping from the last phrase must not start anything
 
-            _items.Add(new MenuItem(MenuItemKind.BackToModes, _runLesson));
+            // A direct lesson has no mode screen to go back to: back is the lesson list.
+            _items.Add(new MenuItem(_model.Lessons[_runLesson].Direct ? MenuItemKind.Back : MenuItemKind.BackToModes, _runLesson));
             _items.Add(new MenuItem(MenuItemKind.Restart, _runLesson, _runMode));
 
             MenuItem? next = NextAfter(_runLesson, _runMode);
@@ -345,14 +367,21 @@ namespace Jazztures.Core.Menu
                 }
             }
 
-            if (at >= 0 && at + 1 < modes.Count)
+            if (at >= 0 && at + 1 < modes.Count && !_model.Lessons[lesson].Direct)
             {
                 return new MenuItem(MenuItemKind.Next, lesson, modes[at + 1]);
             }
 
-            if (lesson + 1 < _model.Lessons.Count)
+            for (int next = lesson + 1; next < _model.Lessons.Count; next++)
             {
-                return new MenuItem(MenuItemKind.Next, lesson + 1);
+                if (_model.Lessons[next].Locked)
+                {
+                    continue; // never lead the learner to a card that opens nothing
+                }
+
+                return _model.Lessons[next].Direct
+                    ? new MenuItem(MenuItemKind.Next, next, _model.Lessons[next].Modes[0])
+                    : new MenuItem(MenuItemKind.Next, next);
             }
 
             return null;

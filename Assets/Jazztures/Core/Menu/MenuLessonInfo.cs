@@ -13,7 +13,7 @@ namespace Jazztures.Core.Menu
     {
         private readonly LearningMode[]? _modes;
 
-        public MenuLessonInfo(IEnumerable<LearningMode> modes, double tempoBpm)
+        public MenuLessonInfo(IEnumerable<LearningMode> modes, double tempoBpm, bool locked = false, bool direct = false)
         {
             if (modes == null)
             {
@@ -32,6 +32,8 @@ namespace Jazztures.Core.Menu
             }
 
             TempoBpm = tempoBpm;
+            Locked = locked;
+            Direct = direct;
         }
 
         /// <summary>The modes the lesson offers, in the order they are listed and stepped through.</summary>
@@ -39,5 +41,13 @@ namespace Jazztures.Core.Menu
 
         /// <summary>The lesson's authored tempo, in BPM.</summary>
         public double TempoBpm { get; }
+
+        /// <summary>A card shown but not playable yet ("Coming soon"): choosing it starts nothing and opens nothing.</summary>
+        public bool Locked { get; }
+
+        /// <summary>
+        /// The lesson runs all its modes itself, in order, with no mode screen and no tempo card: choosing it starts it.
+        /// </summary>
+        public bool Direct { get; }
     }
 }

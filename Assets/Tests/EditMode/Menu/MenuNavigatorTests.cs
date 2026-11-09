@@ -575,5 +575,73 @@ namespace Jazztures.Tests.EditMode.Menu
         {
             Assert.Throws<System.ArgumentException>(() => new MenuLessonInfo(new LearningMode[0], 80));
         }
+
+        // --- Direct and locked cards (ADR-0081) ----------------------------------------------
+
+        private static MenuModel DirectAndLockedModel() => new MenuModel(
+            new[]
+            {
+                new MenuLessonInfo(new[] { LearningMode.WatchAndListen, LearningMode.TryYourself }, 60, direct: true),
+                new MenuLessonInfo(new[] { LearningMode.GestureLearning }, 80),
+                new MenuLessonInfo(new[] { LearningMode.WatchAndListen }, 80, locked: true),
+            },
+            offerFreePlay: true,
+            tempoPresets: Presets);
+
+        [Test]
+        public void ALockedCard_StartsNothing_OpensNothing_AndSaysSo()
+        {
+            Build(DirectAndLockedModel());
+            var locked = new List<int>();
+            _menu.LockedChosen += locked.Add;
+
+            OpenLesson(2);
+
+            Assert.That(_menu.Screen, Is.EqualTo(MenuScreen.Main));
+            Assert.That(_menu.IsRunning, Is.False);
+            Assert.That(_intents, Is.Empty);
+            Assert.That(locked, Is.EqualTo(new[] { 2 }));
+        }
+
+        [Test]
+        public void ADirectCard_StartsTheLessonAtOnce_WithItsFirstMode_AndNoModeScreen()
+        {
+            Build(DirectAndLockedModel());
+
+            Strike();
+
+            Assert.That(_menu.IsRunning, Is.True);
+            Assert.That(_intents, Has.Count.EqualTo(1));
+            Assert.That(_intents[0].LessonIndex, Is.EqualTo(0));
+            Assert.That(_intents[0].Mode, Is.EqualTo(LearningMode.WatchAndListen));
+            Assert.That(_intents[0].TempoBpm, Is.EqualTo(60));
+        }
+
+        [Test]
+        public void AfterADirectLesson_BackIsTheLessonList_AndThereIsNoNextMode()
+        {
+            Build(DirectAndLockedModel());
+            Strike();
+            _menu.RunCompleted();
+
+            Assert.That(_menu.Screen, Is.EqualTo(MenuScreen.PostRun));
+            Assert.That(_menu.Items[0].Kind, Is.EqualTo(MenuItemKind.Back));
+            Assert.That(_menu.Items[1].Kind, Is.EqualTo(MenuItemKind.Restart));
+            // Next is the following playable lesson (opening its mode screen), never the locked card or a mode.
+            Assert.That(_menu.Items[2].Kind, Is.EqualTo(MenuItemKind.Next));
+            Assert.That(_menu.Items[2].LessonIndex, Is.EqualTo(1));
+            Assert.That(_menu.Items[2].Mode, Is.Null);
+        }
+
+        [Test]
+        public void NextNeverLeadsToALockedCard()
+        {
+            Build(DirectAndLockedModel());
+            OpenLesson(1);          // the ordinary lesson, then its only mode
+            Strike();
+            _menu.RunCompleted();
+
+            Assert.That(_menu.Items.Count, Is.EqualTo(2)); // Back to modes, Restart - lesson 2 is locked, so no Next
+        }
     }
 }
