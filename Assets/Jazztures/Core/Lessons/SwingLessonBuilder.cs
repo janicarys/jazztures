@@ -52,47 +52,17 @@ namespace Jazztures.Core.Lessons
         /// <summary>The five steps as authored (the asset holds the same data, editable; a test keeps them equal).</summary>
         public static IReadOnlyList<SwingStepSpec> DefaultSteps() => new[]
         {
+            // Straight into swing: C up to C and back down, twice over the four bars. The first scale is Ionian (C major);
+            // the other modes are further steps once the lesson can give the regions their scale.
             new SwingStepSpec(
-                "Hear the difference",
-                new[]
-                {
-                    "Swing is the rhythm that makes jazz sound like jazz.",
-                    "Count \"1 and 2 and\". In swing, each \"1\" is long and each \"and\" is short: long-short, long-short.",
-                },
-                new[] { "1 2 3 4", "1 2 3 4", "1 2 3 4", "1 2 3 4" },
-                straightBars: 2,
-                new[] { WL, WL }),
-
-            new SwingStepSpec(
-                "Ascending sequence",
+                "Ionian",
                 new[]
                 {
                     "Use your right hand. Open your palm, facing left.",
                     "Move your hand up and down to choose a note. Swing it across the line to play.",
-                    "Follow the circles: they show how high to be and when to swing.",
+                    "Follow the circles: they show how high to be and when to swing. Go up, then back down.",
                 },
-                new[] { "1 2 3 4", "2 3 4 5", "3 4 5 6", "4 5 6 7" },
-                straightBars: 0,
-                new[] { WL, TY, WL, TY }),
-
-            new SwingStepSpec(
-                "Descending sequence",
-                new[] { "Use your right hand. Now the same idea, going down." },
-                new[] { "8 7 6 5", "7 6 5 4", "6 5 4 3", "5 4 3 2" },
-                straightBars: 0,
-                new[] { WL, TY, WL, TY }),
-
-            new SwingStepSpec(
-                "Up and down",
-                new[] { "Use your right hand. Up, then down. Keep the long-short feel." },
-                new[] { "1 2 3 4", "5 4 3 2", "3 4 5 6", "7 6 5 4" },
-                straightBars: 0,
-                new[] { WL, TY, WL, TY }),
-
-            new SwingStepSpec(
-                "The full run",
-                new[] { "Use your right hand. Last one: one long run up, then back down, swinging all the way." },
-                new[] { "1 2 3 4 5 6 7 8", "8 7 6 5 4 3 2 1", string.Empty, string.Empty },
+                new[] { "1 2 3 4 5 6 7 8", "8 7 6 5 4 3 2 1", "1 2 3 4 5 6 7 8", "8 7 6 5 4 3 2 1" },
                 straightBars: 0,
                 new[] { WL, TY, WL, TY }),
         };

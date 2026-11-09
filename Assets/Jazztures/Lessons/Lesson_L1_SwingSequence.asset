@@ -18,57 +18,16 @@ MonoBehaviour:
   _regionCount: 9
   _cardSeconds: 6
   _steps:
-  - name: Hear the difference
-    cards:
-    - 'Swing is the rhythm that makes jazz sound like jazz.'
-    - 'Count "1 and 2 and". In swing, each "1" is long and each "and" is short: long-short, long-short.'
-    bars:
-    - '1 2 3 4'
-    - '1 2 3 4'
-    - '1 2 3 4'
-    - '1 2 3 4'
-    straightBars: 2
-    modes: 0100000001000000
-  - name: Ascending sequence
+  - name: Ionian
     cards:
     - 'Use your right hand. Open your palm, facing left.'
     - 'Move your hand up and down to choose a note. Swing it across the line to play.'
-    - 'Follow the circles: they show how high to be and when to swing.'
-    bars:
-    - '1 2 3 4'
-    - '2 3 4 5'
-    - '3 4 5 6'
-    - '4 5 6 7'
-    straightBars: 0
-    modes: 01000000020000000100000002000000
-  - name: Descending sequence
-    cards:
-    - 'Use your right hand. Now the same idea, going down.'
-    bars:
-    - '8 7 6 5'
-    - '7 6 5 4'
-    - '6 5 4 3'
-    - '5 4 3 2'
-    straightBars: 0
-    modes: 01000000020000000100000002000000
-  - name: Up and down
-    cards:
-    - 'Use your right hand. Up, then down. Keep the long-short feel.'
-    bars:
-    - '1 2 3 4'
-    - '5 4 3 2'
-    - '3 4 5 6'
-    - '7 6 5 4'
-    straightBars: 0
-    modes: 01000000020000000100000002000000
-  - name: The full run
-    cards:
-    - 'Use your right hand. Last one: one long run up, then back down, swinging all the way.'
+    - 'Follow the circles: they show how high to be and when to swing. Go up, then back down.'
     bars:
     - '1 2 3 4 5 6 7 8'
     - '8 7 6 5 4 3 2 1'
-    - ''
-    - ''
+    - '1 2 3 4 5 6 7 8'
+    - '8 7 6 5 4 3 2 1'
     straightBars: 0
     modes: 01000000020000000100000002000000
   _closingCards:

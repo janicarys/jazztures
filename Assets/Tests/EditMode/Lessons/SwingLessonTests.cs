@@ -119,52 +119,39 @@ namespace Jazztures.Tests.EditMode.Lessons
             Assert.Throws<System.FormatException>(() => SwingPatternText.ParseBar(text));
 
         [Test]
-        public void TheDefaultSteps_AreFiveSteps_OfFourBars_WithTheListedNoteCounts()
+        public void TheLesson_GoesStraightIntoSwing_WithOneIonianStepOfFourBars()
         {
             IReadOnlyList<SwingStepSpec> steps = SwingLessonBuilder.DefaultSteps();
 
-            Assert.That(steps, Has.Count.EqualTo(5));
-            foreach (SwingStepSpec step in steps)
-            {
-                Assert.That(step.Bars, Has.Count.EqualTo(4), step.Name);
-            }
-
-            int[][] expected =
-            {
-                new[] { 4, 4, 4, 4 }, new[] { 4, 4, 4, 4 }, new[] { 4, 4, 4, 4 }, new[] { 4, 4, 4, 4 }, new[] { 8, 8, 0, 0 },
-            };
-            for (int s = 0; s < steps.Count; s++)
-            {
-                int[] counts = steps[s].Bars.Select(b => SwingPatternText.ParseBar(b).Count).ToArray();
-                Assert.That(counts, Is.EqualTo(expected[s]), steps[s].Name);
-            }
+            Assert.That(steps, Has.Count.EqualTo(1));
+            Assert.That(steps[0].Name, Is.EqualTo("Ionian"));
+            Assert.That(steps[0].Bars, Has.Count.EqualTo(4));
+            Assert.That(steps[0].StraightBars, Is.EqualTo(0), "no straight half: the lesson swings from the first note");
         }
 
         [Test]
-        public void TheDefaultPatterns_AreTheOnesInTheBrief()
+        public void TheIonianStep_RunsCUpToCAndBackDown_EightNotesABar()
         {
-            IReadOnlyList<SwingStepSpec> steps = SwingLessonBuilder.DefaultSteps();
+            SwingStepSpec step = SwingLessonBuilder.DefaultSteps()[0];
 
-            Assert.That(steps[1].Bars, Is.EqualTo(new[] { "1 2 3 4", "2 3 4 5", "3 4 5 6", "4 5 6 7" }));
-            Assert.That(steps[2].Bars, Is.EqualTo(new[] { "8 7 6 5", "7 6 5 4", "6 5 4 3", "5 4 3 2" }));
-            Assert.That(steps[3].Bars, Is.EqualTo(new[] { "1 2 3 4", "5 4 3 2", "3 4 5 6", "7 6 5 4" }));
-            Assert.That(steps[4].Bars.Take(2), Is.EqualTo(new[] { "1 2 3 4 5 6 7 8", "8 7 6 5 4 3 2 1" }));
-            Assert.That(steps[0].StraightBars, Is.EqualTo(2));
+            Assert.That(step.Bars, Is.EqualTo(new[]
+            {
+                "1 2 3 4 5 6 7 8", "8 7 6 5 4 3 2 1", "1 2 3 4 5 6 7 8", "8 7 6 5 4 3 2 1",
+            }));
+            Assert.That(step.Bars.Select(b => SwingPatternText.ParseBar(b).Count), Is.EqualTo(new[] { 8, 8, 8, 8 }));
+
+            LessonTimeline timeline = SwingLessonBuilder.BuildTimeline(step, Sixty, TwoThirds);
+            int[] midi = timeline.Notes.Take(8).Select(n => n.MidiPitch).ToArray();
+            Assert.That(midi, Is.EqualTo(new[] { 60, 62, 64, 65, 67, 69, 71, 72 })); // C4 up to C5
         }
 
         [Test]
-        public void ARunningStep_AlternatesWatchAndTry_TwiceAndTheListeningStepNeverTries()
+        public void TheStep_AlternatesWatchAndTry_Twice()
         {
-            IReadOnlyList<SwingStepSpec> steps = SwingLessonBuilder.DefaultSteps();
-
-            Assert.That(steps[0].Modes, Has.None.EqualTo(LearningMode.TryYourself));
-            for (int s = 1; s < 5; s++)
+            Assert.That(SwingLessonBuilder.DefaultSteps()[0].Modes, Is.EqualTo(new[]
             {
-                Assert.That(steps[s].Modes, Is.EqualTo(new[]
-                {
-                    LearningMode.WatchAndListen, LearningMode.TryYourself, LearningMode.WatchAndListen, LearningMode.TryYourself,
-                }));
-            }
+                LearningMode.WatchAndListen, LearningMode.TryYourself, LearningMode.WatchAndListen, LearningMode.TryYourself,
+            }));
         }
 
         [Test]
