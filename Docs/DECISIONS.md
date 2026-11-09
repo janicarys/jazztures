@@ -8,6 +8,41 @@ Status legend: **Accepted** · **Superseded** · **Proposed**
 
 ---
 
+## ADR-0081 — New lesson structure (menu) and a sample Swing lesson
+
+**Date:** 2026-11-09 · **Status:** **Proposed — exploration, not a thesis decision.** Lives on `explore/swing-lesson` (cut from `explore/swing-slices`); must not be merged as one · **Source:** the 6 Nov 2026 adviser meeting (lessons to sit closer to ImproVisAR) and the Session 4 findings (80 BPM too fast; participants missed when to start; the swing comparison was too short; the card did not say which hand) · `CLAUDE.md` is deliberately **not** edited.
+
+### The new menu
+Five cards replace the old five: **1 Swing** (right hand, playable), **2 Harmony** (left hand, playable: the existing Chords lesson, only its card title and description changed), **3 Two-hand swing**, **4 Sequences**, **5 Motifs** (locked, "Coming soon"; placeholder `LessonDefinition` assets). Every card names its hand(s). A locked card is drawn dim and flat and does nothing when chosen (`MenuLessonInfo.Locked`, `MenuNavigator.LockedChosen`); "Next" after a run never leads to one. The old lessons (Chord tones, Swing (old), Guided play, Antecedent–consequent) keep their assets and are no longer in the catalog. Free play is unchanged.
+
+### Watch/Try alternation lives inside the lesson
+The Swing card is a direct card (`MenuLessonInfo.Direct`): choosing it starts the lesson, with no mode screen and no tempo card. A step runs its four bars as Watch and Listen, Try Yourself, Watch and Listen, Try Yourself (ImproVisAR's 4 + 4, twice), by listing `[WL, TY, WL, TY]` in the step's modes and running the lesson's whole plan, which the runner already supports. Other lessons keep the mode menu.
+
+### A lesson sequence as data
+`LessonSequence` (a `ScriptableObject`) holds five steps: cards, four bars of pattern text, leading straight bars, modes. A pattern bar is eight eighth slots, each a scale degree 1–9 (C4 … D5) or `-` for a rest, so editing a pattern is editing text in the inspector. `SwingLessonBuilder` (pure `Core`) bakes a step into a `LessonTimeline`: the system loops Dm7 | G7 | Cmaj7 | Cmaj7, comped on beats 1 and 3 (the existing playback has no pattern of its own: it sounds a chord on each authored chord change, so the comp is authored as chord changes every two beats), with the step's notes on top. `LessonFlowController` runs the steps one after another, building each as a run-time `LessonDefinition`, so `LessonRunner` plays a phase exactly as before.
+
+### Per-lesson pitch set
+`LessonDefinition` gains a pitch-set override: the swing-slices default (chord tones, retuned per chord), `CMajorScale` (lowest note + region count), or a fixed list. Swing uses **the C major scale on 9 regions, C4 … D5, never retuned**: stepwise runs are what the lesson teaches, and the scale fits all three chords, so nothing changes under the hand when the chord does. The pipeline's `ApplyOverride` rebuilds its layout (9 regions, not the default 15) and pitches; it is cleared when the lesson stops. Notes gain an optional fixed MIDI pitch (a scale degree is not a chord-tone slot) and a "straight" flag (the listening step plays 2 bars with even eighths, then 2 swung, in a swung lesson).
+
+### Fixed 60 BPM, an audible count-in, and swing
+60 BPM and not steppable (Session 4). Each phase has an audible four-click count-in: the metronome starts at the top of the existing silent lead-in (`audibleCountIn`). Swing is 2/3 (triplet), stored 0.6667; the repo's older swing lesson used 0.66. The system's chords sound on the lesson's own beats (`chordsOnTheBeat`): in other right-hand lessons the system's playback trails the ghost's strike by two beats so the chord lands as the hand does, which would put this band two beats off the metronome, so the left ghost is off here and there is no lead.
+
+### Circles
+Lesson circles are plain, unlabelled discs at the height of the note's region that slide toward the trigger line and reach it on the note's swung beat (`NoteCueSchedule` from the timeline, `PalmSwingView.SetCues`). They did not exist (ADR-0080 lists them as not built). Nothing names a note. The listening step's "Straight" / "Swing" word is a cue on the HUD's ordinary caption.
+
+### Not done / not verified
+- **Nothing was run in Unity or on a headset.** The Core tests pass (1019). The `Lessons`, `Presentation`, `App` and `Input` code compiles in a scratch project; the assets are hand-written YAML and the Unity-only asset tests (`Assets/Tests/EditModeUnity`) have not been run.
+- Two swung notes a beat apart at 60 BPM are 667 ms then 333 ms apart; whether that is comfortable with a swing gesture, whether 4.5 cm × 9 regions is reachable for a stepwise run, and how the circles read against the line (travel speed, look-ahead) are all unknown.
+- The straight/swing word shows for the caption's ordinary hold, not for the exact two bars.
+- Cards are not skippable after the first time (no hook exists); a follow-up.
+- Locked cards are drawn dim; the look needs a check on the headset.
+- `[TUNABLE]`: the card time (6 s), the circle look-ahead/travel/diameter, the pattern text, the comping. None is a finding.
+
+### Thesis and paper
+The lesson list, "Lessons 1–3 are straight, Lesson 4 introduces swing", the single Watch/Try mode menu per lesson, "right-hand targets show a letter", the chord-tone right hand and the default 80 BPM no longer describe this build; Chapters 4 and 6 need matching wording if it stays.
+
+---
+
 ## ADR-0080 — Right-hand input: swing slices (height regions) exploration
 
 **Date:** 2026-11-07 · **Status:** **Proposed — prototype for comparison only.** Lives on `explore/swing-slices` (cut from
