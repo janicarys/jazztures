@@ -733,7 +733,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &297105953
 Transform:
   m_ObjectHideFlags: 0
@@ -768,6 +768,8 @@ MonoBehaviour:
   _follow: {fileID: 698819752}
   _openPose: {fileID: 11400000, guid: 624119ac0ea674340aa55cbb128bf684, type: 2}
   _fistPose: {fileID: 11400000, guid: d0f94a2c050fc9f45b4a52127318d458, type: 2}
+  _swingView: {fileID: 1785984403}
+  _palmLeftPose: {fileID: 11400000, guid: 2574d55bf7453444a9b4bfa3bb4a7828, type: 2}
   _stationMetres: {x: 0.25, y: -0.3, z: 0.45}
   _config: {fileID: 0}
   _restCurl: 0.12

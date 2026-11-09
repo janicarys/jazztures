@@ -66,6 +66,30 @@ namespace Jazztures.Presentation
         [Tooltip("The bend: the V capture, a fist. A pressing finger moves from the open pose toward this one.")]
         [SerializeField] private GhostPoseAsset _fistPose;
 
+        [Header("Swing slices (ADR-0081)")]
+        [Tooltip("The swing-slice interface the lesson circles live on. When set, and a lesson supplies circles, the ghost " +
+                 "demonstrates the swing: palm facing left, up to each circle height, then across the line on its beat.")]
+        [SerializeField] private PalmSwingView _swingView;
+
+        [Tooltip("The open hand with the palm facing the learner right, as the left hand ii pose; mirrored it is the right " +
+                 "hand palm facing left.")]
+        [SerializeField] private GhostPoseAsset _palmLeftPose;
+
+        [Tooltip("How far in front of the line (toward the learner) the ghost wrist hovers, metres.")]
+        [Min(0f)] [SerializeField] private float _swingStandoffMetres = 0.38f;
+
+        [Tooltip("How far to the right of the line the hand waits, metres.")]
+        [Min(0f)] [SerializeField] private float _swingWaitMetres = 0.10f;
+
+        [Tooltip("How far to the left of the line the hand swings, metres.")]
+        [Min(0f)] [SerializeField] private float _swingThroughMetres = 0.06f;
+
+        [Tooltip("Beats the swing takes to reach the line, and again to come back. Short: it is a flick.")]
+        [Min(0.02f)] [SerializeField] private float _swingBeats = 0.12f;
+
+        [Tooltip("How quickly the hand moves to the next circle height (per second; bigger is snappier).")]
+        [Min(1f)] [SerializeField] private float _heightFollowRate = 14f;
+
         [Header("Where it hovers (heading frame, from the head: x right, y up, z forward; metres)")]
         [SerializeField] private Vector3 _stationMetres = new Vector3(0.25f, -0.30f, 0.45f);
 
@@ -111,6 +135,10 @@ namespace Jazztures.Presentation
         private Renderer[] _renderers;
         private bool _ready;
         private bool _visible;
+        private HandPose _palmLeft;
+        private Quaternion _palmLeftWrist = Quaternion.identity;
+        private float _swingHeight;
+        private bool _hasSwingHeight;
 
         private void Awake()
         {
@@ -143,6 +171,12 @@ namespace Jazztures.Presentation
 
                 _wrist = _openPose.RightWristRotationHeadLocal;
                 _ready = _head != null;
+            }
+
+            if (_palmLeftPose != null)
+            {
+                _palmLeft = _palmLeftPose.CreateRightHandPose();
+                _palmLeftWrist = _palmLeftPose.RightWristRotationHeadLocal;
             }
 
             // Every letter the ghost can show, named once: the letters change as the cue moves from finger to
@@ -195,6 +229,13 @@ namespace Jazztures.Presentation
 
         private void OnGhost(GhostFrame frame)
         {
+            // A lesson with circles on the swing line (ADR-0081): the ghost shows the swing, not finger presses.
+            if (_swingView != null && _palmLeft != null && frame.NoteCues != null && _ready)
+            {
+                ShowSwing(frame);
+                return;
+            }
+
             bool shown = _ready && frame.Visible && (_follow == null || _follow.isActiveAndEnabled);
             SetVisible(shown);
 
@@ -243,6 +284,66 @@ namespace Jazztures.Presentation
             }
 
             PlaceLabels(true, dt);
+        }
+
+        // The open palm, facing left, waits just right of the line at the height of the next circle and flicks across
+        // the line as each one arrives, so the learner sees where to be and when to swing.
+        private void ShowSwing(GhostFrame frame)
+        {
+            if (!frame.Visible || !_swingView.HasLane || frame.NoteCues.Count == 0)
+            {
+                SetVisible(false);
+                _hasSwingHeight = false;
+                return;
+            }
+
+            SetVisible(true);
+            for (int f = 0; f < FingerCount; f++)
+            {
+                _depth[f] = 0f;
+            }
+
+            _scratch.CopyFrom(_palmLeft);
+            _puppet.SetJointRotations(_scratch.JointRotations);
+            PlaceLabels(false, Time.deltaTime);
+
+            NoteCueSchedule cues = frame.NoteCues;
+            double beat = frame.MelodyBeat;
+
+            // The note being flicked now (within the swing's own length of its beat) and the next to aim at.
+            int next = cues.FirstAtOrAfter(beat - _swingBeats);
+            double nearest = double.MaxValue;
+            for (int i = Mathf.Max(0, next - 1); i < cues.Count && i <= next; i++)
+            {
+                nearest = System.Math.Min(nearest, System.Math.Abs(cues.OnsetBeat(i) - beat));
+            }
+
+            float flick = nearest >= _swingBeats ? 0f : 1f - (float)(nearest / _swingBeats); // 0 waiting, 1 on the line
+
+            float targetHeight = _swingHeight;
+            for (int i = next; i < cues.Count; i++)
+            {
+                if (cues.MidiPitch(i) != TimelineNote.NoPitch && _swingView.TryRegionHeight(cues.MidiPitch(i), out float y))
+                {
+                    targetHeight = y;
+                    break;
+                }
+            }
+
+            _swingHeight = _hasSwingHeight
+                ? Mathf.Lerp(_swingHeight, targetHeight, 1f - Mathf.Exp(-_heightFollowRate * Time.deltaTime))
+                : targetHeight;
+            _hasSwingHeight = true;
+
+            Quaternion yaw = GhostHandView.YawOnly(_head);
+            Vector3 forward = yaw * Vector3.forward;
+            float across = Mathf.Lerp(_swingWaitMetres, -_swingThroughMetres, flick); // + is the learner right of the line
+            Vector3 wrist = _swingView.LaneOrigin
+                + _swingView.LaneRight * across
+                + Vector3.up * _swingHeight
+                - forward * _swingStandoffMetres;
+
+            _puppet.SetRootPose(new Pose(wrist, yaw * _palmLeftWrist));
         }
 
         /// <summary>

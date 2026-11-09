@@ -106,6 +106,31 @@ namespace Jazztures.Presentation
         /// <summary>Show or hide the whole interface. Hidden outside lessons, like the left hand's strike plane.</summary>
         public void SetShown(bool shown) => _shown = shown;
 
+        /// <summary>True once the trigger line has been placed in the world.</summary>
+        public bool HasLane => _hasLane;
+
+        /// <summary>Where the middle of the trigger line stands, world space.</summary>
+        public Vector3 LaneOrigin => _laneOrigin;
+
+        /// <summary>The horizontal left-to-right axis of the lane.</summary>
+        public Vector3 LaneRight => _laneRight;
+
+        /// <summary>
+        /// The height above the lane origin of the region that plays <paramref name="midi"/>, for a ghost hand to go to.
+        /// False before a pipeline is bound or when no region plays that pitch.
+        /// </summary>
+        public bool TryRegionHeight(int midi, out float heightMetres)
+        {
+            heightMetres = 0f;
+            if (_pipeline == null || !_pipeline.Pitches.TryRegionOf(new Pitch(midi), out int region))
+            {
+                return false;
+            }
+
+            heightMetres = _pipeline.Layout.CentreOf(region);
+            return true;
+        }
+
         /// <summary>Developer tuning only: draw faint lines at the region boundaries. No names, ever.</summary>
         public void SetDebugGuides(bool on) => _debugGuides = on;
 
