@@ -1,4 +1,6 @@
+using Jazztures.Core.Lessons;
 using Jazztures.Core.Melody;
+using Jazztures.Core.Music;
 using UnityEngine;
 
 namespace Jazztures.Presentation
@@ -20,6 +22,7 @@ namespace Jazztures.Presentation
         private const float DimAlpha = 0.25f;
         private const float GuideWidthMetres = 0.04f;
         private const int MaxGuides = 17;
+        private const int MaxCircles = 12;
 
         [SerializeField] private Transform _head;
 
@@ -35,7 +38,27 @@ namespace Jazztures.Presentation
         [Tooltip("Hint shown while the gate is closed. Plain words: no theory vocabulary.")]
         [SerializeField] private string _hint = "open palm, facing left";
 
+        [Header("Lesson circles (ADR-0081)")]
+        [Tooltip("How many beats ahead a circle first appears. It then travels to the line, reaching it on its note's beat.")]
+        [Min(0.5f)] [SerializeField] private float _circleLookAheadBeats = 3f;
+
+        [Tooltip("How far a circle travels in one beat, metres. The circle is this many metres per beat from the line.")]
+        [Min(0.02f)] [SerializeField] private float _circleMetresPerBeat = 0.15f;
+
+        [Tooltip("How long a circle lingers on the line after its beat, in beats, fading out.")]
+        [Min(0f)] [SerializeField] private float _circleLingerBeats = 0.25f;
+
+        [Tooltip("Circle diameter as a fraction of one region's height. Under 1 so neighbouring circles do not touch.")]
+        [Range(0.3f, 1f)] [SerializeField] private float _circleDiameterFraction = 0.8f;
+
+        [Tooltip("Which side the circles come from: 1 = the right of the line (the palm faces left, so the swing goes that way), -1 = the left.")]
+        [SerializeField] private float _circleSide = 1f;
+
         private SwingSlicesPipeline _pipeline;
+        private MeshRenderer[] _circles;
+        private NoteCueSchedule _cues = NoteCueSchedule.None;
+        private double _cueBeat;
+        private bool _hasCues;
         private Transform _lineRoot;
         private Transform _cluster;
         private LineRenderer _line;
@@ -66,6 +89,17 @@ namespace Jazztures.Presentation
                 _line.SetPosition(0, new Vector3(0f, -_lineHeightMetres * 0.5f, 0f));
                 _line.SetPosition(1, new Vector3(0f, _lineHeightMetres * 0.5f, 0f));
             }
+        }
+
+        /// <summary>
+        /// The phrase's notes and where it is now (<c>GhostFrame.NoteCues</c> and <c>MelodyBeat</c>): the circles are drawn from
+        /// these. Null cues clear the circles. They show only for notes with a fixed pitch that lands on a region.
+        /// </summary>
+        public void SetCues(NoteCueSchedule cues, double beat)
+        {
+            _hasCues = cues != null && cues.Count > 0;
+            _cues = cues ?? NoteCueSchedule.None;
+            _cueBeat = beat;
         }
 
         /// <summary>Show or hide the whole interface. Hidden outside lessons, like the left hand's strike plane.</summary>
@@ -149,6 +183,21 @@ namespace Jazztures.Presentation
                 _guides[g] = renderer;
             }
 
+            _circles = new MeshRenderer[MaxCircles];
+            Mesh disc = Disc();
+            for (int c = 0; c < _circles.Length; c++)
+            {
+                var go = new GameObject($"Lesson Circle {c}");
+                go.transform.SetParent(transform, worldPositionStays: false);
+                go.AddComponent<MeshFilter>().sharedMesh = disc;
+                MeshRenderer renderer = go.AddComponent<MeshRenderer>();
+                renderer.sharedMaterial = _template;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                go.SetActive(false);
+                _circles[c] = renderer;
+            }
+
             _lineRoot.gameObject.SetActive(false);
             _cluster.gameObject.SetActive(false);
         }
@@ -165,6 +214,7 @@ namespace Jazztures.Presentation
             _cluster.gameObject.SetActive(visible);
             if (!visible)
             {
+                HideCircles(0);
                 return;
             }
 
@@ -183,6 +233,7 @@ namespace Jazztures.Presentation
 
             SetShape(_cursor, true, gate);
             UpdateGuides(gate);
+            UpdateCircles(gate);
 
             _hintText.gameObject.SetActive(!_pipeline.GateOpen);
             _hintText.color = new Color(1f, 1f, 1f, 0.8f);
@@ -199,6 +250,60 @@ namespace Jazztures.Presentation
             if (away.sqrMagnitude > 1e-4f)
             {
                 root.rotation = Quaternion.LookRotation(away.normalized, Vector3.up);
+            }
+        }
+
+        // A circle per upcoming note, plain and unlabelled: it sits at its region's height and slides in toward the line so
+        // it reaches it on the note's swung beat - the same onset the sound uses. Nothing names the note.
+        private void UpdateCircles(float gate)
+        {
+            int used = 0;
+            if (_hasCues && _pipeline.Layout != null)
+            {
+                int first = _cues.FirstAtOrAfter(_cueBeat - _circleLingerBeats);
+                float diameter = _pipeline.Layout.RegionHeightMetres * _circleDiameterFraction;
+                Vector3 up = Vector3.up;
+                for (int i = first; i < _cues.Count && used < _circles.Length; i++)
+                {
+                    double ahead = _cues.OnsetBeat(i) - _cueBeat;
+                    if (ahead > _circleLookAheadBeats)
+                    {
+                        break;
+                    }
+
+                    int midi = _cues.MidiPitch(i);
+                    if (midi == TimelineNote.NoPitch || !_pipeline.Pitches.TryRegionOf(new Pitch(midi), out int region))
+                    {
+                        continue;
+                    }
+
+                    float fade = ahead >= 0.0
+                        ? Mathf.Clamp01((float)((_circleLookAheadBeats - ahead) / 0.5)) // eases in as it appears
+                        : Mathf.Clamp01((float)(1.0 + ahead / Mathf.Max(0.01f, _circleLingerBeats)));
+                    Vector3 position = _laneOrigin
+                        + _laneRight * (_circleSide * (float)ahead * _circleMetresPerBeat)
+                        + up * _pipeline.Layout.CentreOf(region);
+
+                    MeshRenderer circle = _circles[used++];
+                    circle.gameObject.SetActive(true);
+                    Face(circle.transform, position);
+                    circle.transform.localScale = new Vector3(diameter, diameter, 1f);
+                    float flash = ahead < 0.0 ? 1f : 0.8f; // brighter once it is on the line
+                    circle.material.color = new Color(1f, 1f, 1f, 0.9f * flash * fade * gate);
+                }
+            }
+
+            HideCircles(used);
+        }
+
+        private void HideCircles(int from)
+        {
+            for (int c = from; c < _circles.Length; c++)
+            {
+                if (_circles[c].gameObject.activeSelf)
+                {
+                    _circles[c].gameObject.SetActive(false);
+                }
             }
         }
 

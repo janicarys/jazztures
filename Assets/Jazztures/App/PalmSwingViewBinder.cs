@@ -1,4 +1,6 @@
 using Jazztures.Config;
+using Jazztures.Core.Lessons;
+using Jazztures.Events;
 using Jazztures.Input;
 using Jazztures.Presentation;
 using UnityEngine;
@@ -27,6 +29,30 @@ namespace Jazztures.App
         [SerializeField] private PalmSwingView _view;
         [SerializeField] private PalmSwingSettings _settings;
         [SerializeField] private Transform _head;
+
+        [Tooltip("The lesson runner's ghost frames: the circles for the lesson's notes come from them (ADR-0081). Optional.")]
+        [SerializeField] private GhostFrameChannel _ghostChannel;
+
+        private void OnEnable() => _ghostChannel?.Register(OnGhost);
+
+        private void OnDisable() => _ghostChannel?.Unregister(OnGhost);
+
+        private void OnGhost(GhostFrame frame)
+        {
+            if (_view == null)
+            {
+                return;
+            }
+
+            if (frame.Visible && frame.NoteCues != null)
+            {
+                _view.SetCues(frame.NoteCues, frame.MelodyBeat);
+            }
+            else
+            {
+                _view.SetCues(null, 0.0);
+            }
+        }
 
         private void Start()
         {

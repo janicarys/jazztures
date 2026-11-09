@@ -100,6 +100,15 @@ namespace Jazztures.Experiments.Editor
             if (flow != null)
             {
                 Set(flow, "_melodyInput", inputSwitch);
+
+                // ADR-0081: the lesson flow hands a lesson's own region pitches to this pipeline, and the view draws the
+                // lesson's circles from the runner's ghost frames.
+                Set(flow, "_palmSwing", input);
+                Object runner = new SerializedObject(flow).FindProperty("_runner").objectReferenceValue;
+                Object ghostChannel = runner != null
+                    ? new SerializedObject(runner).FindProperty("_ghostChannel").objectReferenceValue
+                    : null;
+                Set(binder, "_ghostChannel", ghostChannel);
             }
             else
             {
